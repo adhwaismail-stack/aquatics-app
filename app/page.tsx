@@ -14,9 +14,9 @@ export default function Home() {
           <a href="#disciplines" className="hover:text-blue-600">Disciplines</a>
           <a href="#pricing" className="hover:text-blue-600">Pricing</a>
         </div>
-        <button className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+        <a href="/pricing" className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
           Start Free Trial
-        </button>
+        </a>
       </nav>
 
       {/* Hero */}
@@ -34,12 +34,12 @@ export default function Home() {
           No guessing. No internet. Just the rules.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button className="bg-blue-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-blue-700">
+          <a href="/pricing" className="bg-blue-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-blue-700">
             Start 7-Day Free Trial
-          </button>
-          <button className="border border-gray-200 text-gray-700 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-50">
+          </a>
+          <a href="#pricing" className="border border-gray-200 text-gray-700 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-50">
             See Pricing
-          </button>
+          </a>
         </div>
         <p className="text-sm text-gray-400 mt-4">No charge for 7 days. Cancel anytime.</p>
       </section>
@@ -160,9 +160,9 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full border border-blue-600 text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50">
+              <a href="/pricing" className="block w-full text-center border border-blue-600 text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50">
                 Start Free Trial
-              </button>
+              </a>
             </div>
 
             <div className="bg-blue-600 p-8 rounded-xl border border-blue-600">
@@ -189,9 +189,9 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <button className="w-full bg-white text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50">
+              <a href="/pricing" className="block w-full text-center bg-white text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50">
                 Start Free Trial
-              </button>
+              </a>
             </div>
           </div>
         </div>
