@@ -144,7 +144,7 @@ export default function Home() {
               <h3 className="font-bold text-xl text-gray-900 mb-2">Starter</h3>
               <p className="text-gray-500 text-sm mb-6">For officials who officiate one sport</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-gray-900">RM 9.99</span>
+                <span className="text-4xl font-bold text-gray-900">RM 11.99</span>
                 <span className="text-gray-400 text-sm">/month</span>
               </div>
               <ul className="space-y-3 mb-8">
@@ -172,7 +172,7 @@ export default function Home() {
               <h3 className="font-bold text-xl text-white mb-2">All Disciplines</h3>
               <p className="text-blue-200 text-sm mb-6">For multi-sport officials and coaches</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-white">RM 24.99</span>
+                <span className="text-4xl font-bold text-white">RM 27.99</span>
                 <span className="text-blue-200 text-sm">/month</span>
               </div>
               <ul className="space-y-3 mb-8">
