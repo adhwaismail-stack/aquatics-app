@@ -8,10 +8,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!
-})
-
 const SYSTEM_PROMPT = `You are an AI assistant for World Aquatics Technical Officials.
 
 STRICT RULES — follow these without exception:
@@ -28,11 +24,15 @@ You are helping Technical Officials, coaches and parents understand World Aquati
 
 export async function POST(request: NextRequest) {
   try {
-    const { question, discipline, userEmail } = await request.json()
-
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY!
     })
+
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY!
+    })
+
+    const { question, discipline, userEmail } = await request.json()
 
     if (!question || !discipline) {
       return NextResponse.json(
