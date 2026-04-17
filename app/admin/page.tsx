@@ -54,7 +54,7 @@ STRICT RULES:
       const fileName = `${discipline}/${Date.now()}_${file.name}`
 
       const { data: signedData, error: signedError } = await supabase.storage
-        .from('rulebooks')
+        .from('rulebook')
         .createSignedUploadUrl(fileName)
 
       if (signedError || !signedData) {
@@ -63,7 +63,7 @@ STRICT RULES:
 
       setUploadProgress('Uploading file directly to storage...')
 
-      // Step 2: Upload directly to Supabase (completely bypasses Vercel)
+      // Step 2: Upload directly to Supabase (bypasses Vercel completely)
       const uploadResponse = await fetch(signedData.signedUrl, {
         method: 'PUT',
         headers: { 'Content-Type': file.type || 'application/pdf' },
@@ -152,7 +152,6 @@ STRICT RULES:
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -171,8 +170,6 @@ STRICT RULES:
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Total subscribers', value: '0' },
@@ -187,7 +184,6 @@ STRICT RULES:
           ))}
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6">
           {['rulebooks', 'system prompt', 'subscribers', 'chat logs'].map((tab) => (
             <button
@@ -204,7 +200,6 @@ STRICT RULES:
           ))}
         </div>
 
-        {/* Rulebooks tab */}
         {activeTab === 'rulebooks' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
@@ -261,7 +256,6 @@ STRICT RULES:
           </div>
         )}
 
-        {/* System prompt tab */}
         {activeTab === 'system prompt' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">System Prompt Editor</h2>
@@ -288,7 +282,6 @@ STRICT RULES:
           </div>
         )}
 
-        {/* Subscribers tab */}
         {activeTab === 'subscribers' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-6">Subscribers</h2>
@@ -300,7 +293,6 @@ STRICT RULES:
           </div>
         )}
 
-        {/* Chat logs tab */}
         {activeTab === 'chat logs' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-6">Chat Logs</h2>
@@ -311,7 +303,6 @@ STRICT RULES:
             </div>
           </div>
         )}
-
       </div>
     </div>
   )

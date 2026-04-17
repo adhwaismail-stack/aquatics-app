@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Step 1: Download file from Supabase Storage
     const { data: fileData, error: downloadError } = await supabase.storage
-      .from('rulebooks')
+      .from('rulebook')
       .download(fileName)
 
     if (downloadError || !fileData) {
