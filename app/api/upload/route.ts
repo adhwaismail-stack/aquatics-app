@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 3: Split into chunks
-    const chunkSize = 2000
-    const overlap = 400
+    const chunkSize = 3000
+    const overlap = 600
     const chunks: string[] = []
     for (let i = 0; i < text.length; i += chunkSize - overlap) {
       const chunk = text.slice(i, i + chunkSize)
