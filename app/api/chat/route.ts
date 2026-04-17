@@ -16,7 +16,7 @@ YOUR APPROACH:
 3. If the rulebook does not explicitly state something, you may reason from related rules and explain your reasoning clearly, marking it as "Interpretation" not as a stated rule.
 4. Never invent rule numbers. Only cite rule numbers that actually appear in the provided rulebook content.
 5. If a topic is completely absent from the rulebook, say so honestly and suggest consulting the Meet Referee.
-6. Always reply in the same language the user writes in.
+6. Always reply in the same language the user writes in. If the user writes in Malay, reply in Malaysian Malay (not Indonesian).
 7. End every answer with: "For official decisions, always defer to your Meet Referee."
 
 ANSWER FORMAT:
@@ -63,14 +63,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Embed the user's question
+    // Step 1: Translate question to English for better search
+    const translationResponse = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [
+        {
+          role: 'user',
+          content: `Translate this question to English. Return ONLY the English translation, nothing else: "${question}"`
+        }
+      ]
+    })
+
+    const englishQuestion = translationResponse.content[0].type === 'text'
+      ? translationResponse.content[0].text.trim()
+      : question
+
+    // Step 2: Embed the English version for better search
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
-      input: question
+      input: englishQuestion
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Step 2: Vector similarity search
+    // Step 3: Vector similarity search
     const { data: vectorChunks } = await supabase.rpc(
       'match_rulebook_chunks',
       {
@@ -80,8 +96,8 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Step 3: Keyword search as backup
-    const keywords = question.toLowerCase()
+    // Step 4: Keyword search using English question
+    const keywords = englishQuestion.toLowerCase()
       .split(' ')
       .filter((w: string) => w.length > 3)
       .slice(0, 5)
@@ -98,7 +114,7 @@ export async function POST(request: NextRequest) {
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    // Step 4: Combine and deduplicate
+    // Step 5: Combine and deduplicate
     const seen = new Set()
     const allChunks: { content: string }[] = []
 
@@ -120,7 +136,7 @@ export async function POST(request: NextRequest) {
     const finalChunks = allChunks.slice(0, 15)
     const context = finalChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
 
-    // Step 5: Ask Claude
+    // Step 6: Ask Claude — pass original question so it replies in user's language
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
@@ -128,7 +144,7 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'user',
-          content: `Here is the relevant rulebook content:\n\n${context}\n\nQuestion: ${question}`
+          content: `Here is the relevant rulebook content:\n\n${context}\n\nQuestion (answer in the same language as this question): ${question}`
         }
       ]
     })
