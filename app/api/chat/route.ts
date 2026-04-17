@@ -64,32 +64,59 @@ export async function POST(request: NextRequest) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Step 2: Find most relevant chunks using vector similarity
-    const { data: chunks, error: searchError } = await supabase.rpc(
+    // Step 2: Vector similarity search
+    const { data: vectorChunks } = await supabase.rpc(
       'match_rulebook_chunks',
       {
         query_embedding: queryEmbedding,
         match_discipline: discipline,
-        match_count: 15
+        match_count: 10
       }
     )
 
-    if (searchError) {
-      console.error('Search error:', searchError)
-      throw searchError
+    // Step 3: Keyword search as backup
+    const keywords = question.toLowerCase()
+      .split(' ')
+      .filter((w: string) => w.length > 3)
+      .slice(0, 5)
+
+    let keywordChunks: { content: string }[] = []
+    for (const keyword of keywords) {
+      const { data } = await supabase
+        .from('rulebook_chunks')
+        .select('content')
+        .eq('discipline', discipline)
+        .ilike('content', `%${keyword}%`)
+        .limit(3)
+
+      if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    if (!chunks || chunks.length === 0) {
+    // Step 4: Combine and deduplicate both results
+    const seen = new Set()
+    const allChunks: { content: string }[] = []
+
+    for (const chunk of [...(vectorChunks || []), ...keywordChunks]) {
+      if (!seen.has(chunk.content)) {
+        seen.add(chunk.content)
+        allChunks.push(chunk)
+      }
+    }
+
+    if (allChunks.length === 0) {
       return NextResponse.json(
         { error: 'No rulebook found for this discipline. Please contact admin.' },
         { status: 404 }
       )
     }
 
-    // Step 3: Build context from chunks
-    const context = chunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
+    // Limit to 15 chunks maximum
+    const finalChunks = allChunks.slice(0, 15)
 
-    // Step 4: Ask Claude with the retrieved context
+    // Step 5: Build context
+    const context = finalChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
+
+    // Step 6: Ask Claude
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
