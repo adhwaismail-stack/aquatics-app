@@ -47,25 +47,36 @@ STRICT RULES:
     const code = discipline.toUpperCase()
     setUploading(code)
     setUploadSuccess(null)
-    setUploadProgress('Uploading file to storage...')
+    setUploadProgress('Preparing upload...')
 
     try {
-      // Step 1: Upload file directly to Supabase Storage (bypasses Vercel limit)
+      // Step 1: Get a signed URL from Supabase
       const fileName = `${discipline}/${Date.now()}_${file.name}`
-      const { error: storageError } = await supabase.storage
-        .from('rulebooks')
-        .upload(fileName, file, {
-          contentType: file.type || 'application/pdf',
-          upsert: true
-        })
 
-      if (storageError) {
-        throw new Error(`Storage upload failed: ${storageError.message}`)
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('rulebooks')
+        .createSignedUploadUrl(fileName)
+
+      if (signedError || !signedData) {
+        throw new Error(`Could not create upload URL: ${signedError?.message}`)
       }
 
-      setUploadProgress('File uploaded! Now processing and generating embeddings...')
+      setUploadProgress('Uploading file directly to storage...')
 
-      // Step 2: Tell the API to process the file from storage
+      // Step 2: Upload directly to Supabase (completely bypasses Vercel)
+      const uploadResponse = await fetch(signedData.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/pdf' },
+        body: file
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Direct upload failed: ${uploadResponse.statusText}`)
+      }
+
+      setUploadProgress('File uploaded! Now generating AI embeddings...')
+
+      // Step 3: Tell API to process the file from storage
       const response = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
