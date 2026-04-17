@@ -1,8 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 
 const ADMIN_PASSWORD = 'aquaref-admin-2026'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default function AdminPage() {
   const [password, setPassword] = useState('')
@@ -11,6 +17,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('rulebooks')
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<string>('')
   const [systemPrompt, setSystemPrompt] = useState(`You are an AI assistant for World Aquatics Technical Officials.
 
 STRICT RULES:
@@ -40,27 +47,48 @@ STRICT RULES:
     const code = discipline.toUpperCase()
     setUploading(code)
     setUploadSuccess(null)
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('discipline', discipline)
+    setUploadProgress('Uploading file to storage...')
 
     try {
+      // Step 1: Upload file directly to Supabase Storage (bypasses Vercel limit)
+      const fileName = `${discipline}/${Date.now()}_${file.name}`
+      const { error: storageError } = await supabase.storage
+        .from('rulebooks')
+        .upload(fileName, file, {
+          contentType: file.type || 'application/pdf',
+          upsert: true
+        })
+
+      if (storageError) {
+        throw new Error(`Storage upload failed: ${storageError.message}`)
+      }
+
+      setUploadProgress('File uploaded! Now processing and generating embeddings...')
+
+      // Step 2: Tell the API to process the file from storage
       const response = await fetch('/api/upload', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName,
+          discipline,
+          originalName: file.name
+        })
       })
 
       const data = await response.json()
 
       if (data.success) {
         setUploadSuccess(code)
+        setUploadProgress('')
         alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}`)
       } else {
-        alert('Upload failed: ' + data.error)
+        throw new Error(data.error)
       }
-    } catch {
-      alert('Upload failed. Please try again.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      alert('Upload failed: ' + message)
+      setUploadProgress('')
     }
 
     setUploading(null)
@@ -170,6 +198,13 @@ STRICT RULES:
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
             <p className="text-sm text-gray-400 mb-6">Upload PDF or TXT files for each discipline</p>
+
+            {uploadProgress && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">
+                ⏳ {uploadProgress}
+              </div>
+            )}
+
             <div className="grid md:grid-cols-2 gap-4">
               {[
                 { name: 'Swimming', code: 'SW', discipline: 'swimming' },
@@ -205,6 +240,7 @@ STRICT RULES:
                       type="file"
                       accept=".pdf,.txt"
                       className="hidden"
+                      disabled={uploading !== null}
                       onChange={(e) => handleUpload(e, d.discipline)}
                     />
                   </label>

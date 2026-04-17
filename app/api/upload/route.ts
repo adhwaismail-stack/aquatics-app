@@ -16,48 +16,40 @@ export async function POST(request: NextRequest) {
       apiKey: process.env.OPENAI_API_KEY!
     })
 
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-    const discipline = formData.get('discipline') as string
+    const { fileName, discipline, originalName } = await request.json()
 
-    if (!file || !discipline) {
+    if (!fileName || !discipline) {
       return NextResponse.json(
-        { error: 'File and discipline are required' },
+        { error: 'fileName and discipline are required' },
         { status: 400 }
       )
     }
 
-    // Step 1: Upload PDF to Supabase Storage
-    const fileName = `${discipline}/${Date.now()}_${file.name}`
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-
-    const { error: uploadError } = await supabase.storage
+    // Step 1: Download file from Supabase Storage
+    const { data: fileData, error: downloadError } = await supabase.storage
       .from('rulebooks')
-      .upload(fileName, buffer, {
-        contentType: file.type || 'application/pdf',
-        upsert: true
-      })
+      .download(fileName)
 
-    if (uploadError) {
-      console.error('Storage upload error:', uploadError)
-      throw new Error(`Storage upload failed: ${uploadError.message}`)
+    if (downloadError || !fileData) {
+      throw new Error(`Failed to download file: ${downloadError?.message}`)
     }
 
-    // Step 2: Extract text from the file
+    // Step 2: Extract text
+    const arrayBuffer = await fileData.arrayBuffer()
+    const uint8Array = new Uint8Array(arrayBuffer)
+
     let text = ''
-    if (file.name.endsWith('.txt')) {
-      text = buffer.toString('utf-8')
+    if (originalName.endsWith('.txt')) {
+      text = Buffer.from(arrayBuffer).toString('utf-8')
     } else {
       const { extractText } = await import('unpdf')
-      const uint8Array = new Uint8Array(bytes)
       const { text: extractedText } = await extractText(uint8Array, { mergePages: true })
       text = extractedText
     }
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Could not extract text from file. Please ensure it is a text-based PDF.' },
+        { error: 'Could not extract text from file.' },
         { status: 400 }
       )
     }
@@ -73,13 +65,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 4: Delete old chunks for this discipline
+    // Step 4: Delete old chunks
     await supabase
       .from('rulebook_chunks')
       .delete()
       .eq('discipline', discipline)
 
-    // Step 5: Generate embeddings in batches of 20 and save
+    // Step 5: Generate embeddings in batches of 20
     const batchSize = 20
     let totalSaved = 0
 
@@ -95,7 +87,7 @@ export async function POST(request: NextRequest) {
         discipline,
         content,
         chunk_index: i + j,
-        source_file: file.name,
+        source_file: originalName,
         embedding: embeddingResponse.data[j].embedding
       }))
 
@@ -103,17 +95,14 @@ export async function POST(request: NextRequest) {
         .from('rulebook_chunks')
         .insert(rows)
 
-      if (error) {
-        console.error('Insert error:', error)
-        throw error
-      }
+      if (error) throw error
 
       totalSaved += batch.length
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully processed ${chunks.length} chunks from ${file.name} with embeddings`,
+      message: `Successfully processed ${chunks.length} chunks`,
       chunks: chunks.length,
       discipline
     })
