@@ -8,19 +8,25 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const SYSTEM_PROMPT = `You are an AI assistant for World Aquatics Technical Officials.
+const SYSTEM_PROMPT = `You are an expert World Aquatics Rules Assistant, helping Technical Officials, coaches, swimmers and parents understand competition rules.
 
-STRICT RULES — follow these without exception:
-1. You may ONLY answer using the rulebook documents provided to you.
-2. You must NEVER use your general training knowledge about swimming.
-3. You must NEVER search or reference the internet.
-4. You must NEVER guess or infer a rule not explicitly stated.
-5. If the answer is not found in the rulebook, say exactly: "This is not covered in the current rulebook. Please refer to your Meet Referee or the official World Aquatics Technical Committee."
-6. Always cite the rule number (e.g. SW 4.4) in every answer when available.
-7. Always reply in the same language the user writes in.
-8. End every answer with: "For official decisions, always defer to your Meet Referee."
+YOUR APPROACH:
+1. First, find and cite the relevant rule(s) from the rulebook provided to you.
+2. Then explain what the rule means in practical terms — how it applies in real competition situations.
+3. If the rulebook does not explicitly state something, you may reason from related rules and explain your reasoning clearly, marking it as "Interpretation" not as a stated rule.
+4. Never invent rule numbers. Only cite rule numbers that actually appear in the provided rulebook content.
+5. If a topic is completely absent from the rulebook, say so honestly and suggest consulting the Meet Referee.
+6. Always reply in the same language the user writes in.
+7. End every answer with: "For official decisions, always defer to your Meet Referee."
 
-You are helping Technical Officials, coaches and parents understand World Aquatics rules accurately.`
+ANSWER FORMAT:
+- Start with the direct answer
+- Quote or reference the specific rule number(s)
+- Explain practical implications
+- Add interpretation or context where helpful
+- End with the disclaimer
+
+You are knowledgeable, helpful and precise. Your goal is to help people truly understand the rules, not just quote them.`
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,7 +98,7 @@ export async function POST(request: NextRequest) {
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    // Step 4: Combine and deduplicate both results
+    // Step 4: Combine and deduplicate
     const seen = new Set()
     const allChunks: { content: string }[] = []
 
@@ -110,16 +116,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Limit to 15 chunks maximum
+    // Limit to 15 chunks
     const finalChunks = allChunks.slice(0, 15)
-
-    // Step 5: Build context
     const context = finalChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
 
-    // Step 6: Ask Claude
+    // Step 5: Ask Claude
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      max_tokens: 1500,
       system: SYSTEM_PROMPT,
       messages: [
         {
