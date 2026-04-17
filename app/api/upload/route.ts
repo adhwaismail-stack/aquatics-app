@@ -7,12 +7,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!
-})
-
 export async function POST(request: NextRequest) {
   try {
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY!
+    })
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const discipline = formData.get('discipline') as string
