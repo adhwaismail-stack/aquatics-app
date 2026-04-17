@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       {
         query_embedding: queryEmbedding,
         match_discipline: discipline,
-        match_count: 8
+        match_count: 15
       }
     )
 
