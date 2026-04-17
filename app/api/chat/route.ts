@@ -8,26 +8,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const SYSTEM_PROMPT = `You are an expert World Aquatics Rules Assistant, helping Technical Officials, coaches, swimmers and parents understand competition rules.
-
-YOUR APPROACH:
-1. First, find and cite the relevant rule(s) from the rulebook provided to you.
-2. Then explain what the rule means in practical terms — how it applies in real competition situations.
-3. If the rulebook does not explicitly state something, you may reason from related rules and explain your reasoning clearly, marking it as "Interpretation" not as a stated rule.
-4. Never invent rule numbers. Only cite rule numbers that actually appear in the provided rulebook content.
-5. If a topic is completely absent from the rulebook, say so honestly and suggest consulting the Meet Referee.
-6. Always reply in the same language the user writes in. If the user writes in Malay, you MUST reply in Malaysian Malay (Bahasa Malaysia) — NOT Indonesian. Malaysian Malay uses words like "sukan" not "olahraga", "perlawanan" not "pertandingan", "atlet" is acceptable but use "peserta" where possible, "wasit" not "hakim", "peraturan" not "aturan", "mestilah" not "harus".ways reply in the same language the user writes in. If the user writes in Malay, reply in Malaysian Malay (not Indonesian).
-7. End every answer with: "For official decisions, always defer to your Meet Referee."
-
-ANSWER FORMAT:
-- Start with the direct answer
-- Quote or reference the specific rule number(s)
-- Explain practical implications
-- Add interpretation or context where helpful
-- End with the disclaimer
-
-You are knowledgeable, helpful and precise. Your goal is to help people truly understand the rules, not just quote them.`
-
 export async function POST(request: NextRequest) {
   try {
     const openai = new OpenAI({
@@ -63,7 +43,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Translate question to English for better search
+    // Step 1: Get system prompt from database
+    const { data: promptData } = await supabase
+      .from('system_prompts')
+      .select('prompt')
+      .eq('discipline', 'all')
+      .single()
+
+    const systemPrompt = promptData?.prompt || 'You are a World Aquatics Rules Assistant. Answer only from the rulebook provided. Always cite rule numbers. End with: "For official decisions, always defer to your Meet Referee."'
+
+    // Step 2: Translate question to English for better search
     const translationResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 200,
@@ -79,14 +68,14 @@ export async function POST(request: NextRequest) {
       ? translationResponse.content[0].text.trim()
       : question
 
-    // Step 2: Embed the English version for better search
+    // Step 3: Embed the English version for better search
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: englishQuestion
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Step 3: Vector similarity search
+    // Step 4: Vector similarity search
     const { data: vectorChunks } = await supabase.rpc(
       'match_rulebook_chunks',
       {
@@ -96,7 +85,7 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Step 4: Keyword search using English question
+    // Step 5: Keyword search using English question
     const keywords = englishQuestion.toLowerCase()
       .split(' ')
       .filter((w: string) => w.length > 3)
@@ -114,7 +103,21 @@ export async function POST(request: NextRequest) {
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    // Step 5: Combine and deduplicate
+    // Step 6: Get relevant correction notes
+    const { data: corrections } = await supabase
+      .from('correction_notes')
+      .select('question, correct_note')
+      .eq('discipline', discipline)
+
+    // Find corrections relevant to this question
+    const relevantCorrections = (corrections || []).filter(c =>
+      keywords.some(keyword =>
+        c.question.toLowerCase().includes(keyword) ||
+        c.correct_note.toLowerCase().includes(keyword)
+      )
+    )
+
+    // Step 7: Combine and deduplicate chunks
     const seen = new Set()
     const allChunks: { content: string }[] = []
 
@@ -136,15 +139,20 @@ export async function POST(request: NextRequest) {
     const finalChunks = allChunks.slice(0, 15)
     const context = finalChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
 
-    // Step 6: Ask Claude — pass original question so it replies in user's language
+    // Step 8: Add correction notes to context if any
+    const correctionsContext = relevantCorrections.length > 0
+      ? `\n\nADMIN CORRECTION NOTES (these override rulebook interpretation if relevant):\n${relevantCorrections.map(c => `Q: ${c.question}\nCorrection: ${c.correct_note}`).join('\n\n')}`
+      : ''
+
+    // Step 9: Ask Claude
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',
-          content: `Here is the relevant rulebook content:\n\n${context}\n\nQuestion (answer in the same language as this question): ${question}`
+          content: `Here is the relevant rulebook content:\n\n${context}${correctionsContext}\n\nQuestion (answer in the same language as this question): ${question}`
         }
       ]
     })
@@ -158,7 +166,8 @@ export async function POST(request: NextRequest) {
       user_email: userEmail,
       discipline,
       question,
-      answer
+      answer,
+      created_at: new Date().toISOString()
     })
 
     // Update daily usage
