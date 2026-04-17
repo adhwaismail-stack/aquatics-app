@@ -27,9 +27,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Step 1: Upload PDF to Supabase Storage
+    const fileName = `${discipline}/${Date.now()}_${file.name}`
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
+    const { error: uploadError } = await supabase.storage
+      .from('rulebooks')
+      .upload(fileName, buffer, {
+        contentType: file.type || 'application/pdf',
+        upsert: true
+      })
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError)
+      throw new Error(`Storage upload failed: ${uploadError.message}`)
+    }
+
+    // Step 2: Extract text from the file
     let text = ''
     if (file.name.endsWith('.txt')) {
       text = buffer.toString('utf-8')
@@ -47,7 +62,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Split into chunks
+    // Step 3: Split into chunks
     const chunkSize = 1000
     const overlap = 200
     const chunks: string[] = []
@@ -58,26 +73,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Delete old chunks for this discipline
+    // Step 4: Delete old chunks for this discipline
     await supabase
       .from('rulebook_chunks')
       .delete()
       .eq('discipline', discipline)
 
-    // Generate embeddings in batches of 20 and save
+    // Step 5: Generate embeddings in batches of 20 and save
     const batchSize = 20
     let totalSaved = 0
 
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize)
 
-      // Generate embeddings for this batch
       const embeddingResponse = await openai.embeddings.create({
         model: 'text-embedding-3-small',
         input: batch
       })
 
-      // Build rows with embeddings
       const rows = batch.map((content, j) => ({
         discipline,
         content,
@@ -86,7 +99,6 @@ export async function POST(request: NextRequest) {
         embedding: embeddingResponse.data[j].embedding
       }))
 
-      // Save to Supabase
       const { error } = await supabase
         .from('rulebook_chunks')
         .insert(rows)
@@ -97,7 +109,6 @@ export async function POST(request: NextRequest) {
       }
 
       totalSaved += batch.length
-      console.log(`Saved ${totalSaved}/${chunks.length} chunks...`)
     }
 
     return NextResponse.json({
