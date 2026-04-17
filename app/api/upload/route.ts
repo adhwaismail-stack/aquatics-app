@@ -10,6 +10,63 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Smart chunking — splits by article numbers like 7.1, 7.2, SW 4.1 etc
+function smartChunk(text: string): string[] {
+  // Clean up the text first
+  const cleaned = text
+    .replace(/\s+/g, ' ')  // normalize whitespace
+    .replace(/\.{4,}/g, '') // remove dot leaders from table of contents
+    .trim()
+
+  // Split by article number patterns like "7.1 ", "SW 4.1 ", "2.5.3 " etc
+  const articlePattern = /(?=(?:SW\s+)?\d+\.\d+(?:\.\d+)?\s+[A-Z])/g
+  const parts = cleaned.split(articlePattern)
+
+  const chunks: string[] = []
+
+  for (const part of parts) {
+    const trimmed = part.trim()
+
+    // Skip empty parts, dot leaders, and very short parts
+    if (
+      trimmed.length < 100 ||
+      trimmed.replace(/\./g, '').trim().length < 50
+    ) continue
+
+    // If part is small enough, keep as is
+    if (trimmed.length <= 3000) {
+      chunks.push(trimmed)
+    } else {
+      // If too long, split further by sentences keeping overlap
+      const sentences = trimmed.match(/[^.!?]+[.!?]+/g) || [trimmed]
+      let current = ''
+      for (const sentence of sentences) {
+        if ((current + sentence).length > 3000) {
+          if (current.trim().length > 100) chunks.push(current.trim())
+          current = sentence
+        } else {
+          current += ' ' + sentence
+        }
+      }
+      if (current.trim().length > 100) chunks.push(current.trim())
+    }
+  }
+
+  // If smart chunking produced too few chunks, fall back to regular chunking
+  if (chunks.length < 5) {
+    const chunkSize = 2000
+    const overlap = 400
+    const fallback: string[] = []
+    for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
+      const chunk = cleaned.slice(i, i + chunkSize).trim()
+      if (chunk.length > 100) fallback.push(chunk)
+    }
+    return fallback
+  }
+
+  return chunks
+}
+
 export async function POST(request: NextRequest) {
   try {
     const openai = new OpenAI({
@@ -54,15 +111,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 3: Split into chunks
-    const chunkSize = 3000
-    const overlap = 600
-    const chunks: string[] = []
-    for (let i = 0; i < text.length; i += chunkSize - overlap) {
-      const chunk = text.slice(i, i + chunkSize)
-      if (chunk.trim().length > 50) {
-        chunks.push(chunk.trim())
-      }
+    // Step 3: Smart chunking by article numbers
+    const chunks = smartChunk(text)
+
+    if (chunks.length === 0) {
+      return NextResponse.json(
+        { error: 'Could not extract any content from file.' },
+        { status: 400 }
+      )
     }
 
     // Step 4: Delete old chunks
