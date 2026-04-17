@@ -9,6 +9,8 @@ export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState('rulebooks')
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [systemPrompt, setSystemPrompt] = useState(`You are an AI assistant for World Aquatics Technical Officials.
 
 STRICT RULES:
@@ -29,6 +31,39 @@ STRICT RULES:
     } else {
       setError('Incorrect password')
     }
+  }
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, discipline: string) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const code = discipline.toUpperCase()
+    setUploading(code)
+    setUploadSuccess(null)
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('discipline', discipline)
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setUploadSuccess(code)
+        alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}`)
+      } else {
+        alert('Upload failed: ' + data.error)
+      }
+    } catch {
+      alert('Upload failed. Please try again.')
+    }
+
+    setUploading(null)
   }
 
   const handleSavePrompt = () => {
@@ -115,7 +150,7 @@ STRICT RULES:
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
-          {['rulebooks', 'system prompt', 'subscribers'].map((tab) => (
+          {['rulebooks', 'system prompt', 'subscribers', 'chat logs'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -133,15 +168,16 @@ STRICT RULES:
         {/* Rulebooks tab */}
         {activeTab === 'rulebooks' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
-            <h2 className="font-semibold text-gray-900 mb-6">Rulebook Management</h2>
+            <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
+            <p className="text-sm text-gray-400 mb-6">Upload PDF or TXT files for each discipline</p>
             <div className="grid md:grid-cols-2 gap-4">
               {[
-                { name: 'Swimming', code: 'SW', live: true },
-                { name: 'Water Polo', code: 'WP', live: true },
-                { name: 'Artistic Swimming', code: 'AS', live: false },
-                { name: 'Diving', code: 'DV', live: false },
-                { name: 'High Diving', code: 'HD', live: false },
-                { name: 'Masters Swimming', code: 'MS', live: false },
+                { name: 'Swimming', code: 'SW', discipline: 'swimming' },
+                { name: 'Water Polo', code: 'WP', discipline: 'waterpolo' },
+                { name: 'Artistic Swimming', code: 'AS', discipline: 'artistic' },
+                { name: 'Diving', code: 'DV', discipline: 'diving' },
+                { name: 'High Diving', code: 'HD', discipline: 'highdiving' },
+                { name: 'Masters Swimming', code: 'MS', discipline: 'masters' },
               ].map((d) => (
                 <div key={d.code} className="border border-gray-100 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -150,19 +186,28 @@ STRICT RULES:
                       <p className="text-xs text-gray-400">{d.code} Rules</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      d.live ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'
+                      uploadSuccess === d.code
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-400'
                     }`}>
-                      {d.live ? 'Live' : 'Not uploaded'}
+                      {uploadSuccess === d.code ? 'Uploaded ✓' : 'Not uploaded'}
                     </span>
                   </div>
-                  <div className="flex gap-2">
-                    <label className="flex-1 cursor-pointer">
-                      <div className="w-full text-center border border-blue-200 text-blue-600 py-2 rounded-lg text-sm hover:bg-blue-50">
-                        Upload PDF
-                      </div>
-                      <input type="file" accept=".pdf" className="hidden" />
-                    </label>
-                  </div>
+                  <label className="flex-1 cursor-pointer block">
+                    <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${
+                      uploading === d.code
+                        ? 'border-gray-200 text-gray-400'
+                        : 'border-blue-200 text-blue-600 hover:bg-blue-50'
+                    }`}>
+                      {uploading === d.code ? 'Processing...' : 'Upload PDF or TXT'}
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf,.txt"
+                      className="hidden"
+                      onChange={(e) => handleUpload(e, d.discipline)}
+                    />
+                  </label>
                 </div>
               ))}
             </div>
@@ -204,6 +249,18 @@ STRICT RULES:
               <p className="text-4xl mb-4">👥</p>
               <p className="font-medium text-gray-500">No subscribers yet</p>
               <p className="text-sm mt-1">Your first subscriber will appear here</p>
+            </div>
+          </div>
+        )}
+
+        {/* Chat logs tab */}
+        {activeTab === 'chat logs' && (
+          <div className="bg-white rounded-xl border border-gray-100 p-6">
+            <h2 className="font-semibold text-gray-900 mb-6">Chat Logs</h2>
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-4xl mb-4">💬</p>
+              <p className="font-medium text-gray-500">No conversations yet</p>
+              <p className="text-sm mt-1">User conversations will appear here once the AI chat is active</p>
             </div>
           </div>
         )}
