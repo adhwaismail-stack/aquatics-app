@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     // Find corrections relevant to this question
     const relevantCorrections = (corrections || []).filter(c =>
-      keywords.some(keyword =>
+           keywords.some((keyword: string) =>
         c.question.toLowerCase().includes(keyword) ||
         c.correct_note.toLowerCase().includes(keyword)
       )
