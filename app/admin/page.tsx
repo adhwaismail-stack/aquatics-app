@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const ADMIN_PASSWORD = 'aquaref-admin-2026'
@@ -10,6 +10,23 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+interface ChatLog {
+  id: string
+  user_email: string
+  discipline: string
+  question: string
+  answer: string
+  created_at: string
+}
+
+interface CorrectionNote {
+  id: string
+  discipline: string
+  question: string
+  correct_note: string
+  created_at: string
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState('')
   const [authenticated, setAuthenticated] = useState(false)
@@ -18,26 +35,92 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string>('')
-  const [systemPrompt, setSystemPrompt] = useState(`You are an AI assistant for World Aquatics Technical Officials.
-
-STRICT RULES:
-1. Only answer using the rulebook documents provided.
-2. Never use general training knowledge about swimming.
-3. Never search or reference the internet.
-4. Never guess or infer a rule not explicitly stated.
-5. If answer not found, say: "This is not covered in the current rulebook. Please refer to your Meet Referee."
-6. Always cite the rule number (e.g. SW 4.4) in every answer.
-7. Always reply in the same language the user writes in.
-8. End every answer with: "For official decisions, always defer to your Meet Referee."`)
+  const [systemPrompt, setSystemPrompt] = useState('')
   const [promptSaved, setPromptSaved] = useState(false)
+  const [promptLoading, setPromptLoading] = useState(false)
+  const [chatLogs, setChatLogs] = useState<ChatLog[]>([])
+  const [corrections, setCorrections] = useState<CorrectionNote[]>([])
+  const [selectedLog, setSelectedLog] = useState<ChatLog | null>(null)
+  const [correctionText, setCorrectionText] = useState('')
+  const [savingCorrection, setSavingCorrection] = useState(false)
+  const [logsLoading, setLogsLoading] = useState(false)
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
       setAuthenticated(true)
       setError('')
+      loadSystemPrompt()
     } else {
       setError('Incorrect password')
     }
+  }
+
+  const loadSystemPrompt = async () => {
+    setPromptLoading(true)
+    const { data } = await supabase
+      .from('system_prompts')
+      .select('prompt')
+      .eq('discipline', 'all')
+      .single()
+    if (data) setSystemPrompt(data.prompt)
+    setPromptLoading(false)
+  }
+
+  const loadChatLogs = async () => {
+    setLogsLoading(true)
+    const { data } = await supabase
+      .from('chat_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (data) setChatLogs(data)
+    setLogsLoading(false)
+  }
+
+  const loadCorrections = async () => {
+    const { data } = await supabase
+      .from('correction_notes')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (data) setCorrections(data)
+  }
+
+  useEffect(() => {
+    if (activeTab === 'chat logs') loadChatLogs()
+    if (activeTab === 'corrections') loadCorrections()
+  }, [activeTab])
+
+  const handleSavePrompt = async () => {
+    setPromptLoading(true)
+    await supabase
+      .from('system_prompts')
+      .update({ prompt: systemPrompt, updated_at: new Date().toISOString() })
+      .eq('discipline', 'all')
+    setPromptLoading(false)
+    setPromptSaved(true)
+    setTimeout(() => setPromptSaved(false), 3000)
+  }
+
+  const handleAddCorrection = async () => {
+    if (!selectedLog || !correctionText.trim()) return
+    setSavingCorrection(true)
+    await supabase.from('correction_notes').insert({
+      discipline: selectedLog.discipline,
+      question: selectedLog.question,
+      wrong_answer: selectedLog.answer,
+      correct_note: correctionText.trim()
+    })
+    setSavingCorrection(false)
+    setCorrectionText('')
+    setSelectedLog(null)
+    alert('✅ Correction saved! Future similar questions will use this correction.')
+    loadCorrections()
+  }
+
+  const handleDeleteCorrection = async (id: string) => {
+    if (!confirm('Delete this correction?')) return
+    await supabase.from('correction_notes').delete().eq('id', id)
+    loadCorrections()
   }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, discipline: string) => {
@@ -50,7 +133,6 @@ STRICT RULES:
     setUploadProgress('Preparing upload...')
 
     try {
-      // Step 1: Get a signed URL from Supabase
       const fileName = `${discipline}/${Date.now()}_${file.name}`
 
       const { data: signedData, error: signedError } = await supabase.storage
@@ -63,7 +145,6 @@ STRICT RULES:
 
       setUploadProgress('Uploading file directly to storage...')
 
-      // Step 2: Upload directly to Supabase (bypasses Vercel completely)
       const uploadResponse = await fetch(signedData.signedUrl, {
         method: 'PUT',
         headers: { 'Content-Type': file.type || 'application/pdf' },
@@ -76,7 +157,6 @@ STRICT RULES:
 
       setUploadProgress('File uploaded! Now generating AI embeddings...')
 
-      // Step 3: Tell API to process the file from storage
       const response = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -103,11 +183,6 @@ STRICT RULES:
     }
 
     setUploading(null)
-  }
-
-  const handleSavePrompt = () => {
-    setPromptSaved(true)
-    setTimeout(() => setPromptSaved(false), 3000)
   }
 
   if (!authenticated) {
@@ -170,12 +245,14 @@ STRICT RULES:
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
+
+        {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Total subscribers', value: '0' },
             { label: 'Active today', value: '0' },
-            { label: 'Questions today', value: '0' },
-            { label: 'Monthly revenue', value: 'RM 0' },
+            { label: 'Questions today', value: chatLogs.filter(l => l.created_at?.startsWith(new Date().toISOString().split('T')[0])).length.toString() },
+            { label: 'Corrections saved', value: corrections.length.toString() },
           ].map((s, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 text-center">
               <div className="text-2xl font-bold text-blue-600">{s.value}</div>
@@ -184,8 +261,9 @@ STRICT RULES:
           ))}
         </div>
 
-        <div className="flex gap-2 mb-6">
-          {['rulebooks', 'system prompt', 'subscribers', 'chat logs'].map((tab) => (
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {['rulebooks', 'system prompt', 'chat logs', 'corrections', 'subscribers'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -200,6 +278,7 @@ STRICT RULES:
           ))}
         </div>
 
+        {/* Rulebooks tab */}
         {activeTab === 'rulebooks' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
@@ -256,32 +335,189 @@ STRICT RULES:
           </div>
         )}
 
+        {/* System Prompt tab */}
         {activeTab === 'system prompt' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">System Prompt Editor</h2>
             <p className="text-sm text-gray-400 mb-4">
-              This is the instruction set the AI follows for every answer. Edit carefully.
+              This controls how the AI behaves for ALL disciplines. Changes apply immediately to new conversations.
             </p>
-            <textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              rows={14}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
-            />
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-xs text-gray-400">
-                Changes apply immediately to all new conversations
-              </p>
-              <button
-                onClick={handleSavePrompt}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
-              >
-                {promptSaved ? 'Saved! ✓' : 'Save Changes'}
-              </button>
-            </div>
+            {promptLoading ? (
+              <div className="text-center py-8 text-gray-400">Loading...</div>
+            ) : (
+              <>
+                <textarea
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  rows={16}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                />
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-xs text-gray-400">
+                    Tip: Add TC clarifications or rule corrections directly here
+                  </p>
+                  <button
+                    onClick={handleSavePrompt}
+                    disabled={promptLoading}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {promptSaved ? 'Saved! ✓' : 'Save Changes'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
+        {/* Chat Logs tab */}
+        {activeTab === 'chat logs' && (
+          <div className="bg-white rounded-xl border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-semibold text-gray-900">Chat Logs</h2>
+              <button
+                onClick={loadChatLogs}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {logsLoading ? (
+              <div className="text-center py-8 text-gray-400">Loading...</div>
+            ) : chatLogs.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-4xl mb-4">💬</p>
+                <p className="font-medium text-gray-500">No conversations yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {chatLogs.map((log) => (
+                  <div key={log.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full capitalize">
+                          {log.discipline}
+                        </span>
+                        <span className="text-xs text-gray-400">{log.user_email}</span>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {new Date(log.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
+                    <p className="text-sm text-gray-500 line-clamp-2">A: {log.answer}</p>
+                    <button
+                      onClick={() => {
+                        setSelectedLog(log)
+                        setCorrectionText('')
+                      }}
+                      className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium"
+                    >
+                      ✏️ Add Correction
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Correction Modal */}
+            {selectedLog && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl p-6 max-w-lg w-full">
+                  <h3 className="font-semibold text-gray-900 mb-4">Add Correction Note</h3>
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Original question:</p>
+                    <p className="text-sm text-gray-700">{selectedLog.question}</p>
+                  </div>
+                  <div className="mb-4 p-3 bg-red-50 rounded-lg">
+                    <p className="text-xs text-red-500 mb-1">Wrong/incomplete answer:</p>
+                    <p className="text-sm text-gray-700 line-clamp-3">{selectedLog.answer}</p>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Correct information / clarification:
+                    </label>
+                    <textarea
+                      value={correctionText}
+                      onChange={(e) => setCorrectionText(e.target.value)}
+                      rows={4}
+                      placeholder="Type the correct answer or clarification here..."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setSelectedLog(null)}
+                      className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddCorrection}
+                      disabled={savingCorrection || !correctionText.trim()}
+                      className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {savingCorrection ? 'Saving...' : 'Save Correction'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Corrections tab */}
+        {activeTab === 'corrections' && (
+          <div className="bg-white rounded-xl border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-semibold text-gray-900">Correction Notes</h2>
+                <p className="text-sm text-gray-400 mt-1">These override AI answers for similar questions</p>
+              </div>
+              <button
+                onClick={loadCorrections}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {corrections.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-4xl mb-4">✏️</p>
+                <p className="font-medium text-gray-500">No corrections yet</p>
+                <p className="text-sm mt-1">Add corrections from the Chat Logs tab</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {corrections.map((c) => (
+                  <div key={c.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full capitalize">
+                        {c.discipline}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">
+                          {new Date(c.created_at).toLocaleDateString()}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteCorrection(c.id)}
+                          className="text-xs text-red-500 hover:text-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 mb-1">Q: {c.question}</p>
+                    <p className="text-sm text-green-700 bg-green-50 p-2 rounded-lg">✓ {c.correct_note}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Subscribers tab */}
         {activeTab === 'subscribers' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-6">Subscribers</h2>
@@ -293,16 +529,6 @@ STRICT RULES:
           </div>
         )}
 
-        {activeTab === 'chat logs' && (
-          <div className="bg-white rounded-xl border border-gray-100 p-6">
-            <h2 className="font-semibold text-gray-900 mb-6">Chat Logs</h2>
-            <div className="text-center py-12 text-gray-400">
-              <p className="text-4xl mb-4">💬</p>
-              <p className="font-medium text-gray-500">No conversations yet</p>
-              <p className="text-sm mt-1">User conversations will appear here once the AI chat is active</p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
