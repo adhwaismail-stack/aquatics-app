@@ -10,7 +10,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Article header mapping for Swimming disciplines
 const ARTICLE_HEADERS: Record<string, string> = {
   '1': 'DEFINITIONS AND GENERAL RULES',
   '2': 'OFFICIALS',
@@ -42,86 +41,82 @@ function getArticleLabel(articleNum: string): string {
 
 function cleanText(text: string): string {
   return text
-    .replace(/\f/g, ' ')                    // Remove form feeds
-    .replace(/\r\n/g, '\n')                 // Normalize line endings
-    .replace(/\r/g, '\n')                   // Normalize line endings
-    .replace(/\.{4,}/g, ' ')               // Remove dot leaders (table of contents)
-    .replace(/_{4,}/g, ' ')               // Remove underscores
-    .replace(/\n{3,}/g, '\n\n')           // Max 2 consecutive newlines
-    .replace(/[ \t]{2,}/g, ' ')           // Multiple spaces to single
+    .replace(/\f/g, ' ')
+    .replace(/\r\n/g, ' ')
+    .replace(/\r/g, ' ')
+    .replace(/\n/g, ' ')
+    .replace(/\.{4,}/g, ' ')
+    .replace(/_{4,}/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
     .trim()
 }
 
 function smartChunk(text: string): string[] {
   const cleaned = cleanText(text)
-  const lines = cleaned.split('\n')
   const chunks: string[] = []
-  let currentChunk = ''
-  let currentArticle = ''
 
-  // Pattern to detect article numbers like 4.1, 4.1.1, SW 4.1, etc.
-  const articlePattern = /^(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+\.\d+(?:\.\d+)*)\s+[A-Z]/
+  // Split by article number patterns in continuous text
+  // Matches patterns like: "4.1 ", "4.1.1 ", "SW 4.1 ", "2.5.3 "
+  const articlePattern = /(?=(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+)\.(\d+)(?:\.(\d+))?\s+[A-Z][a-z])/g
 
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
+  const parts = cleaned.split(articlePattern)
 
-    const match = trimmed.match(articlePattern)
+  // Filter out the capture groups (every 4th element is actual content)
+  const contentParts: string[] = []
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    // Skip empty parts and pure number captures from regex groups
+    if (part && part.trim().length > 50 && !/^\d+$/.test(part.trim())) {
+      contentParts.push(part.trim())
+    }
+  }
 
-    if (match) {
-      // Found a new article — save current chunk if substantial
-      if (currentChunk.trim().length > 100) {
-        const label = getArticleLabel(currentArticle)
-        chunks.push(label + currentChunk.trim())
+  for (const part of contentParts) {
+    // Try to extract article number from start of chunk
+    const numMatch = part.match(/^(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+\.\d+(?:\.\d+)?)/)
+    const articleNum = numMatch ? numMatch[1] : ''
+    const label = articleNum ? getArticleLabel(articleNum) : ''
+
+    if (part.length <= 3000) {
+      if (part.trim().length > 100) {
+        chunks.push(label + part.trim())
       }
-
-      // Start new chunk
-      currentArticle = match[1]
-      currentChunk = trimmed + ' '
     } else {
-      // Continue current chunk
-      currentChunk += trimmed + ' '
-
-      // If chunk is getting too long, split at sentence boundary
-      if (currentChunk.length > 3000) {
-        const sentenceEnd = currentChunk.lastIndexOf('. ', 2800)
-        if (sentenceEnd > 500) {
-          const label = getArticleLabel(currentArticle)
-          chunks.push(label + currentChunk.slice(0, sentenceEnd + 1).trim())
-          currentChunk = currentChunk.slice(sentenceEnd + 2)
+      // Split long chunks at sentence boundaries
+      let remaining = part
+      while (remaining.length > 3000) {
+        const cutPoint = remaining.lastIndexOf('. ', 2800)
+        if (cutPoint > 200) {
+          chunks.push(label + remaining.slice(0, cutPoint + 1).trim())
+          remaining = remaining.slice(cutPoint + 2)
+        } else {
+          chunks.push(label + remaining.slice(0, 3000).trim())
+          remaining = remaining.slice(3000)
         }
       }
-    }
-  }
-
-  // Save last chunk
-  if (currentChunk.trim().length > 100) {
-    const label = getArticleLabel(currentArticle)
-    chunks.push(label + currentChunk.trim())
-  }
-
-  // Fallback if smart chunking produces too few chunks
-  if (chunks.length < 5) {
-    console.log('Smart chunking produced too few chunks, using fallback...')
-    const fallback: string[] = []
-    const words = cleaned.split(' ')
-    let current = ''
-
-    for (const word of words) {
-      current += word + ' '
-      if (current.length > 2000) {
-        if (current.trim().length > 100) fallback.push(current.trim())
-        current = ''
+      if (remaining.trim().length > 100) {
+        chunks.push(label + remaining.trim())
       }
     }
-    if (current.trim().length > 100) fallback.push(current.trim())
+  }
+
+  // If still too few chunks, use size-based chunking with overlap
+  if (chunks.length < 10) {
+    console.log(`Only got ${chunks.length} chunks from article split, using size-based fallback`)
+    const fallback: string[] = []
+    const chunkSize = 1500
+    const overlap = 300
+
+    for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
+      const chunk = cleaned.slice(i, i + chunkSize).trim()
+      if (chunk.length > 100) {
+        fallback.push(chunk)
+      }
+    }
     return fallback
   }
 
-  return chunks.filter(chunk => 
-    chunk.trim().length > 100 && 
-    chunk.replace(/\./g, '').trim().length > 50
-  )
+  return chunks.filter(c => c.trim().length > 100)
 }
 
 export async function POST(request: NextRequest) {
@@ -139,7 +134,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Download file from Supabase Storage
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('rulebook')
       .download(fileName)
@@ -148,7 +142,6 @@ export async function POST(request: NextRequest) {
       throw new Error(`Failed to download file: ${downloadError?.message}`)
     }
 
-    // Step 2: Extract text
     const arrayBuffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
 
@@ -170,7 +163,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`Extracted ${text.length} characters from ${originalName}`)
 
-    // Step 3: Smart chunking with article detection
     const chunks = smartChunk(text)
     console.log(`Created ${chunks.length} chunks`)
 
@@ -181,7 +173,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 4: If replacing a file, delete its old chunks first
     if (replaceFileId) {
       const { data: oldFile } = await supabase
         .from('rulebook_files')
@@ -203,14 +194,12 @@ export async function POST(request: NextRequest) {
         .eq('id', replaceFileId)
     }
 
-    // Step 5: Delete existing chunks for this file
     await supabase
       .from('rulebook_chunks')
       .delete()
       .eq('discipline', discipline)
       .eq('source_file', originalName)
 
-    // Step 6: Generate embeddings in batches of 20
     const batchSize = 20
     let totalSaved = 0
 
@@ -240,7 +229,6 @@ export async function POST(request: NextRequest) {
       console.log(`Saved ${totalSaved}/${chunks.length} chunks...`)
     }
 
-    // Step 7: Save file record
     const { data: fileRecord } = await supabase
       .from('rulebook_files')
       .insert({
