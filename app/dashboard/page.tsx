@@ -4,17 +4,18 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const disciplines = [
-  { id: 'swimming', name: 'Swimming', code: 'SW Rules', live: true, icon: '🏊', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules' },
-  { id: 'waterpolo', name: 'Water Polo', code: 'WP Rules', live: true, icon: '🤽', desc: 'Field of play, players, referees, gameplay and penalty rules' },
-  { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', live: false, icon: '💃', desc: 'Solo, duet, team and combo routine rules and judging criteria' },
-  { id: 'diving', name: 'Diving', code: 'DV Rules', live: false, icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring' },
-  { id: 'highdiving', name: 'High Diving', code: 'HD Rules', live: false, icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules' },
-  { id: 'masters', name: 'Masters Swimming', code: 'MS Rules', live: false, icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
+  { id: 'swimming', name: 'Swimming', code: 'SW Rules', icon: '🏊', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules' },
+  { id: 'waterpolo', name: 'Water Polo', code: 'WP Rules', icon: '🤽', desc: 'Field of play, players, referees, gameplay and penalty rules' },
+  { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', icon: '💃', desc: 'Solo, duet, team and combo routine rules and judging criteria' },
+  { id: 'diving', name: 'Diving', code: 'DV Rules', icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring' },
+  { id: 'highdiving', name: 'High Diving', code: 'HD Rules', icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules' },
+  { id: 'masters', name: 'Masters Swimming', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
 ]
 
 export default function DashboardPage() {
   const [user, setUser] = useState<{ email?: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [liveDisciplines, setLiveDisciplines] = useState<string[]>([])
 
   useEffect(() => {
     const getUser = async () => {
@@ -24,6 +25,17 @@ export default function DashboardPage() {
         return
       }
       setUser(user)
+
+      // Check which disciplines have uploaded documents
+      const { data } = await supabase
+        .from('rulebook_files')
+        .select('discipline')
+      
+      if (data) {
+        const live = [...new Set(data.map(f => f.discipline))]
+        setLiveDisciplines(live)
+      }
+
       setLoading(false)
     }
     getUser()
@@ -84,7 +96,9 @@ export default function DashboardPage() {
         {/* Stats bar */}
         <div className="grid grid-cols-3 gap-4 mb-10">
           <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">2</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {liveDisciplines.length}
+            </div>
             <div className="text-xs text-gray-400 mt-1">Disciplines available</div>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
@@ -101,45 +115,48 @@ export default function DashboardPage() {
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Choose a discipline</h2>
           <div className="grid md:grid-cols-3 gap-6">
-            {disciplines.map((d) => (
-              <div
-                key={d.id}
-                className={`bg-white rounded-xl border p-6 transition-all ${
-                  d.live
-                    ? 'border-blue-200 hover:border-blue-400 hover:shadow-sm cursor-pointer'
-                    : 'border-gray-100 opacity-50'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-3xl">{d.icon}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                    d.live
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-400'
-                  }`}>
-                    {d.live ? '● Live' : 'Coming Soon'}
-                  </span>
+            {disciplines.map((d) => {
+              const isLive = liveDisciplines.includes(d.id)
+              return (
+                <div
+                  key={d.id}
+                  className={`bg-white rounded-xl border p-6 transition-all ${
+                    isLive
+                      ? 'border-blue-200 hover:border-blue-400 hover:shadow-sm cursor-pointer'
+                      : 'border-gray-100 opacity-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-3xl">{d.icon}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      isLive
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      {isLive ? '● Live' : 'Coming Soon'}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-1">{d.name}</h3>
+                  <p className="text-xs text-gray-400 mb-1">{d.code}</p>
+                  <p className="text-xs text-gray-400 mb-4 leading-relaxed">{d.desc}</p>
+                  {isLive ? (
+                    <button
+                      onClick={() => window.location.href = `/chat/${d.id}`}
+                      className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      Ask Rules Question →
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="w-full bg-gray-50 text-gray-300 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-100"
+                    >
+                      Coming Soon
+                    </button>
+                  )}
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">{d.name}</h3>
-                <p className="text-xs text-gray-400 mb-1">{d.code}</p>
-                <p className="text-xs text-gray-400 mb-4 leading-relaxed">{d.desc}</p>
-                {d.live ? (
-                  <button
-                    onClick={() => window.location.href = `/chat/${d.id}`}
-                    className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Ask Rules Question →
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    className="w-full bg-gray-50 text-gray-300 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-100"
-                  >
-                    Coming Soon
-                  </button>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -151,7 +168,7 @@ export default function DashboardPage() {
           <div className="grid md:grid-cols-2 gap-3">
             {[
               '✓ Ask any rules question in your language',
-              '✓ AI answers only from official World Aquatics rulebooks',
+              '✓ AI answers only from official World Aquatics Regulations',
               '✓ Every answer includes the exact rule number',
               '✓ Always verify with your Meet Referee for official decisions'
             ].map((tip, i) => (
