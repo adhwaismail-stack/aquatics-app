@@ -442,7 +442,7 @@ export default function AdminPage() {
                       onChange={(e) => setCorrectionText(e.target.value)}
                       rows={4}
                       placeholder="Type the correct answer or clarification here..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 text-gray-900"
                     />
                   </div>
                   <div className="flex gap-3">
