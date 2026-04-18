@@ -43,13 +43,27 @@ export default function DashboardPage() {
         setLiveDisciplines(live)
       }
 
-      const { data: sub } = await supabase
+const { data: sub } = await supabase
         .from('user_subscriptions')
         .select('plan, selected_discipline, status, current_period_end')
         .eq('user_email', user.email)
         .single()
 
-      if (sub) setSubscription(sub)
+      if (sub) {
+        // If beta tester with no expiry set, set it to 14 days from now
+        if (sub.status === 'active' && !sub.current_period_end) {
+          const expiryDate = new Date()
+          expiryDate.setDate(expiryDate.getDate() + 14)
+
+          await supabase
+            .from('user_subscriptions')
+            .update({ current_period_end: expiryDate.toISOString() })
+            .eq('user_email', user.email)
+
+          sub.current_period_end = expiryDate.toISOString()
+        }
+        setSubscription(sub)
+      }
 
       setLoading(false)
     }
