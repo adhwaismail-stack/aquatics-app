@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const ADMIN_PASSWORD = 'aquaref-admin-2026'
@@ -27,13 +27,30 @@ interface CorrectionNote {
   created_at: string
 }
 
+interface RulebookFile {
+  id: string
+  discipline: string
+  file_name: string
+  original_name: string
+  chunk_count: number
+  uploaded_at: string
+}
+
+const DISCIPLINES = [
+  { name: 'Swimming', code: 'SW', discipline: 'swimming' },
+  { name: 'Water Polo', code: 'WP', discipline: 'waterpolo' },
+  { name: 'Artistic Swimming', code: 'AS', discipline: 'artistic' },
+  { name: 'Diving', code: 'DV', discipline: 'diving' },
+  { name: 'High Diving', code: 'HD', discipline: 'highdiving' },
+  { name: 'Masters Swimming', code: 'MS', discipline: 'masters' },
+]
+
 export default function AdminPage() {
   const [password, setPassword] = useState('')
   const [authenticated, setAuthenticated] = useState(false)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState('rulebooks')
   const [uploading, setUploading] = useState<string | null>(null)
-  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string>('')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [promptSaved, setPromptSaved] = useState(false)
@@ -44,12 +61,15 @@ export default function AdminPage() {
   const [correctionText, setCorrectionText] = useState('')
   const [savingCorrection, setSavingCorrection] = useState(false)
   const [logsLoading, setLogsLoading] = useState(false)
+  const [rulebookFiles, setRulebookFiles] = useState<Record<string, RulebookFile[]>>({})
+  const [deletingFile, setDeletingFile] = useState<string | null>(null)
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
       setAuthenticated(true)
       setError('')
       loadSystemPrompt()
+      loadAllFiles()
     } else {
       setError('Incorrect password')
     }
@@ -65,6 +85,16 @@ export default function AdminPage() {
     if (data) setSystemPrompt(data.prompt)
     setPromptLoading(false)
   }
+
+  const loadAllFiles = useCallback(async () => {
+    const filesByDiscipline: Record<string, RulebookFile[]> = {}
+    for (const d of DISCIPLINES) {
+      const res = await fetch(`/api/files?discipline=${d.discipline}`)
+      const data = await res.json()
+      filesByDiscipline[d.discipline] = data.files || []
+    }
+    setRulebookFiles(filesByDiscipline)
+  }, [])
 
   const loadChatLogs = async () => {
     setLogsLoading(true)
@@ -123,13 +153,32 @@ export default function AdminPage() {
     loadCorrections()
   }
 
+  const handleDeleteFile = async (file: RulebookFile) => {
+    if (!confirm(`Delete "${file.original_name}"? This will remove all its chunks from the AI.`)) return
+    setDeletingFile(file.id)
+    try {
+      await fetch('/api/files', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId: file.id,
+          discipline: file.discipline,
+          originalName: file.original_name,
+          fileName: file.file_name
+        })
+      })
+      await loadAllFiles()
+    } catch {
+      alert('Failed to delete file. Please try again.')
+    }
+    setDeletingFile(null)
+  }
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, discipline: string) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const code = discipline.toUpperCase()
-    setUploading(code)
-    setUploadSuccess(null)
+    setUploading(discipline)
     setUploadProgress('Preparing upload...')
 
     try {
@@ -143,7 +192,7 @@ export default function AdminPage() {
         throw new Error(`Could not create upload URL: ${signedError?.message}`)
       }
 
-      setUploadProgress('Uploading file directly to storage...')
+      setUploadProgress('Uploading file to storage...')
 
       const uploadResponse = await fetch(signedData.signedUrl, {
         method: 'PUT',
@@ -155,7 +204,7 @@ export default function AdminPage() {
         throw new Error(`Direct upload failed: ${uploadResponse.statusText}`)
       }
 
-      setUploadProgress('File uploaded! Now generating AI embeddings...')
+      setUploadProgress('Generating AI embeddings...')
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -170,9 +219,9 @@ export default function AdminPage() {
       const data = await response.json()
 
       if (data.success) {
-        setUploadSuccess(code)
         setUploadProgress('')
         alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}`)
+        await loadAllFiles()
       } else {
         throw new Error(data.error)
       }
@@ -183,6 +232,8 @@ export default function AdminPage() {
     }
 
     setUploading(null)
+    // Reset file input
+    e.target.value = ''
   }
 
   if (!authenticated) {
@@ -282,7 +333,7 @@ export default function AdminPage() {
         {activeTab === 'rulebooks' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
-            <p className="text-sm text-gray-400 mb-6">Upload PDF or TXT files for each discipline</p>
+            <p className="text-sm text-gray-400 mb-6">Upload multiple PDF or TXT files per discipline</p>
 
             {uploadProgress && (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">
@@ -290,47 +341,75 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="grid md:grid-cols-2 gap-4">
-              {[
-                { name: 'Swimming', code: 'SW', discipline: 'swimming' },
-                { name: 'Water Polo', code: 'WP', discipline: 'waterpolo' },
-                { name: 'Artistic Swimming', code: 'AS', discipline: 'artistic' },
-                { name: 'Diving', code: 'DV', discipline: 'diving' },
-                { name: 'High Diving', code: 'HD', discipline: 'highdiving' },
-                { name: 'Masters Swimming', code: 'MS', discipline: 'masters' },
-              ].map((d) => (
-                <div key={d.code} className="border border-gray-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="font-medium text-gray-900">{d.name}</h3>
-                      <p className="text-xs text-gray-400">{d.code} Rules</p>
+            <div className="space-y-4">
+              {DISCIPLINES.map((d) => {
+                const files = rulebookFiles[d.discipline] || []
+                return (
+                  <div key={d.code} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="font-medium text-gray-900">{d.name}</h3>
+                        <p className="text-xs text-gray-400">{d.code} Rules</p>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        files.length > 0
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} uploaded` : 'No files'}
+                      </span>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      uploadSuccess === d.code
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      {uploadSuccess === d.code ? 'Uploaded ✓' : 'Not uploaded'}
-                    </span>
+
+                    {/* Uploaded files list */}
+                    {files.length > 0 && (
+                      <div className="mb-3 space-y-2">
+                        {files.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-green-600">📄</span>
+                              <div>
+                                <p className="text-sm text-gray-700 font-medium">{file.original_name}</p>
+                                <p className="text-xs text-gray-400">
+                                  {file.chunk_count} chunks · {new Date(file.uploaded_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteFile(file)}
+                              disabled={deletingFile === file.id}
+                              className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50"
+                            >
+                              {deletingFile === file.id ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Upload button */}
+                    <label className="cursor-pointer block">
+                      <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${
+                        uploading === d.discipline
+                          ? 'border-gray-200 text-gray-400'
+                          : 'border-blue-200 text-blue-600 hover:bg-blue-50'
+                      }`}>
+                        {uploading === d.discipline
+                          ? 'Processing...'
+                          : files.length > 0
+                          ? '+ Add another document'
+                          : 'Upload PDF or TXT'}
+                      </div>
+                      <input
+                        type="file"
+                        accept=".pdf,.txt"
+                        className="hidden"
+                        disabled={uploading !== null}
+                        onChange={(e) => handleUpload(e, d.discipline)}
+                      />
+                    </label>
                   </div>
-                  <label className="flex-1 cursor-pointer block">
-                    <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${
-                      uploading === d.code
-                        ? 'border-gray-200 text-gray-400'
-                        : 'border-blue-200 text-blue-600 hover:bg-blue-50'
-                    }`}>
-                      {uploading === d.code ? 'Processing...' : 'Upload PDF or TXT'}
-                    </div>
-                    <input
-                      type="file"
-                      accept=".pdf,.txt"
-                      className="hidden"
-                      disabled={uploading !== null}
-                      onChange={(e) => handleUpload(e, d.discipline)}
-                    />
-                  </label>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
