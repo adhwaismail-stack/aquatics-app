@@ -41,10 +41,12 @@ export async function POST(request: NextRequest) {
         const priceId = subscription.items.data[0].price.id
         const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end
 
+        // Determine plan name
         const plan = priceId === process.env.STRIPE_STARTER_PRICE_ID
           ? 'starter'
           : 'all_disciplines'
 
+        // Save to subscribers table
         await supabase
           .from('subscribers')
           .upsert({
@@ -56,6 +58,19 @@ export async function POST(request: NextRequest) {
             current_period_end: new Date(periodEnd * 1000).toISOString(),
             updated_at: new Date().toISOString()
           }, { onConflict: 'email' })
+
+        // Save to user_subscriptions for access control
+        await supabase
+          .from('user_subscriptions')
+          .upsert({
+            user_email: email,
+            plan,
+            status: 'active',
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscriptionId,
+            current_period_end: new Date(periodEnd * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_email' })
 
         console.log(`✅ New subscriber: ${email} on ${plan} plan`)
         break
@@ -78,6 +93,7 @@ export async function POST(request: NextRequest) {
             ? 'starter'
             : 'all_disciplines'
 
+          // Update subscribers table
           await supabase
             .from('subscribers')
             .update({
@@ -87,6 +103,17 @@ export async function POST(request: NextRequest) {
               updated_at: new Date().toISOString()
             })
             .eq('stripe_customer_id', customerId)
+
+          // Update user_subscriptions table
+          await supabase
+            .from('user_subscriptions')
+            .update({
+              plan,
+              status: subscription.status,
+              current_period_end: new Date(periodEnd * 1000).toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_email', subscriber.email)
         }
         break
       }
@@ -95,6 +122,13 @@ export async function POST(request: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription
         const customerId = subscription.customer as string
 
+        const { data: subscriber } = await supabase
+          .from('subscribers')
+          .select('email')
+          .eq('stripe_customer_id', customerId)
+          .single()
+
+        // Update subscribers table
         await supabase
           .from('subscribers')
           .update({
@@ -102,6 +136,17 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('stripe_customer_id', customerId)
+
+        // Update user_subscriptions table
+        if (subscriber) {
+          await supabase
+            .from('user_subscriptions')
+            .update({
+              status: 'cancelled',
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_email', subscriber.email)
+        }
 
         console.log(`❌ Subscription cancelled for customer: ${customerId}`)
         break
@@ -111,6 +156,13 @@ export async function POST(request: NextRequest) {
         const invoice = event.data.object as Stripe.Invoice
         const customerId = invoice.customer as string
 
+        const { data: subscriber } = await supabase
+          .from('subscribers')
+          .select('email')
+          .eq('stripe_customer_id', customerId)
+          .single()
+
+        // Update subscribers table
         await supabase
           .from('subscribers')
           .update({
@@ -118,6 +170,17 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('stripe_customer_id', customerId)
+
+        // Update user_subscriptions table
+        if (subscriber) {
+          await supabase
+            .from('user_subscriptions')
+            .update({
+              status: 'past_due',
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_email', subscriber.email)
+        }
 
         console.log(`⚠️ Payment failed for customer: ${customerId}`)
         break
