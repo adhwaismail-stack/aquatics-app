@@ -31,7 +31,7 @@ FEATURES:
 
 COMING SOON:
 - Artistic Swimming, Diving, High Diving, Masters Swimming
-- Mobile app (after 500 subscribers)
+- Mobile app (coming soon)
 
 YOUR BEHAVIOUR:
 - Be friendly, helpful and concise
