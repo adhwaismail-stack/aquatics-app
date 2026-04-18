@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Step 4: Vector similarity search
     const { data: vectorChunks } = await supabase.rpc(
-      'match_World Aquatics Regulations_chunks',
+      'match_rulebook_chunks',
       {
         query_embedding: queryEmbedding,
         match_discipline: discipline,
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     let keywordChunks: { content: string }[] = []
     for (const keyword of keywords) {
       const { data } = await supabase
-        .from('World Aquatics Regulations_chunks')
+        .from('rulebook_chunks')
         .select('content')
         .eq('discipline', discipline)
         .ilike('content', `%${keyword}%`)
