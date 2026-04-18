@@ -12,10 +12,17 @@ const disciplines = [
   { id: 'masters', name: 'Masters Swimming', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
 ]
 
+interface UserSubscription {
+  plan: string
+  selected_discipline: string | null
+  status: string
+}
+
 export default function DashboardPage() {
   const [user, setUser] = useState<{ email?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [liveDisciplines, setLiveDisciplines] = useState<string[]>([])
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
@@ -26,14 +33,25 @@ export default function DashboardPage() {
       }
       setUser(user)
 
-      // Check which disciplines have uploaded documents
-      const { data } = await supabase
+      // Get live disciplines
+      const { data: files } = await supabase
         .from('rulebook_files')
         .select('discipline')
-      
-      if (data) {
-        const live = [...new Set(data.map(f => f.discipline))]
+
+      if (files) {
+        const live = [...new Set(files.map((f: { discipline: string }) => f.discipline))]
         setLiveDisciplines(live)
+      }
+
+      // Get user subscription
+      const { data: sub } = await supabase
+        .from('user_subscriptions')
+        .select('plan, selected_discipline, status')
+        .eq('user_email', user.email)
+        .single()
+
+      if (sub) {
+        setSubscription(sub)
       }
 
       setLoading(false)
@@ -44,6 +62,22 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     window.location.href = '/'
+  }
+
+  const canAccessDiscipline = (disciplineId: string) => {
+    if (!subscription) return false
+    if (subscription.status !== 'active') return false
+    if (subscription.plan === 'all_disciplines') return true
+    if (subscription.plan === 'starter') {
+      return subscription.selected_discipline === disciplineId
+    }
+    return false
+  }
+
+  const handleDisciplineClick = (disciplineId: string) => {
+    if (canAccessDiscipline(disciplineId)) {
+      window.location.href = `/chat/${disciplineId}`
+    }
   }
 
   if (loading) {
@@ -67,8 +101,19 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
-            <a href="/pricing" className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-              Upgrade Plan
+            {subscription?.plan === 'starter' && (
+              
+                href="/choose-discipline"
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Switch Discipline
+              </a>
+            )}
+            
+              href="/pricing"
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              {subscription?.plan === 'all_disciplines' ? 'My Plan' : 'Upgrade Plan'}
             </a>
             <button
               onClick={handleLogout}
@@ -92,6 +137,38 @@ export default function DashboardPage() {
             Select a discipline to get instant AI-powered rules answers
           </p>
         </div>
+
+        {/* Plan banner for starter */}
+        {subscription?.plan === 'starter' && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-900">
+                Starter Plan — {subscription.selected_discipline
+                  ? `${disciplines.find(d => d.id === subscription.selected_discipline)?.name} selected`
+                  : 'No discipline selected'}
+              </p>
+              <p className="text-xs text-blue-600 mt-0.5">You can switch your discipline once per month</p>
+            </div>
+            <a href="/pricing" className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">
+              Upgrade to All Disciplines
+            </a>
+          </div>
+        )}
+
+        {/* No subscription banner */}
+        {!subscription && (
+          <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-yellow-900">
+                No active subscription
+              </p>
+              <p className="text-xs text-yellow-600 mt-0.5">Subscribe to access the AI rules assistant</p>
+            </div>
+            <a href="/pricing" className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">
+              View Plans
+            </a>
+          </div>
+        )}
 
         {/* Stats bar */}
         <div className="grid grid-cols-3 gap-4 mb-10">
@@ -117,42 +194,65 @@ export default function DashboardPage() {
           <div className="grid md:grid-cols-3 gap-6">
             {disciplines.map((d) => {
               const isLive = liveDisciplines.includes(d.id)
+              const hasAccess = canAccessDiscipline(d.id)
+              const isSelected = subscription?.selected_discipline === d.id
+
               return (
                 <div
                   key={d.id}
                   className={`bg-white rounded-xl border p-6 transition-all ${
-                    isLive
+                    !isLive
+                      ? 'border-gray-100 opacity-50'
+                      : hasAccess
                       ? 'border-blue-200 hover:border-blue-400 hover:shadow-sm cursor-pointer'
-                      : 'border-gray-100 opacity-50'
+                      : 'border-gray-200'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-3xl">{d.icon}</span>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      isLive
+                      !isLive
+                        ? 'bg-gray-100 text-gray-400'
+                        : isSelected
+                        ? 'bg-green-100 text-green-700'
+                        : hasAccess
                         ? 'bg-blue-100 text-blue-700'
                         : 'bg-gray-100 text-gray-400'
                     }`}>
-                      {isLive ? '● Live' : 'Coming Soon'}
+                      {!isLive
+                        ? 'Coming Soon'
+                        : isSelected
+                        ? '● Your Plan'
+                        : hasAccess
+                        ? '● Live'
+                        : '🔒 Locked'}
                     </span>
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-1">{d.name}</h3>
                   <p className="text-xs text-gray-400 mb-1">{d.code}</p>
                   <p className="text-xs text-gray-400 mb-4 leading-relaxed">{d.desc}</p>
-                  {isLive ? (
-                    <button
-                      onClick={() => window.location.href = `/chat/${d.id}`}
-                      className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      Ask Rules Question →
-                    </button>
-                  ) : (
+
+                  {!isLive ? (
                     <button
                       disabled
                       className="w-full bg-gray-50 text-gray-300 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-100"
                     >
                       Coming Soon
                     </button>
+                  ) : hasAccess ? (
+                    <button
+                      onClick={() => handleDisciplineClick(d.id)}
+                      className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      Ask Rules Question →
+                    </button>
+                  ) : (
+                    
+                      href="/pricing"
+                      className="block w-full text-center bg-gray-100 text-gray-500 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      Upgrade to Access
+                    </a>
                   )}
                 </div>
               )
