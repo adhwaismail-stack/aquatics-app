@@ -36,6 +36,15 @@ interface RulebookFile {
   uploaded_at: string
 }
 
+interface Subscriber {
+  id: string
+  email: string
+  plan: string
+  status: string
+  current_period_end: string
+  created_at: string
+}
+
 const DISCIPLINES = [
   { name: 'Swimming', code: 'SW', discipline: 'swimming' },
   { name: 'Water Polo', code: 'WP', discipline: 'waterpolo' },
@@ -63,6 +72,8 @@ export default function AdminPage() {
   const [logsLoading, setLogsLoading] = useState(false)
   const [rulebookFiles, setRulebookFiles] = useState<Record<string, RulebookFile[]>>({})
   const [deletingFile, setDeletingFile] = useState<string | null>(null)
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([])
+  const [subscribersLoading, setSubscribersLoading] = useState(false)
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -115,9 +126,20 @@ export default function AdminPage() {
     if (data) setCorrections(data)
   }
 
+  const loadSubscribers = async () => {
+    setSubscribersLoading(true)
+    const { data } = await supabase
+      .from('subscribers')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (data) setSubscribers(data)
+    setSubscribersLoading(false)
+  }
+
   useEffect(() => {
     if (activeTab === 'chat logs') loadChatLogs()
     if (activeTab === 'corrections') loadCorrections()
+    if (activeTab === 'subscribers') loadSubscribers()
   }, [activeTab])
 
   const handleSavePrompt = async () => {
@@ -232,7 +254,6 @@ export default function AdminPage() {
     }
 
     setUploading(null)
-    // Reset file input
     e.target.value = ''
   }
 
@@ -300,8 +321,8 @@ export default function AdminPage() {
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total subscribers', value: '0' },
-            { label: 'Active today', value: '0' },
+            { label: 'Total subscribers', value: subscribers.length.toString() },
+            { label: 'Active subscribers', value: subscribers.filter(s => s.status === 'active').length.toString() },
             { label: 'Questions today', value: chatLogs.filter(l => l.created_at?.startsWith(new Date().toISOString().split('T')[0])).length.toString() },
             { label: 'Corrections saved', value: corrections.length.toString() },
           ].map((s, i) => (
@@ -360,7 +381,6 @@ export default function AdminPage() {
                       </span>
                     </div>
 
-                    {/* Uploaded files list */}
                     {files.length > 0 && (
                       <div className="mb-3 space-y-2">
                         {files.map((file) => (
@@ -386,7 +406,6 @@ export default function AdminPage() {
                       </div>
                     )}
 
-                    {/* Upload button */}
                     <label className="cursor-pointer block">
                       <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${
                         uploading === d.discipline
@@ -499,7 +518,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Correction Modal */}
             {selectedLog && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl p-6 max-w-lg w-full">
@@ -599,12 +617,80 @@ export default function AdminPage() {
         {/* Subscribers tab */}
         {activeTab === 'subscribers' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
-            <h2 className="font-semibold text-gray-900 mb-6">Subscribers</h2>
-            <div className="text-center py-12 text-gray-400">
-              <p className="text-4xl mb-4">👥</p>
-              <p className="font-medium text-gray-500">No subscribers yet</p>
-              <p className="text-sm mt-1">Your first subscriber will appear here</p>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-semibold text-gray-900">Subscribers</h2>
+              <button
+                onClick={loadSubscribers}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Refresh
+              </button>
             </div>
+
+            {subscribersLoading ? (
+              <div className="text-center py-8 text-gray-400">Loading...</div>
+            ) : subscribers.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-4xl mb-4">👥</p>
+                <p className="font-medium text-gray-500">No subscribers yet</p>
+                <p className="text-sm mt-1">Your first subscriber will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-green-50 rounded-xl p-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {subscribers.filter(s => s.status === 'active').length}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">Active</div>
+                  </div>
+                  <div className="bg-orange-50 rounded-xl p-4 text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {subscribers.filter(s => s.status === 'past_due').length}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">Past Due</div>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4 text-center">
+                    <div className="text-2xl font-bold text-gray-600">
+                      {subscribers.filter(s => s.status === 'cancelled').length}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">Cancelled</div>
+                  </div>
+                </div>
+
+                {subscribers.map((sub) => (
+                  <div key={sub.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{sub.email}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">
+                            {sub.plan === 'starter' ? 'Starter' : 'All Disciplines'}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+                            sub.status === 'active'
+                              ? 'bg-green-100 text-green-700'
+                              : sub.status === 'past_due'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {sub.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400">Renews</p>
+                        <p className="text-xs text-gray-600">
+                          {sub.current_period_end
+                            ? new Date(sub.current_period_end).toLocaleDateString()
+                            : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
