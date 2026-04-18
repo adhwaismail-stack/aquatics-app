@@ -91,8 +91,8 @@ export default function FAQWidget() {
 
       {/* Chat widget */}
       {isOpen && (
-        <div className="fixed bottom-20 right-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
-          style={{ height: '460px' }}
+       <div className="fixed bottom-20 right-6 z-50 bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
+          style={{ height: '500px', width: '360px' }}
         >
           {/* Header */}
           <div className="bg-blue-600 px-4 py-3 flex items-center gap-3">
@@ -110,9 +110,9 @@ export default function FAQWidget() {
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-xs px-3 py-2 rounded-xl text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-gray-100 text-gray-700 rounded-bl-sm'
+                msg.role === 'user'
+                    ? 'bg-blue-600 text-white rounded-br-sm text-xs leading-relaxed'
+                    : 'bg-gray-100 text-gray-700 rounded-bl-sm text-xs leading-relaxed'
                 }`}
                   dangerouslySetInnerHTML={{
                     __html: msg.content
