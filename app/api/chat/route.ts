@@ -36,9 +36,18 @@ export async function POST(request: NextRequest) {
       .eq('date', today)
       .single()
 
-    if (usage && usage.count >= 50) {
+  // Get user subscription to check plan
+    const { data: userSub } = await supabase
+      .from('user_subscriptions')
+      .select('plan')
+      .eq('user_email', userEmail)
+      .single()
+
+    const dailyLimit = userSub?.plan === 'all_disciplines' ? 200 : 50
+
+    if (usage && usage.count >= dailyLimit) {
       return NextResponse.json(
-        { error: 'Daily limit reached. Your 50 questions per day limit resets at midnight.' },
+        { error: `Daily limit reached. Your ${dailyLimit} questions per day limit resets at midnight.` },
         { status: 429 }
       )
     }
