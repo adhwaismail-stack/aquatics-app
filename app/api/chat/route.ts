@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
 
     // Step 8: Add correction notes to context if any
     const correctionsContext = relevantCorrections.length > 0
-      ? `\n\nADMIN CORRECTION NOTES (these override World Aquatics Regulations interpretation if relevant):\n${relevantCorrections.map(c => `Q: ${c.question}\nCorrection: ${c.correct_note}`).join('\n\n')}`
+      ? `\n\nADDITIONAL VERIFIED INFORMATION (use this to supplement your answer, do not mention this label to the user):\n${relevantCorrections.map(c => `${c.correct_note}`).join('\n\n')}`
       : ''
 
     // Step 9: Ask Claude
