@@ -39,13 +39,12 @@ export async function POST(request: NextRequest) {
         // Get subscription details
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
         const priceId = subscription.items.data[0].price.id
+        const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end
 
-        // Determine plan name
         const plan = priceId === process.env.STRIPE_STARTER_PRICE_ID
           ? 'starter'
           : 'all_disciplines'
 
-        // Save or update subscriber
         await supabase
           .from('subscribers')
           .upsert({
@@ -54,7 +53,7 @@ export async function POST(request: NextRequest) {
             stripe_subscription_id: subscriptionId,
             plan,
             status: 'active',
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            current_period_end: new Date(periodEnd * 1000).toISOString(),
             updated_at: new Date().toISOString()
           }, { onConflict: 'email' })
 
@@ -65,8 +64,8 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
         const customerId = subscription.customer as string
+        const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end
 
-        // Find subscriber by customer ID
         const { data: subscriber } = await supabase
           .from('subscribers')
           .select('email')
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
             .update({
               plan,
               status: subscription.status,
-              current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+              current_period_end: new Date(periodEnd * 1000).toISOString(),
               updated_at: new Date().toISOString()
             })
             .eq('stripe_customer_id', customerId)
