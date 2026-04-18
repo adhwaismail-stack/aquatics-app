@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       .eq('discipline', 'all')
       .single()
 
-    const systemPrompt = promptData?.prompt || 'You are a World Aquatics Rules Assistant. Answer only from the rulebook provided. Always cite rule numbers. End with: "For official decisions, always defer to your Meet Referee."'
+    const systemPrompt = promptData?.prompt || 'You are a World Aquatics Rules Assistant. Answer only from the World Aquatics Regulations provided. Always cite rule numbers. End with: "For official decisions, always defer to your Meet Referee."'
 
     // Step 2: Translate question to English for better search
     const translationResponse = await anthropic.messages.create({
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Step 4: Vector similarity search
     const { data: vectorChunks } = await supabase.rpc(
-      'match_rulebook_chunks',
+      'match_World Aquatics Regulations_chunks',
       {
         query_embedding: queryEmbedding,
         match_discipline: discipline,
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     let keywordChunks: { content: string }[] = []
     for (const keyword of keywords) {
       const { data } = await supabase
-        .from('rulebook_chunks')
+        .from('World Aquatics Regulations_chunks')
         .select('content')
         .eq('discipline', discipline)
         .ilike('content', `%${keyword}%`)
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     if (allChunks.length === 0) {
       return NextResponse.json(
-        { error: 'No rulebook found for this discipline. Please contact admin.' },
+        { error: 'No World Aquatics Regulations found for this discipline. Please contact admin.' },
         { status: 404 }
       )
     }
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
 
     // Step 8: Add correction notes to context if any
     const correctionsContext = relevantCorrections.length > 0
-      ? `\n\nADMIN CORRECTION NOTES (these override rulebook interpretation if relevant):\n${relevantCorrections.map(c => `Q: ${c.question}\nCorrection: ${c.correct_note}`).join('\n\n')}`
+      ? `\n\nADMIN CORRECTION NOTES (these override World Aquatics Regulations interpretation if relevant):\n${relevantCorrections.map(c => `Q: ${c.question}\nCorrection: ${c.correct_note}`).join('\n\n')}`
       : ''
 
     // Step 9: Ask Claude
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'user',
-          content: `Here is the relevant rulebook content:\n\n${context}${correctionsContext}\n\nQuestion (answer in the same language as this question): ${question}`
+          content: `Here is the relevant World Aquatics Regulations content:\n\n${context}${correctionsContext}\n\nQuestion (answer in the same language as this question): ${question}`
         }
       ]
     })
