@@ -189,7 +189,7 @@ export default function Home() {
                   "Multilingual support",
                   "New disciplines added free",
                   "Regulations update alerts",
-                  "50 questions per day"
+              "200 questions per day"
                 ].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white">
                     <span className="text-blue-200">✓</span>{f}

@@ -74,7 +74,7 @@ export default function PricingPage() {
             <ul className="space-y-3 mb-8">
               {[
                 'Choose 1 discipline',
-                'Full AI rulebook chat',
+                'Full AI regulations chat',
                 'Rule number citations',
                 'Multilingual support',
                 'Switch discipline once/month',
@@ -123,12 +123,12 @@ export default function PricingPage() {
             <ul className="space-y-3 mb-8">
               {[
                 'All 6 disciplines included',
-                'Full AI rulebook chat',
+                'Full AI regulations chat',
                 'Rule number citations',
                 'Multilingual support',
                 'New disciplines added free',
                 'Rulebook update alerts',
-                '50 questions per day'
+              '200 questions per day'
               ].map((f, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm text-white">
                   <span className="text-blue-200">✓</span>{f}
