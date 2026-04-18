@@ -81,6 +81,9 @@ export default function AdminPage() {
       setError('')
       loadSystemPrompt()
       loadAllFiles()
+      loadChatLogs()
+      loadCorrections()
+      loadSubscribers()
     } else {
       setError('Incorrect password')
     }
