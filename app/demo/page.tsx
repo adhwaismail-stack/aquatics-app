@@ -62,7 +62,6 @@ export default function DemoPage() {
       const data = await response.json()
 
       if (data.limitReached && !data.answer) {
-        // Already at limit before this question
         setLimitReached(true)
         setMessages([...newMessages, {
           role: 'assistant',
@@ -114,18 +113,11 @@ export default function DemoPage() {
               </div>
               <span className="font-bold text-xl text-gray-900">AquaRef</span>
             </a>
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-              Demo
-            </span>
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Demo</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400">
-              {questionsUsed}/2 free questions used
-            </span>
-            
-              href="/pricing"
-              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
+            <span className="text-xs text-gray-400">{questionsUsed}/2 free questions used</span>
+            <a href="/pricing" className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
               Subscribe
             </a>
           </div>
@@ -137,9 +129,7 @@ export default function DemoPage() {
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-white text-sm">
             🎯 <strong>Demo Mode</strong> — Swimming rules only, 2 free questions.
-            <a href="/pricing" className="underline ml-2 hover:text-blue-200">
-              Subscribe for full access →
-            </a>
+            <a href="/pricing" className="underline ml-2 hover:text-blue-200">Subscribe for full access →</a>
           </p>
         </div>
       </div>
@@ -147,7 +137,6 @@ export default function DemoPage() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
-
           {messages.length === 0 && (
             <div className="text-center py-12">
               <div className="text-5xl mb-4">🏊</div>
@@ -185,22 +174,11 @@ export default function DemoPage() {
                 </div>
               )}
               {msg.role === 'user' ? (
-                <div style={{
-                  backgroundColor: '#1e40af',
-                  borderRadius: '16px 16px 4px 16px',
-                  padding: '12px 20px',
-                  maxWidth: '75%'
-                }}>
-                  <p style={{ color: '#ffffff', fontSize: '14px', margin: 0 }}>
-                    {msg.content}
-                  </p>
+                <div style={{ backgroundColor: '#1e40af', borderRadius: '16px 16px 4px 16px', padding: '12px 20px', maxWidth: '75%' }}>
+                  <p style={{ color: '#ffffff', fontSize: '14px', margin: 0 }}>{msg.content}</p>
                 </div>
               ) : (
-                <div className={`max-w-2xl rounded-2xl rounded-bl-sm shadow-sm px-6 py-4 ${
-                  msg.isUpgrade
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white border border-gray-100'
-                }`}>
+                <div className={`max-w-2xl rounded-2xl rounded-bl-sm shadow-sm px-6 py-4 ${msg.isUpgrade ? 'bg-blue-600 text-white' : 'bg-white border border-gray-100'}`}>
                   {msg.isUpgrade ? (
                     <div className="text-sm text-white">
                       <ReactMarkdown
@@ -214,10 +192,7 @@ export default function DemoPage() {
                         {msg.content}
                       </ReactMarkdown>
                       <div className="flex flex-col gap-2 mt-4">
-                        
-                          href="/pricing"
-                          className="block w-full text-center bg-white text-blue-600 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors"
-                        >
+                        <a href="/pricing" className="block w-full text-center bg-white text-blue-600 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors">
                           Start 7-Day Free Trial →
                         </a>
                       </div>
@@ -267,13 +242,8 @@ export default function DemoPage() {
         <div className="max-w-3xl mx-auto">
           {limitReached ? (
             <div className="text-center">
-              <p className="text-sm text-gray-500 mb-3">
-                You've used your 2 free questions
-              </p>
-              
-                href="/pricing"
-                className="inline-block bg-blue-600 text-white px-8 py-3 rounded-xl text-sm font-medium hover:bg-blue-700"
-              >
+              <p className="text-sm text-gray-500 mb-3">You've used your 2 free questions</p>
+              <a href="/pricing" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-xl text-sm font-medium hover:bg-blue-700">
                 Start 7-Day Free Trial →
               </a>
             </div>
@@ -297,8 +267,7 @@ export default function DemoPage() {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-2 text-center">
-                {2 - questionsUsed} free question{2 - questionsUsed !== 1 ? 's' : ''} remaining •
-                Answers based on official World Aquatics Regulations
+                {2 - questionsUsed} free question{2 - questionsUsed !== 1 ? 's' : ''} remaining • Answers based on official World Aquatics Regulations
               </p>
             </>
           )}
