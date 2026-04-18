@@ -16,6 +16,7 @@ interface UserSubscription {
   plan: string
   selected_discipline: string | null
   status: string
+  current_period_end: string | null
 }
 
 export default function DashboardPage() {
@@ -44,7 +45,7 @@ export default function DashboardPage() {
 
       const { data: sub } = await supabase
         .from('user_subscriptions')
-        .select('plan, selected_discipline, status')
+        .select('plan, selected_discipline, status, current_period_end')
         .eq('user_email', user.email)
         .single()
 
@@ -63,9 +64,19 @@ export default function DashboardPage() {
   const canAccessDiscipline = (disciplineId: string) => {
     if (!subscription) return false
     if (subscription.status !== 'active') return false
+    // Check expiry date
+    if (subscription.current_period_end) {
+      const expiry = new Date(subscription.current_period_end)
+      if (expiry < new Date()) return false
+    }
     if (subscription.plan === 'all_disciplines') return true
     if (subscription.plan === 'starter') return subscription.selected_discipline === disciplineId
     return false
+  }
+
+  const isExpired = () => {
+    if (!subscription?.current_period_end) return false
+    return new Date(subscription.current_period_end) < new Date()
   }
 
   const handleDisciplineClick = (disciplineId: string) => {
@@ -94,7 +105,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
-            {subscription?.plan === 'starter' && (
+            {subscription?.plan === 'starter' && !isExpired() && (
               <button
                 onClick={() => { window.location.href = '/choose-discipline' }}
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -106,7 +117,7 @@ export default function DashboardPage() {
               onClick={() => { window.location.href = '/pricing' }}
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
-              {subscription?.plan === 'all_disciplines' ? 'My Plan' : 'Upgrade Plan'}
+              {subscription?.plan === 'all_disciplines' && !isExpired() ? 'My Plan' : 'Upgrade Plan'}
             </button>
             <button
               onClick={handleLogout}
@@ -124,7 +135,24 @@ export default function DashboardPage() {
           <p className="text-gray-500">Select a discipline to get instant AI-powered rules answers</p>
         </div>
 
-        {subscription?.plan === 'starter' && (
+        {/* Expired access banner */}
+        {isExpired() && (
+          <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-red-900">Your access has expired</p>
+              <p className="text-xs text-red-600 mt-0.5">Subscribe to continue accessing AquaRef</p>
+            </div>
+            <button
+              onClick={() => { window.location.href = '/pricing' }}
+              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
+            >
+              View Plans
+            </button>
+          </div>
+        )}
+
+        {/* Starter plan banner */}
+        {subscription?.plan === 'starter' && !isExpired() && (
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-blue-900">
@@ -143,6 +171,19 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Beta tester banner */}
+        {subscription?.plan === 'all_disciplines' && !isExpired() && subscription.current_period_end && (
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6">
+            <p className="text-sm font-medium text-green-900">
+              ✅ Beta Access — All Disciplines
+            </p>
+            <p className="text-xs text-green-600 mt-0.5">
+              Access expires: {new Date(subscription.current_period_end).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+        )}
+
+        {/* No subscription banner */}
         {!subscription && (
           <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
@@ -226,7 +267,7 @@ export default function DashboardPage() {
                       onClick={() => { window.location.href = '/pricing' }}
                       className="w-full bg-gray-100 text-gray-500 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
                     >
-                      Upgrade to Access
+                      {isExpired() ? 'Renew Access' : 'Upgrade to Access'}
                     </button>
                   )}
                 </div>
