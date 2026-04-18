@@ -10,15 +10,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Smart chunking — splits by article numbers like 7.1, 7.2, SW 4.1 etc
+// Smart chunking — splits by article numbers
 function smartChunk(text: string): string[] {
-  // Clean up the text first
   const cleaned = text
-    .replace(/\s+/g, ' ')  // normalize whitespace
-    .replace(/\.{4,}/g, '') // remove dot leaders from table of contents
+    .replace(/\s+/g, ' ')
+    .replace(/\.{4,}/g, '')
     .trim()
 
-  // Split by article number patterns like "7.1 ", "SW 4.1 ", "2.5.3 " etc
   const articlePattern = /(?=(?:SW\s+)?\d+\.\d+(?:\.\d+)?\s+[A-Z])/g
   const parts = cleaned.split(articlePattern)
 
@@ -26,18 +24,14 @@ function smartChunk(text: string): string[] {
 
   for (const part of parts) {
     const trimmed = part.trim()
-
-    // Skip empty parts, dot leaders, and very short parts
     if (
       trimmed.length < 100 ||
       trimmed.replace(/\./g, '').trim().length < 50
     ) continue
 
-    // If part is small enough, keep as is
     if (trimmed.length <= 3000) {
       chunks.push(trimmed)
     } else {
-      // If too long, split further by sentences keeping overlap
       const sentences = trimmed.match(/[^.!?]+[.!?]+/g) || [trimmed]
       let current = ''
       for (const sentence of sentences) {
@@ -52,7 +46,6 @@ function smartChunk(text: string): string[] {
     }
   }
 
-  // If smart chunking produced too few chunks, fall back to regular chunking
   if (chunks.length < 5) {
     const chunkSize = 2000
     const overlap = 400
@@ -73,7 +66,7 @@ export async function POST(request: NextRequest) {
       apiKey: process.env.OPENAI_API_KEY!
     })
 
-    const { fileName, discipline, originalName } = await request.json()
+    const { fileName, discipline, originalName, replaceFileId } = await request.json()
 
     if (!fileName || !discipline) {
       return NextResponse.json(
@@ -111,7 +104,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 3: Smart chunking by article numbers
+    // Step 3: Smart chunking
     const chunks = smartChunk(text)
 
     if (chunks.length === 0) {
@@ -121,11 +114,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 4: Delete old chunks
-    await supabase
-      .from('rulebook_chunks')
-      .delete()
-      .eq('discipline', discipline)
+    // Step 4: If replacing a file, delete its old chunks first
+    if (replaceFileId) {
+      const { data: oldFile } = await supabase
+        .from('rulebook_files')
+        .select('original_name')
+        .eq('id', replaceFileId)
+        .single()
+
+      if (oldFile) {
+        await supabase
+          .from('rulebook_chunks')
+          .delete()
+          .eq('discipline', discipline)
+          .eq('source_file', oldFile.original_name)
+      }
+
+      await supabase
+        .from('rulebook_files')
+        .delete()
+        .eq('id', replaceFileId)
+    }
 
     // Step 5: Generate embeddings in batches of 20
     const batchSize = 20
@@ -156,11 +165,24 @@ export async function POST(request: NextRequest) {
       totalSaved += batch.length
     }
 
+    // Step 6: Save file record
+    const { data: fileRecord } = await supabase
+      .from('rulebook_files')
+      .insert({
+        discipline,
+        file_name: fileName,
+        original_name: originalName,
+        chunk_count: chunks.length
+      })
+      .select()
+      .single()
+
     return NextResponse.json({
       success: true,
       message: `Successfully processed ${chunks.length} chunks`,
       chunks: chunks.length,
-      discipline
+      discipline,
+      fileId: fileRecord?.id
     })
 
   } catch (error: unknown) {
