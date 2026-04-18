@@ -10,7 +10,38 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Smart chunking — splits by article numbers
+// Map of article numbers to stroke names for Swimming
+const ARTICLE_HEADERS: Record<string, string> = {
+  '1': 'DEFINITIONS',
+  '2': 'OFFICIALS',
+  '3': 'EQUIPMENT',
+  '4': 'THE START',
+  '5': 'THE FINISH',
+  '6': 'BACKSTROKE',
+  '7': 'BREASTSTROKE',
+  '8': 'BUTTERFLY',
+  '9': 'FREESTYLE',
+  '10': 'INDIVIDUAL MEDLEY',
+  '11': 'RELAY EVENTS',
+  '12': 'OPEN WATER SWIMMING',
+  '13': 'MASTERS SWIMMING',
+  '14': 'PARA SWIMMING',
+  '15': 'FACILITIES AND EQUIPMENT',
+  '16': 'COMPETITION REGULATIONS',
+}
+
+function getArticleHeader(text: string): string {
+  // Try to find the main article number at the start
+  const match = text.match(/^(\d+)\.(\d+)/)
+  if (match) {
+    const mainArticle = match[1]
+    const header = ARTICLE_HEADERS[mainArticle]
+    if (header) return `[${header} - Article ${mainArticle}] `
+  }
+  return ''
+}
+
+// Smart chunking — splits by article numbers and adds headers
 function smartChunk(text: string): string[] {
   const cleaned = text
     .replace(/\s+/g, ' ')
@@ -29,20 +60,23 @@ function smartChunk(text: string): string[] {
       trimmed.replace(/\./g, '').trim().length < 50
     ) continue
 
+    // Add article header to help AI identify which stroke/section this is
+    const header = getArticleHeader(trimmed)
+
     if (trimmed.length <= 3000) {
-      chunks.push(trimmed)
+      chunks.push(header + trimmed)
     } else {
       const sentences = trimmed.match(/[^.!?]+[.!?]+/g) || [trimmed]
       let current = ''
       for (const sentence of sentences) {
         if ((current + sentence).length > 3000) {
-          if (current.trim().length > 100) chunks.push(current.trim())
+          if (current.trim().length > 100) chunks.push(header + current.trim())
           current = sentence
         } else {
           current += ' ' + sentence
         }
       }
-      if (current.trim().length > 100) chunks.push(current.trim())
+      if (current.trim().length > 100) chunks.push(header + current.trim())
     }
   }
 
@@ -104,7 +138,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 3: Smart chunking
+    // Step 3: Smart chunking with article headers
     const chunks = smartChunk(text)
 
     if (chunks.length === 0) {
