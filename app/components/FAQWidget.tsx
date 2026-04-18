@@ -114,9 +114,10 @@ export default function FAQWidget() {
                     ? 'bg-blue-600 text-white rounded-br-sm text-xs leading-relaxed'
                     : 'bg-gray-100 text-gray-700 rounded-bl-sm text-xs leading-relaxed'
                 }`}
-                  dangerouslySetInnerHTML={{
+                 dangerouslySetInnerHTML={{
                     __html: msg.content
                       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                      .replace(/^- /gm, '• ')
                       .replace(/\n/g, '<br/>')
                   }}
                 />
