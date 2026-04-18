@@ -155,7 +155,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
               </h2>
               <p className="text-gray-500 text-sm max-w-md mx-auto leading-relaxed">
                 Ask any question about {disciplineNames[discipline]} rules.
-                Answers are based strictly on the official World Aquatics rulebook.
+                Answers are based strictly on the official World Aquatics World Aquatics Regulations.
               </p>
               <div className="mt-6 grid grid-cols-1 gap-2 max-w-md mx-auto">
                 {(discipline === 'swimming' ? [
@@ -239,7 +239,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
-                  <span className="text-xs text-gray-400 ml-2">Searching rulebook...</span>
+                  <span className="text-xs text-gray-400 ml-2">Searching World Aquatics Regulations...</span>
                 </div>
               </div>
             </div>
@@ -270,7 +270,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
-            Answers based on official World Aquatics rulebooks only. Always verify with your Meet Referee.
+            Answers based on official World Aquatics Regulations only. Always verify with your Meet Referee.
           </p>
         </div>
       </div>
