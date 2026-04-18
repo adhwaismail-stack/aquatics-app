@@ -30,7 +30,7 @@ export default function Home() {
         </h1>
         <p className="text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
           AI-powered rules assistant for Technical Officials, coaches and parents.
-          Instant answers from official World Aquatics rulebooks only.
+          Instant answers from official World Aquatics Regulations only.
           No guessing. No internet. Just the rules.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -57,13 +57,13 @@ export default function Home() {
             {[
               {
                 icon: "📖",
-                title: "Rulebook Only",
-                desc: "Answers strictly from official World Aquatics rulebooks. No internet, no guessing, no hallucinations."
+                title: "Regulations Only",
+                desc: "Answers strictly from official World Aquatics Regulations. No internet, no guessing, no hallucinations."
               },
               {
                 icon: "🌍",
                 title: "Full Multilingual",
-                desc: "Ask in any of 90+ languages in the world and get answers in that same language. No language barrier for officials worldwide."
+                desc: "Ask in any of 90+ languages and get answers in that same language. No language barrier for officials worldwide."
               },
               {
                 icon: "🔢",
@@ -83,7 +83,7 @@ export default function Home() {
               {
                 icon: "🔒",
                 title: "Always Current",
-                desc: "Rulebook updated by admin whenever World Aquatics releases new rules. Always accurate."
+                desc: "Regulations updated by admin whenever World Aquatics releases new rules. Always accurate."
               }
             ].map((f, i) => (
               <div key={i} className="bg-white p-6 rounded-xl border border-gray-100">
@@ -150,10 +150,11 @@ export default function Home() {
               <ul className="space-y-3 mb-8">
                 {[
                   "Choose 1 discipline",
-                  "Full AI rulebook chat",
+                  "Full AI regulations chat",
                   "Rule number citations",
                   "Multilingual support",
-                  "Switch discipline once/month"
+                  "Switch discipline once/month",
+                  "50 questions per day"
                 ].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-gray-600">
                     <span className="text-blue-600">✓</span>{f}
@@ -178,11 +179,12 @@ export default function Home() {
               <ul className="space-y-3 mb-8">
                 {[
                   "All 6 disciplines included",
-                  "Full AI rulebook chat",
+                  "Full AI regulations chat",
                   "Rule number citations",
                   "Multilingual support",
                   "New disciplines added free",
-                  "Rulebook update alerts"
+                  "Regulations update alerts",
+                  "50 questions per day"
                 ].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white">
                     <span className="text-blue-200">✓</span>{f}
@@ -207,7 +209,7 @@ export default function Home() {
             <span className="font-bold text-gray-900">AquaRef</span>
           </div>
           <p className="text-sm text-gray-400">
-            For reference only. Always verify with official World Aquatics rulebooks and your Meet Referee.
+            For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.
           </p>
           <div className="flex gap-6 text-sm text-gray-400">
             <a href="#" className="hover:text-gray-600">Privacy Policy</a>
