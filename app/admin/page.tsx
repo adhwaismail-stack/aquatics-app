@@ -54,6 +54,15 @@ const DISCIPLINES = [
   { name: 'Masters Swimming', code: 'MS', discipline: 'masters' },
 ]
 
+const DISCIPLINE_LABELS: Record<string, string> = {
+  swimming: 'Swimming',
+  waterpolo: 'Water Polo',
+  artistic: 'Artistic Swimming',
+  diving: 'Diving',
+  highdiving: 'High Diving',
+  masters: 'Masters Swimming',
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState('')
   const [authenticated, setAuthenticated] = useState(false)
@@ -70,6 +79,7 @@ export default function AdminPage() {
   const [correctionText, setCorrectionText] = useState('')
   const [savingCorrection, setSavingCorrection] = useState(false)
   const [logsLoading, setLogsLoading] = useState(false)
+  const [logDisciplineFilter, setLogDisciplineFilter] = useState('all')
   const [rulebookFiles, setRulebookFiles] = useState<Record<string, RulebookFile[]>>({})
   const [deletingFile, setDeletingFile] = useState<string | null>(null)
   const [subscribers, setSubscribers] = useState<Subscriber[]>([])
@@ -116,7 +126,7 @@ export default function AdminPage() {
       .from('chat_logs')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(100)
     if (data) setChatLogs(data)
     setLogsLoading(false)
   }
@@ -483,44 +493,72 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Discipline filter tabs */}
+            <div className="flex gap-2 mb-6 flex-wrap">
+              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters'].map((tab) => {
+                const count = tab === 'all'
+                  ? chatLogs.length
+                  : chatLogs.filter(l => l.discipline === tab).length
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setLogDisciplineFilter(tab)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                      logDisciplineFilter === tab
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {tab === 'all' ? 'All' :
+                     tab === 'waterpolo' ? 'Water Polo' :
+                     tab === 'highdiving' ? 'High Diving' :
+                     tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+                  </button>
+                )
+              })}
+            </div>
+
             {logsLoading ? (
               <div className="text-center py-8 text-gray-400">Loading...</div>
-            ) : chatLogs.length === 0 ? (
+            ) : chatLogs.filter(l => logDisciplineFilter === 'all' || l.discipline === logDisciplineFilter).length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">💬</p>
                 <p className="font-medium text-gray-500">No conversations yet</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {chatLogs.map((log) => (
-                  <div key={log.id} className="border border-gray-100 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full capitalize">
-                          {log.discipline}
+                {chatLogs
+                  .filter(l => logDisciplineFilter === 'all' || l.discipline === logDisciplineFilter)
+                  .map((log) => (
+                    <div key={log.id} className="border border-gray-100 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                            {DISCIPLINE_LABELS[log.discipline] || log.discipline}
+                          </span>
+                          <span className="text-xs text-gray-400">{log.user_email}</span>
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {new Date(log.created_at).toLocaleString()}
                         </span>
-                        <span className="text-xs text-gray-400">{log.user_email}</span>
                       </div>
-                      <span className="text-xs text-gray-400">
-                        {new Date(log.created_at).toLocaleString()}
-                      </span>
+                      <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
+                      <p className="text-sm text-gray-500 line-clamp-2">A: {log.answer}</p>
+                      <button
+                        onClick={() => {
+                          setSelectedLog(log)
+                          setCorrectionText('')
+                        }}
+                        className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium"
+                      >
+                        ✏️ Add Correction
+                      </button>
                     </div>
-                    <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
-                    <p className="text-sm text-gray-500 line-clamp-2">A: {log.answer}</p>
-                    <button
-                      onClick={() => {
-                        setSelectedLog(log)
-                        setCorrectionText('')
-                      }}
-                      className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium"
-                    >
-                      ✏️ Add Correction
-                    </button>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
 
+            {/* Correction Modal */}
             {selectedLog && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl p-6 max-w-lg w-full">
@@ -593,8 +631,8 @@ export default function AdminPage() {
                 {corrections.map((c) => (
                   <div key={c.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full capitalize">
-                        {c.discipline}
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                        {DISCIPLINE_LABELS[c.discipline] || c.discipline}
                       </span>
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400">
