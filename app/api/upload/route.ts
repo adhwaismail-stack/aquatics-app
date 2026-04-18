@@ -10,11 +10,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Map of article numbers to stroke names for Swimming
+// Article header mapping for Swimming disciplines
 const ARTICLE_HEADERS: Record<string, string> = {
-  '1': 'DEFINITIONS',
+  '1': 'DEFINITIONS AND GENERAL RULES',
   '2': 'OFFICIALS',
-  '3': 'EQUIPMENT',
+  '3': 'EQUIPMENT AND FACILITIES',
   '4': 'THE START',
   '5': 'THE FINISH',
   '6': 'BACKSTROKE',
@@ -28,70 +28,100 @@ const ARTICLE_HEADERS: Record<string, string> = {
   '14': 'PARA SWIMMING',
   '15': 'FACILITIES AND EQUIPMENT',
   '16': 'COMPETITION REGULATIONS',
+  '17': 'TIMING AND RESULTS',
+  '18': 'DOPING CONTROL',
+  '19': 'APPEALS AND PROTESTS',
+  '20': 'GENERAL PROVISIONS',
 }
 
-function getArticleHeader(text: string): string {
-  // Try to find the main article number at the start
-  const match = text.match(/^(\d+)\.(\d+)/)
-  if (match) {
-    const mainArticle = match[1]
-    const header = ARTICLE_HEADERS[mainArticle]
-    if (header) return `[${header} - Article ${mainArticle}] `
-  }
-  return ''
+function getArticleLabel(articleNum: string): string {
+  const main = articleNum.split('.')[0]
+  const header = ARTICLE_HEADERS[main]
+  return header ? `[${header} - Article ${articleNum}] ` : `[Article ${articleNum}] `
 }
 
-// Smart chunking — splits by article numbers and adds headers
-function smartChunk(text: string): string[] {
-  const cleaned = text
-    .replace(/\s+/g, ' ')
-    .replace(/\.{4,}/g, '')
+function cleanText(text: string): string {
+  return text
+    .replace(/\f/g, ' ')                    // Remove form feeds
+    .replace(/\r\n/g, '\n')                 // Normalize line endings
+    .replace(/\r/g, '\n')                   // Normalize line endings
+    .replace(/\.{4,}/g, ' ')               // Remove dot leaders (table of contents)
+    .replace(/_{4,}/g, ' ')               // Remove underscores
+    .replace(/\n{3,}/g, '\n\n')           // Max 2 consecutive newlines
+    .replace(/[ \t]{2,}/g, ' ')           // Multiple spaces to single
     .trim()
+}
 
-  const articlePattern = /(?=(?:SW\s+)?\d+\.\d+(?:\.\d+)?\s+[A-Z])/g
-  const parts = cleaned.split(articlePattern)
-
+function smartChunk(text: string): string[] {
+  const cleaned = cleanText(text)
+  const lines = cleaned.split('\n')
   const chunks: string[] = []
+  let currentChunk = ''
+  let currentArticle = ''
 
-  for (const part of parts) {
-    const trimmed = part.trim()
-    if (
-      trimmed.length < 100 ||
-      trimmed.replace(/\./g, '').trim().length < 50
-    ) continue
+  // Pattern to detect article numbers like 4.1, 4.1.1, SW 4.1, etc.
+  const articlePattern = /^(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+\.\d+(?:\.\d+)*)\s+[A-Z]/
 
-    // Add article header to help AI identify which stroke/section this is
-    const header = getArticleHeader(trimmed)
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
 
-    if (trimmed.length <= 3000) {
-      chunks.push(header + trimmed)
+    const match = trimmed.match(articlePattern)
+
+    if (match) {
+      // Found a new article — save current chunk if substantial
+      if (currentChunk.trim().length > 100) {
+        const label = getArticleLabel(currentArticle)
+        chunks.push(label + currentChunk.trim())
+      }
+
+      // Start new chunk
+      currentArticle = match[1]
+      currentChunk = trimmed + ' '
     } else {
-      const sentences = trimmed.match(/[^.!?]+[.!?]+/g) || [trimmed]
-      let current = ''
-      for (const sentence of sentences) {
-        if ((current + sentence).length > 3000) {
-          if (current.trim().length > 100) chunks.push(header + current.trim())
-          current = sentence
-        } else {
-          current += ' ' + sentence
+      // Continue current chunk
+      currentChunk += trimmed + ' '
+
+      // If chunk is getting too long, split at sentence boundary
+      if (currentChunk.length > 3000) {
+        const sentenceEnd = currentChunk.lastIndexOf('. ', 2800)
+        if (sentenceEnd > 500) {
+          const label = getArticleLabel(currentArticle)
+          chunks.push(label + currentChunk.slice(0, sentenceEnd + 1).trim())
+          currentChunk = currentChunk.slice(sentenceEnd + 2)
         }
       }
-      if (current.trim().length > 100) chunks.push(header + current.trim())
     }
   }
 
+  // Save last chunk
+  if (currentChunk.trim().length > 100) {
+    const label = getArticleLabel(currentArticle)
+    chunks.push(label + currentChunk.trim())
+  }
+
+  // Fallback if smart chunking produces too few chunks
   if (chunks.length < 5) {
-    const chunkSize = 2000
-    const overlap = 400
+    console.log('Smart chunking produced too few chunks, using fallback...')
     const fallback: string[] = []
-    for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
-      const chunk = cleaned.slice(i, i + chunkSize).trim()
-      if (chunk.length > 100) fallback.push(chunk)
+    const words = cleaned.split(' ')
+    let current = ''
+
+    for (const word of words) {
+      current += word + ' '
+      if (current.length > 2000) {
+        if (current.trim().length > 100) fallback.push(current.trim())
+        current = ''
+      }
     }
+    if (current.trim().length > 100) fallback.push(current.trim())
     return fallback
   }
 
-  return chunks
+  return chunks.filter(chunk => 
+    chunk.trim().length > 100 && 
+    chunk.replace(/\./g, '').trim().length > 50
+  )
 }
 
 export async function POST(request: NextRequest) {
@@ -138,8 +168,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 3: Smart chunking with article headers
+    console.log(`Extracted ${text.length} characters from ${originalName}`)
+
+    // Step 3: Smart chunking with article detection
     const chunks = smartChunk(text)
+    console.log(`Created ${chunks.length} chunks`)
 
     if (chunks.length === 0) {
       return NextResponse.json(
@@ -170,7 +203,14 @@ export async function POST(request: NextRequest) {
         .eq('id', replaceFileId)
     }
 
-    // Step 5: Generate embeddings in batches of 20
+    // Step 5: Delete existing chunks for this file
+    await supabase
+      .from('rulebook_chunks')
+      .delete()
+      .eq('discipline', discipline)
+      .eq('source_file', originalName)
+
+    // Step 6: Generate embeddings in batches of 20
     const batchSize = 20
     let totalSaved = 0
 
@@ -197,9 +237,10 @@ export async function POST(request: NextRequest) {
       if (error) throw error
 
       totalSaved += batch.length
+      console.log(`Saved ${totalSaved}/${chunks.length} chunks...`)
     }
 
-    // Step 6: Save file record
+    // Step 7: Save file record
     const { data: fileRecord } = await supabase
       .from('rulebook_files')
       .insert({
