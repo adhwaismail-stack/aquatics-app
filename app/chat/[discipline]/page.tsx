@@ -26,6 +26,7 @@ const disciplineCodes: { [key: string]: string } = {
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  feedback?: 'like' | 'dislike' | null
 }
 
 export default function ChatPage({ params }: { params: Promise<{ discipline: string }> }) {
@@ -52,6 +53,25 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const handleFeedback = async (index: number, feedback: 'like' | 'dislike') => {
+    const message = messages[index]
+    const question = messages[index - 1]?.content || ''
+
+    // Update UI immediately
+    setMessages(prev => prev.map((msg, i) =>
+      i === index ? { ...msg, feedback } : msg
+    ))
+
+    // Save to database
+    await supabase.from('answer_feedback').insert({
+      user_email: user?.email,
+      discipline,
+      question,
+      answer: message.content,
+      feedback
+    })
+  }
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return
@@ -82,24 +102,28 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
       if (response.status === 429) {
         setMessages([...newMessages, {
           role: 'assistant',
-          content: '⚠️ ' + data.error
+          content: '⚠️ ' + data.error,
+          feedback: null
         }])
       } else if (data.error) {
         setMessages([...newMessages, {
           role: 'assistant',
-          content: '❌ ' + data.error
+          content: '❌ ' + data.error,
+          feedback: null
         }])
       } else {
         setMessages([...newMessages, {
           role: 'assistant',
-          content: data.answer
+          content: data.answer,
+          feedback: null
         }])
         setUsage(prev => prev + 1)
       }
     } catch {
       setMessages([...newMessages, {
         role: 'assistant',
-        content: '❌ Something went wrong. Please try again.'
+        content: '❌ Something went wrong. Please try again.',
+        feedback: null
       }])
     }
 
@@ -155,7 +179,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
               </h2>
               <p className="text-gray-500 text-sm max-w-md mx-auto leading-relaxed">
                 Ask any question about {disciplineNames[discipline]} rules.
-                Answers are based strictly on the official World Aquatics World Aquatics Regulations.
+                Answers are based strictly on the official World Aquatics Regulations.
               </p>
               <div className="mt-6 grid grid-cols-1 gap-2 max-w-md mx-auto">
                 {(discipline === 'swimming' ? [
@@ -206,24 +230,53 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                   </p>
                 </div>
               ) : (
-                <div className="max-w-3xl bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
-                  <div className="text-gray-700 text-sm">
-                    <ReactMarkdown
-                      components={{
-                        h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-4 mb-2">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
-                        p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-blue-700">{children}</strong>,
-                        ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
-                        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                        blockquote: ({ children }) => <blockquote className="border-l-4 border-blue-200 pl-4 italic text-gray-600 my-3">{children}</blockquote>,
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
+                <div className="max-w-3xl">
+                  <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
+                    <div className="text-gray-700 text-sm">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-4 mb-2">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
+                          p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold text-blue-700">{children}</strong>,
+                          ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
+                          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                          blockquote: ({ children }) => <blockquote className="border-l-4 border-blue-200 pl-4 italic text-gray-600 my-3">{children}</blockquote>,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
                   </div>
+
+                  {/* Like/Dislike buttons */}
+                  {!msg.content.startsWith('❌') && !msg.content.startsWith('⚠️') && (
+                    <div className="flex items-center gap-2 mt-2 ml-1">
+                      <span className="text-xs text-gray-400">Was this helpful?</span>
+                      <button
+                        onClick={() => handleFeedback(i, 'like')}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
+                          msg.feedback === 'like'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600'
+                        }`}
+                      >
+                        👍 {msg.feedback === 'like' ? 'Helpful' : ''}
+                      </button>
+                      <button
+                        onClick={() => handleFeedback(i, 'dislike')}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
+                          msg.feedback === 'dislike'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600'
+                        }`}
+                      >
+                        👎 {msg.feedback === 'dislike' ? 'Not helpful' : ''}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -239,7 +292,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
-                  <span className="text-xs text-gray-400 ml-2">Searching World Aquatics Regulations...</span>
+                  <span className="text-xs text-gray-400 ml-2">Searching regulations...</span>
                 </div>
               </div>
             </div>
