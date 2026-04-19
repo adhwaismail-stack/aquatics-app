@@ -42,11 +42,14 @@ export default function Home() {
           <a href="/pricing" className="bg-blue-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-blue-700">
             Start 7-Day Free Trial
           </a>
+          <a href="/demo" className="bg-green-500 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-green-600">
+            🎮 Try Free Demo
+          </a>
           <a href="#pricing" className="border border-gray-200 text-gray-700 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-50">
             See Pricing
           </a>
         </div>
-        <p className="text-sm text-gray-400 mt-4">No charge for 7 days. Cancel anytime.</p>
+        <p className="text-sm text-gray-400 mt-4">No credit card needed for demo · No charge for 7 days on trial · Cancel anytime.</p>
       </section>
 
       {/* Features */}
@@ -135,6 +138,18 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Demo CTA Banner */}
+      <section className="bg-green-50 border-y border-green-100 px-8 py-12">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-green-700 text-sm font-medium mb-2">🎮 Try before you subscribe</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">See AquaRef in action — free</h2>
+          <p className="text-gray-500 mb-6">Ask 2 real swimming rules questions. No account needed. No credit card.</p>
+          <a href="/demo" className="inline-block bg-green-500 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-600">
+            Try Free Demo →
+          </a>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section id="pricing" className="bg-gray-50 px-8 py-20">
         <div className="max-w-4xl mx-auto">
@@ -189,7 +204,7 @@ export default function Home() {
                   "Multilingual support",
                   "New disciplines added free",
                   "Regulations update alerts",
-              "200 questions per day"
+                  "200 questions per day"
                 ].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white">
                     <span className="text-blue-200">✓</span>{f}
@@ -217,9 +232,9 @@ export default function Home() {
             For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.
           </p>
           <div className="flex gap-6 text-sm text-gray-400">
-            <a href="#" className="hover:text-gray-600">Privacy Policy</a>
-            <a href="#" className="hover:text-gray-600">Terms</a>
-            <a href="#" className="hover:text-gray-600">Contact</a>
+            <a href="/privacy-policy" className="hover:text-gray-600">Privacy Policy</a>
+            <a href="/terms-of-service" className="hover:text-gray-600">Terms</a>
+            <a href="/contact" className="hover:text-gray-600">Contact</a>
           </div>
         </div>
       </footer>
