@@ -17,6 +17,7 @@ interface UserSubscription {
   selected_discipline: string | null
   status: string
   current_period_end: string | null
+  stripe_customer_id: string | null
 }
 
 export default function DashboardPage() {
@@ -43,15 +44,15 @@ export default function DashboardPage() {
         setLiveDisciplines(live)
       }
 
-const { data: sub } = await supabase
+      const { data: sub } = await supabase
         .from('user_subscriptions')
-        .select('plan, selected_discipline, status, current_period_end')
+        .select('plan, selected_discipline, status, current_period_end, stripe_customer_id')
         .eq('user_email', user.email)
         .single()
 
       if (sub) {
-        // If beta tester with no expiry set, set it to 14 days from now
-        if (sub.status === 'active' && !sub.current_period_end) {
+        // Only set expiry for beta testers (no Stripe subscription)
+        if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id) {
           const expiryDate = new Date()
           expiryDate.setDate(expiryDate.getDate() + 14)
 
@@ -78,7 +79,6 @@ const { data: sub } = await supabase
   const canAccessDiscipline = (disciplineId: string) => {
     if (!subscription) return false
     if (subscription.status !== 'active') return false
-    // Check expiry date
     if (subscription.current_period_end) {
       const expiry = new Date(subscription.current_period_end)
       if (expiry < new Date()) return false
@@ -91,6 +91,11 @@ const { data: sub } = await supabase
   const isExpired = () => {
     if (!subscription?.current_period_end) return false
     return new Date(subscription.current_period_end) < new Date()
+  }
+
+  const isBetaTester = () => {
+    return subscription?.current_period_end !== null &&
+      subscription?.stripe_customer_id === null
   }
 
   const handleDisciplineClick = (disciplineId: string) => {
@@ -131,7 +136,7 @@ const { data: sub } = await supabase
               onClick={() => { window.location.href = '/pricing' }}
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
-              {subscription?.plan === 'all_disciplines' && !isExpired() ? 'My Plan' : 'Upgrade Plan'}
+              {subscription?.plan === 'all_disciplines' && !isExpired() && !isBetaTester() ? 'My Plan' : 'Upgrade Plan'}
             </button>
             <button
               onClick={handleLogout}
@@ -165,8 +170,28 @@ const { data: sub } = await supabase
           </div>
         )}
 
+        {/* Beta tester banner */}
+        {isBetaTester() && !isExpired() && (
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-green-900">
+                ✅ Beta Access — All Disciplines
+              </p>
+              <p className="text-xs text-green-600 mt-0.5">
+                Access expires: {new Date(subscription!.current_period_end!).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+            <button
+              onClick={() => { window.location.href = '/pricing' }}
+              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
+            >
+              Subscribe Now
+            </button>
+          </div>
+        )}
+
         {/* Starter plan banner */}
-        {subscription?.plan === 'starter' && !isExpired() && (
+        {subscription?.plan === 'starter' && !isExpired() && !isBetaTester() && (
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-blue-900">
@@ -182,18 +207,6 @@ const { data: sub } = await supabase
             >
               Upgrade to All Disciplines
             </button>
-          </div>
-        )}
-
-        {/* Beta tester banner */}
-        {subscription?.plan === 'all_disciplines' && !isExpired() && subscription.current_period_end && (
-          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6">
-            <p className="text-sm font-medium text-green-900">
-              ✅ Beta Access — All Disciplines
-            </p>
-            <p className="text-xs text-green-600 mt-0.5">
-              Access expires: {new Date(subscription.current_period_end).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
           </div>
         )}
 
@@ -219,7 +232,9 @@ const { data: sub } = await supabase
             <div className="text-xs text-gray-400 mt-1">Disciplines available</div>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">50</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {subscription?.plan === 'all_disciplines' ? '200' : '50'}
+            </div>
             <div className="text-xs text-gray-400 mt-1">Questions per day</div>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
