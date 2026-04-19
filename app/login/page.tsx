@@ -104,7 +104,7 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-gray-400 mt-6">
           Don't have an account?{' '}
-          <a href="/signup" className="text-blue-600 hover:underline">
+          <a href="/pricing" className="text-blue-600 hover:underline">
             Start free trial
           </a>
         </p>
