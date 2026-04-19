@@ -63,6 +63,23 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   masters: 'Masters Swimming',
 }
 
+function ExpandableAnswer({ answer }: { answer: string }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div>
+      <p className={`text-sm text-gray-500 ${expanded ? '' : 'line-clamp-2'}`}>
+        A: {answer}
+      </p>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="text-xs text-blue-500 hover:text-blue-600 mt-1"
+      >
+        {expanded ? '▲ Show less' : '▼ Show full answer'}
+      </button>
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState('')
   const [authenticated, setAuthenticated] = useState(false)
@@ -604,7 +621,7 @@ export default function AdminPage() {
                       </span>
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
-                    <p className="text-sm text-gray-500 line-clamp-2">A: {log.answer}</p>
+                    <ExpandableAnswer answer={log.answer} />
                     <button
                       onClick={() => {
                         setSelectedLog(log)
