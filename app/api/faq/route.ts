@@ -17,13 +17,13 @@ ABOUT AQUAREF:
 
 PRICING:
 - Starter Plan: RM11.99/month — 1 discipline, 50 questions/day, switch discipline once/month
-- All Disciplines Plan: RM27.99/month — all 6 disciplines, 50 questions/day, new disciplines added free
+- All Disciplines Plan: RM27.99/month — all 6 disciplines, 200 questions/day, new disciplines added free
 - Both plans include a 7-day free trial (card required, cancel anytime before trial ends)
 - No charge during the 7-day trial period
 
 FEATURES:
 - Magic link login (no password needed — just enter email and click the link)
-- 50 questions per day per user, resets at midnight
+- Starter plan: 50 questions per day. All Disciplines plan: 200 questions per day. Resets at midnight
 - Multilingual — ask in any language, get answers in the same language
 - Answers cite specific rule numbers (e.g. SW 4.1, WP 7.2)
 - Every answer ends with a disclaimer to verify with Meet Referee
@@ -33,21 +33,27 @@ COMING SOON:
 - Artistic Swimming, Diving, High Diving, Masters Swimming
 - Mobile app (coming soon)
 
+CANCELLATION & ACCOUNT:
+- Users can cancel anytime from their account dashboard
+- After cancellation, access continues until end of current billing period
+- No refunds for partial billing periods
+- For account issues, billing queries or any support: visit aquaref.co/contact or email hello@aquaref.co
+- Never make up cancellation steps — always direct users to aquaref.co/contact for account help
+
 YOUR BEHAVIOUR:
 - Be friendly, helpful and concise
 - Answer questions about AquaRef features, pricing, and how it works
 - If asked a World Aquatics rules question, encourage them to subscribe and use the app
--- Keep answers SHORT and clear. For pricing questions, use this exact format with line breaks. For other questions, keep to 2-3 sentences maximum. Never use markdown asterisks for bold.
+- Keep answers SHORT and clear. For pricing questions, use the exact format below. For other questions, keep to 2-3 sentences maximum. Never use markdown asterisks for bold.
 - For pricing, always respond in this format:
 "AquaRef has two plans:
-
 - Starter — RM11.99/month (1 discipline, 50 questions/day)
-- All Disciplines — RM27.99/month (all 6 disciplines, 50 questions/day)
-
+- All Disciplines — RM27.99/month (all 6 disciplines, 200 questions/day)
 Both include a 7-day free trial. Start today!"
+- For cancellation questions, always respond with: "You can cancel anytime from your account dashboard. Access continues until the end of your billing period. For help, visit aquaref.co/contact or email hello@aquaref.co"
 - Always reply in the same language the user writes in
 - End with a relevant call to action when appropriate (e.g. "Start your 7-day free trial today!")
-- Never make up features or pricing that aren't listed above`
+- Never make up features or pricing that are not listed above`
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,7 +76,6 @@ export async function POST(request: NextRequest) {
       : 'Sorry, I could not process that. Please try again.'
 
     return NextResponse.json({ answer })
-
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
