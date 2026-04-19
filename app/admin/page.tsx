@@ -80,6 +80,9 @@ export default function AdminPage() {
   const [savingCorrection, setSavingCorrection] = useState(false)
   const [logsLoading, setLogsLoading] = useState(false)
   const [logDisciplineFilter, setLogDisciplineFilter] = useState('all')
+  const [logKeyword, setLogKeyword] = useState('')
+  const [logDateFrom, setLogDateFrom] = useState('')
+  const [logDateTo, setLogDateTo] = useState('')
   const [rulebookFiles, setRulebookFiles] = useState<Record<string, RulebookFile[]>>({})
   const [deletingFile, setDeletingFile] = useState<string | null>(null)
   const [subscribers, setSubscribers] = useState<Subscriber[]>([])
@@ -269,6 +272,23 @@ export default function AdminPage() {
     setUploading(null)
     e.target.value = ''
   }
+
+  const filteredLogs = chatLogs
+    .filter(l => logDisciplineFilter === 'all' || l.discipline === logDisciplineFilter)
+    .filter(l => {
+      if (!logKeyword) return true
+      const kw = logKeyword.toLowerCase()
+      return (
+        l.question?.toLowerCase().includes(kw) ||
+        l.answer?.toLowerCase().includes(kw) ||
+        l.user_email?.toLowerCase().includes(kw)
+      )
+    })
+    .filter(l => {
+      if (logDateFrom && new Date(l.created_at) < new Date(logDateFrom)) return false
+      if (logDateTo && new Date(l.created_at) > new Date(logDateTo + 'T23:59:59')) return false
+      return true
+    })
 
   if (!authenticated) {
     return (
@@ -493,6 +513,47 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Keyword search */}
+            <div className="mb-4">
+              <input
+                type="text"
+                value={logKeyword}
+                onChange={(e) => setLogKeyword(e.target.value)}
+                placeholder="Search by keyword, email, question or answer..."
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400"
+              />
+            </div>
+
+            {/* Date filter */}
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">Date from</label>
+                <input
+                  type="date"
+                  value={logDateFrom}
+                  onChange={(e) => setLogDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">Date to</label>
+                <input
+                  type="date"
+                  value={logDateTo}
+                  onChange={(e) => setLogDateTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => { setLogKeyword(''); setLogDateFrom(''); setLogDateTo(''); setLogDisciplineFilter('all') }}
+                  className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
             {/* Discipline filter tabs */}
             <div className="flex gap-2 mb-6 flex-wrap">
               {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters'].map((tab) => {
@@ -520,41 +581,41 @@ export default function AdminPage() {
 
             {logsLoading ? (
               <div className="text-center py-8 text-gray-400">Loading...</div>
-            ) : chatLogs.filter(l => logDisciplineFilter === 'all' || l.discipline === logDisciplineFilter).length === 0 ? (
+            ) : filteredLogs.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">💬</p>
-                <p className="font-medium text-gray-500">No conversations yet</p>
+                <p className="font-medium text-gray-500">No conversations found</p>
+                <p className="text-sm mt-1">Try adjusting your filters</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {chatLogs
-                  .filter(l => logDisciplineFilter === 'all' || l.discipline === logDisciplineFilter)
-                  .map((log) => (
-                    <div key={log.id} className="border border-gray-100 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                            {DISCIPLINE_LABELS[log.discipline] || log.discipline}
-                          </span>
-                          <span className="text-xs text-gray-400">{log.user_email}</span>
-                        </div>
-                        <span className="text-xs text-gray-400">
-                          {new Date(log.created_at).toLocaleString()}
+                <p className="text-xs text-gray-400">Showing {filteredLogs.length} result{filteredLogs.length !== 1 ? 's' : ''}</p>
+                {filteredLogs.map((log) => (
+                  <div key={log.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                          {DISCIPLINE_LABELS[log.discipline] || log.discipline}
                         </span>
+                        <span className="text-xs text-gray-400">{log.user_email}</span>
                       </div>
-                      <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
-                      <p className="text-sm text-gray-500 line-clamp-2">A: {log.answer}</p>
-                      <button
-                        onClick={() => {
-                          setSelectedLog(log)
-                          setCorrectionText('')
-                        }}
-                        className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium"
-                      >
-                        ✏️ Add Correction
-                      </button>
+                      <span className="text-xs text-gray-400">
+                        {new Date(log.created_at).toLocaleString()}
+                      </span>
                     </div>
-                  ))}
+                    <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
+                    <p className="text-sm text-gray-500 line-clamp-2">A: {log.answer}</p>
+                    <button
+                      onClick={() => {
+                        setSelectedLog(log)
+                        setCorrectionText('')
+                      }}
+                      className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium"
+                    >
+                      ✏️ Add Correction
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
