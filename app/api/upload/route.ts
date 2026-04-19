@@ -39,51 +39,64 @@ function getArticleLabel(articleNum: string): string {
   return header ? `[${header} - Article ${articleNum}] ` : `[Article ${articleNum}] `
 }
 
+function removeTOC(text: string): string {
+  // Remove table of contents pages — lines that are mostly dots and numbers
+  const lines = text.split('\n')
+  const filtered = lines.filter(line => {
+    const dotRatio = (line.match(/\./g) || []).length / (line.length || 1)
+    const isTOCLine = dotRatio > 0.3 && /\d+$/.test(line.trim())
+    return !isTOCLine
+  })
+  return filtered.join('\n')
+}
+
 function cleanText(text: string): string {
   return text
-    .replace(/\f/g, ' ')
-    .replace(/\r\n/g, ' ')
-    .replace(/\r/g, ' ')
-    .replace(/\n/g, ' ')
-    .replace(/\.{4,}/g, ' ')
-    .replace(/_{4,}/g, ' ')
-    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\f/g, '\n\n')           // form feed = new page = paragraph break
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\.{4,}/g, ' ')          // remove dot leaders (.......)
+    .replace(/_{4,}/g, ' ')           // remove underscores
+    .replace(/[ \t]{2,}/g, ' ')       // collapse multiple spaces
+    .replace(/\n{3,}/g, '\n\n')       // max 2 newlines
     .trim()
 }
 
 function smartChunk(text: string): string[] {
-  const cleaned = cleanText(text)
+  // Remove TOC before processing
+  const noTOC = removeTOC(text)
+  const cleaned = cleanText(noTOC)
   const chunks: string[] = []
 
-  // Split by article number patterns in continuous text
-  // Matches patterns like: "4.1 ", "4.1.1 ", "SW 4.1 ", "2.5.3 "
+  // Split by article number patterns
+  // Matches: "4.1 ", "4.1.1 ", "SW 4.1 ", "WP 2.5.3 " etc.
   const articlePattern = /(?=(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+)\.(\d+)(?:\.(\d+))?\s+[A-Z][a-z])/g
 
   const parts = cleaned.split(articlePattern)
 
-  // Filter out the capture groups (every 4th element is actual content)
   const contentParts: string[] = []
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
-    // Skip empty parts and pure number captures from regex groups
     if (part && part.trim().length > 50 && !/^\d+$/.test(part.trim())) {
       contentParts.push(part.trim())
     }
   }
 
   for (const part of contentParts) {
-    // Try to extract article number from start of chunk
     const numMatch = part.match(/^(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+\.\d+(?:\.\d+)?)/)
     const articleNum = numMatch ? numMatch[1] : ''
     const label = articleNum ? getArticleLabel(articleNum) : ''
 
-    if (part.length <= 3000) {
-      if (part.trim().length > 100) {
-        chunks.push(label + part.trim())
+    // Preserve paragraph structure within chunk
+    const normalized = part.replace(/\n\n/g, ' | ').replace(/\n/g, ' ').trim()
+
+    if (normalized.length <= 3000) {
+      if (normalized.length > 100) {
+        chunks.push(label + normalized)
       }
     } else {
       // Split long chunks at sentence boundaries
-      let remaining = part
+      let remaining = normalized
       while (remaining.length > 3000) {
         const cutPoint = remaining.lastIndexOf('. ', 2800)
         if (cutPoint > 200) {
@@ -100,7 +113,7 @@ function smartChunk(text: string): string[] {
     }
   }
 
-  // If still too few chunks, use size-based chunking with overlap
+  // Fallback: size-based chunking with overlap
   if (chunks.length < 10) {
     console.log(`Only got ${chunks.length} chunks from article split, using size-based fallback`)
     const fallback: string[] = []
