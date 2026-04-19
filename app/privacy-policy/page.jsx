@@ -1,6 +1,6 @@
 export default function PrivacyPolicy() {
   return (
-    <main style={{ maxWidth: '760px', margin: '0 auto', padding: '3rem 1.5rem', fontFamily: 'Georgia, serif', color: '#1a1a2e', lineHeight: '1.8' }}>
+ <main style={{ maxWidth: '760px', margin: '0 auto', padding: '3rem 1.5rem', fontFamily: 'Georgia, serif', color: '#1a1a2e', lineHeight: '1.8', background: '#ffffff', minHeight: '100vh' }}>
       <div style={{ marginBottom: '2.5rem', borderBottom: '2px solid #0077b6', paddingBottom: '1.5rem' }}>
         <p style={{ fontSize: '13px', color: '#555', marginBottom: '0.5rem', fontFamily: 'sans-serif', letterSpacing: '0.08em', textTransform: 'uppercase' }}>AquaRef · Legal</p>
         <h1 style={{ fontSize: '2rem', fontWeight: '700', margin: '0 0 0.5rem', color: '#03045e' }}>Privacy Policy</h1>
