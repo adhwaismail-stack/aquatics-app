@@ -18,6 +18,7 @@ interface UserSubscription {
   status: string
   current_period_end: string | null
   stripe_customer_id: string | null
+  full_name: string | null
 }
 
 export default function DashboardPage() {
@@ -26,6 +27,7 @@ export default function DashboardPage() {
   const [liveDisciplines, setLiveDisciplines] = useState<string[]>([])
   const [subscription, setSubscription] = useState<UserSubscription | null>(null)
   const [showPlanModal, setShowPlanModal] = useState(false)
+  const [fullName, setFullName] = useState<string | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
@@ -47,7 +49,7 @@ export default function DashboardPage() {
 
       const { data: sub } = await supabase
         .from('user_subscriptions')
-        .select('plan, selected_discipline, status, current_period_end, stripe_customer_id')
+        .select('plan, selected_discipline, status, current_period_end, stripe_customer_id, full_name')
         .eq('user_email', user.email)
         .single()
 
@@ -61,6 +63,14 @@ export default function DashboardPage() {
             .eq('user_email', user.email)
           sub.current_period_end = expiryDate.toISOString()
         }
+
+        if (sub.full_name) {
+          setFullName(sub.full_name)
+        } else if (sub.status === 'active') {
+          window.location.href = '/onboarding'
+          return
+        }
+
         setSubscription(sub)
       }
 
@@ -149,7 +159,7 @@ export default function DashboardPage() {
               onClick={() => setShowPlanModal(true)}
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
-              {subscription?.plan === 'all_disciplines' && !isExpired() && !isBetaTester() ? 'My Plan' : 'My Plan'}
+              My Plan
             </button>
             <button
               onClick={handleLogout}
@@ -223,7 +233,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => {
                     setShowPlanModal(false)
-                    window.location.href = '/api/stripe-portal'
+                    window.location.href = '/contact'
                   }}
                   className="w-full py-2.5 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
                 >
@@ -232,10 +242,10 @@ export default function DashboardPage() {
               )}
               {(isExpired() || !subscription || subscription.plan === 'starter') && (
                 <button
-                 onClick={() => {
-  setShowPlanModal(false)
-  window.location.href = '/contact'
-}}
+                  onClick={() => {
+                    setShowPlanModal(false)
+                    window.location.href = '/pricing'
+                  }}
                   className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
                 >
                   {isExpired() ? 'Renew Subscription' : 'Upgrade Plan'}
@@ -258,7 +268,9 @@ export default function DashboardPage() {
 
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back! 👋</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Welcome back{fullName ? `, ${fullName}` : ''}! 👋
+          </h1>
           <p className="text-gray-500">Select a discipline to get instant AI-powered rules answers</p>
         </div>
 
