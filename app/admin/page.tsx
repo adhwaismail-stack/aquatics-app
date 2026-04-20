@@ -55,6 +55,16 @@ interface FeedbackItem {
   created_at: string
 }
 
+interface BetaUser {
+  id: string
+  user_email: string
+  plan: string
+  status: string
+  current_period_end: string
+  stripe_customer_id: string | null
+  created_at: string
+}
+
 interface DailyUsage {
   date: string
   count: number
@@ -141,6 +151,13 @@ export default function AdminPage() {
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [dailyUsage, setDailyUsage] = useState<DailyUsage[]>([])
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [betaUsers, setBetaUsers] = useState<BetaUser[]>([])
+  const [betaLoading, setBetaLoading] = useState(false)
+  const [betaEmail, setBetaEmail] = useState('')
+  const [betaDays, setBetaDays] = useState('14')
+  const [grantingBeta, setGrantingBeta] = useState(false)
+  const [extendEmail, setExtendEmail] = useState<string | null>(null)
+  const [extendDays, setExtendDays] = useState('14')
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -199,6 +216,18 @@ export default function AdminPage() {
     setFeedbackLoading(false)
   }
 
+  const loadBetaUsers = async () => {
+    setBetaLoading(true)
+    const { data } = await supabase
+      .from('user_subscriptions')
+      .select('*')
+      .is('stripe_customer_id', null)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+    if (data) setBetaUsers(data)
+    setBetaLoading(false)
+  }
+
   const loadAnalytics = async () => {
     setAnalyticsLoading(true)
     const { data: usageData } = await supabase.from('daily_usage').select('date, count').order('date', { ascending: false }).limit(14)
@@ -211,6 +240,7 @@ export default function AdminPage() {
     if (activeTab === 'corrections') loadCorrections()
     if (activeTab === 'subscribers') loadSubscribers()
     if (activeTab === 'feedback') loadFeedback()
+    if (activeTab === 'beta users') loadBetaUsers()
     if (activeTab === 'analytics') { loadAnalytics(); loadFeedback(); loadSubscribers(); loadChatLogs() }
   }, [activeTab])
 
@@ -286,6 +316,81 @@ export default function AdminPage() {
     }
     setUploading(null)
     e.target.value = ''
+  }
+
+  const handleGrantBeta = async () => {
+    if (!betaEmail.trim()) return
+    setGrantingBeta(true)
+    const expiryDate = new Date()
+    expiryDate.setDate(expiryDate.getDate() + parseInt(betaDays))
+
+    const { data: existing } = await supabase
+      .from('user_subscriptions')
+      .select('id')
+      .eq('user_email', betaEmail.trim().toLowerCase())
+      .single()
+
+    if (existing) {
+      await supabase
+        .from('user_subscriptions')
+        .update({
+          plan: 'all_disciplines',
+          status: 'active',
+          current_period_end: expiryDate.toISOString(),
+          stripe_customer_id: null
+        })
+        .eq('user_email', betaEmail.trim().toLowerCase())
+    } else {
+      await supabase.from('user_subscriptions').insert({
+        user_email: betaEmail.trim().toLowerCase(),
+        plan: 'all_disciplines',
+        status: 'active',
+        current_period_end: expiryDate.toISOString(),
+        stripe_customer_id: null
+      })
+    }
+
+    alert(`✅ Beta access granted to ${betaEmail} for ${betaDays} days (expires ${expiryDate.toLocaleDateString()})`)
+    setBetaEmail('')
+    setBetaDays('14')
+    setGrantingBeta(false)
+    loadBetaUsers()
+  }
+
+  const handleExtendBeta = async (email: string) => {
+    const days = parseInt(extendDays)
+    const { data: user } = await supabase
+      .from('user_subscriptions')
+      .select('current_period_end')
+      .eq('user_email', email)
+      .single()
+
+    if (!user) return
+
+    const currentExpiry = new Date(user.current_period_end)
+    const newExpiry = new Date(Math.max(currentExpiry.getTime(), Date.now()))
+    newExpiry.setDate(newExpiry.getDate() + days)
+
+    await supabase
+      .from('user_subscriptions')
+      .update({ current_period_end: newExpiry.toISOString(), status: 'active' })
+      .eq('user_email', email)
+
+    alert(`✅ Beta access extended for ${email} by ${days} days (new expiry: ${newExpiry.toLocaleDateString()})`)
+    setExtendEmail(null)
+    loadBetaUsers()
+  }
+
+  const handleRevokeBeta = async (email: string) => {
+    if (!confirm(`Revoke beta access for ${email}? They will lose access immediately.`)) return
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    await supabase
+      .from('user_subscriptions')
+      .update({ current_period_end: yesterday.toISOString(), status: 'active' })
+      .eq('user_email', email)
+    alert(`✅ Beta access revoked for ${email}`)
+    loadBetaUsers()
   }
 
   const filteredLogs = chatLogs
@@ -397,7 +502,7 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['rulebooks', 'system prompt', 'chat logs', 'corrections', 'feedback', 'subscribers', 'analytics'].map((tab) => (
+          {['rulebooks', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
@@ -569,19 +674,9 @@ export default function AdminPage() {
               </div>
               <button onClick={loadCorrections} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
-
-            {/* Keyword search */}
             <div className="mb-4">
-              <input
-                type="text"
-                value={correctionKeyword}
-                onChange={(e) => setCorrectionKeyword(e.target.value)}
-                placeholder="Search by question or correction..."
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400"
-              />
+              <input type="text" value={correctionKeyword} onChange={(e) => setCorrectionKeyword(e.target.value)} placeholder="Search by question or correction..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400" />
             </div>
-
-            {/* Discipline filter */}
             <div className="flex gap-2 mb-6 flex-wrap">
               {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater'].map((tab) => {
                 const count = tab === 'all' ? corrections.length : corrections.filter(c => c.discipline === tab).length
@@ -592,12 +687,10 @@ export default function AdminPage() {
                 )
               })}
             </div>
-
             {filteredCorrections.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">✏️</p>
                 <p className="font-medium text-gray-500">No corrections found</p>
-                <p className="text-sm mt-1">Try adjusting your filters</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -690,6 +783,119 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Beta Users tab */}
+        {activeTab === 'beta users' && (
+          <div className="space-y-6">
+            {/* Grant Beta Access */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <h2 className="font-semibold text-gray-900 mb-2">Grant Beta Access</h2>
+              <p className="text-sm text-gray-400 mb-4">Give a user free access to all disciplines for a set period</p>
+              <div className="flex gap-3 flex-wrap">
+                <div className="flex-1 min-w-48">
+                  <label className="block text-xs text-gray-400 mb-1">Email address</label>
+                  <input
+                    type="email"
+                    value={betaEmail}
+                    onChange={(e) => setBetaEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Duration</label>
+                  <select
+                    value={betaDays}
+                    onChange={(e) => setBetaDays(e.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  >
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30">30 days</option>
+                    <option value="60">60 days</option>
+                    <option value="90">90 days</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleGrantBeta}
+                    disabled={grantingBeta || !betaEmail.trim()}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {grantingBeta ? 'Granting...' : '✅ Grant Access'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Beta Users List */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Active Beta Users</h2>
+                  <p className="text-sm text-gray-400 mt-1">{betaUsers.length} beta user{betaUsers.length !== 1 ? 's' : ''}</p>
+                </div>
+                <button onClick={loadBetaUsers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
+              </div>
+
+              {betaLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : betaUsers.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-4xl mb-4">🧪</p>
+                  <p className="font-medium text-gray-500">No beta users yet</p>
+                  <p className="text-sm mt-1">Grant beta access above to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {betaUsers.map((u) => {
+                    const expiry = new Date(u.current_period_end)
+                    const isExpired = expiry < new Date()
+                    const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    return (
+                      <div key={u.id} className={`border rounded-xl p-4 ${isExpired ? 'border-red-100 bg-red-50' : 'border-green-100 bg-green-50'}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{u.user_email}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                {isExpired ? '❌ Expired' : `✅ ${daysLeft} days left`}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Expires: {expiry.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {extendEmail === u.user_email ? (
+                              <div className="flex items-center gap-2">
+                                <select value={extendDays} onChange={(e) => setExtendDays(e.target.value)} className="px-2 py-1 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white">
+                                  <option value="7">+7 days</option>
+                                  <option value="14">+14 days</option>
+                                  <option value="30">+30 days</option>
+                                  <option value="60">+60 days</option>
+                                </select>
+                                <button onClick={() => handleExtendBeta(u.user_email)} className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Confirm</button>
+                                <button onClick={() => setExtendEmail(null)} className="px-3 py-1 border border-gray-200 text-gray-500 rounded-lg text-xs hover:bg-gray-50">Cancel</button>
+                              </div>
+                            ) : (
+                              <>
+                                <button onClick={() => { setExtendEmail(u.user_email); setExtendDays('14') }} className="px-3 py-1 border border-blue-200 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50">
+                                  Extend
+                                </button>
+                                <button onClick={() => handleRevokeBeta(u.user_email)} className="px-3 py-1 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50">
+                                  Revoke
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
