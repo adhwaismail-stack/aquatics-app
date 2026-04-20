@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [liveDisciplines, setLiveDisciplines] = useState<string[]>([])
   const [subscription, setSubscription] = useState<UserSubscription | null>(null)
+  const [showPlanModal, setShowPlanModal] = useState(false)
 
   useEffect(() => {
     const getUser = async () => {
@@ -51,16 +52,13 @@ export default function DashboardPage() {
         .single()
 
       if (sub) {
-        // Only set expiry for beta testers (no Stripe subscription)
         if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id) {
           const expiryDate = new Date()
           expiryDate.setDate(expiryDate.getDate() + 14)
-
           await supabase
             .from('user_subscriptions')
             .update({ current_period_end: expiryDate.toISOString() })
             .eq('user_email', user.email)
-
           sub.current_period_end = expiryDate.toISOString()
         }
         setSubscription(sub)
@@ -98,6 +96,21 @@ export default function DashboardPage() {
       subscription?.stripe_customer_id === null
   }
 
+  const getPlanName = () => {
+    if (!subscription) return 'No Plan'
+    if (isBetaTester()) return 'Beta Access — All Disciplines'
+    if (subscription.plan === 'all_disciplines') return 'All Disciplines Plan'
+    if (subscription.plan === 'starter') return 'Starter Plan'
+    return 'Unknown Plan'
+  }
+
+  const getPlanPrice = () => {
+    if (isBetaTester()) return 'Free (Beta)'
+    if (subscription?.plan === 'all_disciplines') return 'RM27.99/month'
+    if (subscription?.plan === 'starter') return 'RM11.99/month'
+    return '-'
+  }
+
   const handleDisciplineClick = (disciplineId: string) => {
     if (canAccessDiscipline(disciplineId)) {
       window.location.href = `/chat/${disciplineId}`
@@ -133,10 +146,10 @@ export default function DashboardPage() {
               </button>
             )}
             <button
-              onClick={() => { window.location.href = '/pricing' }}
+              onClick={() => setShowPlanModal(true)}
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
-              {subscription?.plan === 'all_disciplines' && !isExpired() && !isBetaTester() ? 'My Plan' : 'Upgrade Plan'}
+              {subscription?.plan === 'all_disciplines' && !isExpired() && !isBetaTester() ? 'My Plan' : 'My Plan'}
             </button>
             <button
               onClick={handleLogout}
@@ -148,13 +161,107 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Plan Modal */}
+      {showPlanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-lg text-gray-900">My Plan</h3>
+              <button
+                onClick={() => setShowPlanModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
+              <p className="text-xs text-blue-500 mb-1">Current Plan</p>
+              <p className="font-bold text-blue-900 text-lg">{getPlanName()}</p>
+              <p className="text-sm text-blue-700 mt-1">{getPlanPrice()}</p>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Status</span>
+                <span className={`font-medium ${isExpired() ? 'text-red-600' : 'text-green-600'}`}>
+                  {isExpired() ? 'Expired' : 'Active'}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Email</span>
+                <span className="text-gray-700">{user?.email}</span>
+              </div>
+              {subscription?.current_period_end && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{isBetaTester() ? 'Beta expires' : 'Renews on'}</span>
+                  <span className="text-gray-700">
+                    {new Date(subscription.current_period_end).toLocaleDateString('en-MY', {
+                      day: 'numeric', month: 'long', year: 'numeric'
+                    })}
+                  </span>
+                </div>
+              )}
+              {subscription?.plan === 'starter' && subscription.selected_discipline && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Selected Discipline</span>
+                  <span className="text-gray-700 capitalize">
+                    {disciplines.find(d => d.id === subscription.selected_discipline)?.name}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Questions per day</span>
+                <span className="text-gray-700">
+                  {subscription?.plan === 'all_disciplines' ? '200' : '50'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {!isBetaTester() && subscription?.stripe_customer_id && (
+                <button
+                  onClick={() => {
+                    setShowPlanModal(false)
+                    window.location.href = '/api/stripe-portal'
+                  }}
+                  className="w-full py-2.5 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
+                >
+                  Cancel Subscription
+                </button>
+              )}
+              {(isExpired() || !subscription || subscription.plan === 'starter') && (
+                <button
+                  onClick={() => {
+                    setShowPlanModal(false)
+                    window.location.href = '/pricing'
+                  }}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                >
+                  {isExpired() ? 'Renew Subscription' : 'Upgrade Plan'}
+                </button>
+              )}
+              <button
+                onClick={() => setShowPlanModal(false)}
+                className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center mt-4">
+              For billing help, contact <a href="mailto:hello@aquaref.co" className="text-blue-500">hello@aquaref.co</a>
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back! 👋</h1>
           <p className="text-gray-500">Select a discipline to get instant AI-powered rules answers</p>
         </div>
 
-        {/* Expired access banner */}
         {isExpired() && (
           <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
@@ -170,7 +277,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Beta tester banner */}
         {isBetaTester() && !isExpired() && (
           <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
@@ -190,7 +296,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Starter plan banner */}
         {subscription?.plan === 'starter' && !isExpired() && !isBetaTester() && (
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
@@ -210,7 +315,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* No subscription banner */}
         {!subscription && (
           <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
