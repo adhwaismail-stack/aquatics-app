@@ -45,7 +45,7 @@ interface Subscriber {
   created_at: string
 }
 
-interface Feedback {
+interface FeedbackItem {
   id: string
   user_email: string
   feedback: string
@@ -84,13 +84,8 @@ function ExpandableAnswer({ answer }: { answer: string }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div>
-      <p className={`text-sm text-gray-500 ${expanded ? '' : 'line-clamp-2'}`}>
-        A: {answer}
-      </p>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="text-xs text-blue-500 hover:text-blue-600 mt-1"
-      >
+      <p className={`text-sm text-gray-500 ${expanded ? '' : 'line-clamp-2'}`}>A: {answer}</p>
+      <button onClick={() => setExpanded(!expanded)} className="text-xs text-blue-500 hover:text-blue-600 mt-1">
         {expanded ? '▲ Show less' : '▼ Show full answer'}
       </button>
     </div>
@@ -134,11 +129,13 @@ export default function AdminPage() {
   const [logKeyword, setLogKeyword] = useState('')
   const [logDateFrom, setLogDateFrom] = useState('')
   const [logDateTo, setLogDateTo] = useState('')
+  const [correctionKeyword, setCorrectionKeyword] = useState('')
+  const [correctionDiscipline, setCorrectionDiscipline] = useState('all')
   const [rulebookFiles, setRulebookFiles] = useState<Record<string, RulebookFile[]>>({})
   const [deletingFile, setDeletingFile] = useState<string | null>(null)
   const [subscribers, setSubscribers] = useState<Subscriber[]>([])
   const [subscribersLoading, setSubscribersLoading] = useState(false)
-  const [feedback, setFeedback] = useState<Feedback[]>([])
+  const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [feedbackFilter, setFeedbackFilter] = useState('all')
   const [feedbackDiscipline, setFeedbackDiscipline] = useState('all')
   const [feedbackLoading, setFeedbackLoading] = useState(false)
@@ -302,6 +299,14 @@ export default function AdminPage() {
       if (logDateFrom && new Date(l.created_at) < new Date(logDateFrom)) return false
       if (logDateTo && new Date(l.created_at) > new Date(logDateTo + 'T23:59:59')) return false
       return true
+    })
+
+  const filteredCorrections = corrections
+    .filter(c => correctionDiscipline === 'all' || c.discipline === correctionDiscipline)
+    .filter(c => {
+      if (!correctionKeyword) return true
+      const kw = correctionKeyword.toLowerCase()
+      return c.question?.toLowerCase().includes(kw) || c.correct_note?.toLowerCase().includes(kw)
     })
 
   const filteredFeedback = feedback
@@ -564,15 +569,40 @@ export default function AdminPage() {
               </div>
               <button onClick={loadCorrections} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
-            {corrections.length === 0 ? (
+
+            {/* Keyword search */}
+            <div className="mb-4">
+              <input
+                type="text"
+                value={correctionKeyword}
+                onChange={(e) => setCorrectionKeyword(e.target.value)}
+                placeholder="Search by question or correction..."
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400"
+              />
+            </div>
+
+            {/* Discipline filter */}
+            <div className="flex gap-2 mb-6 flex-wrap">
+              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater'].map((tab) => {
+                const count = tab === 'all' ? corrections.length : corrections.filter(c => c.discipline === tab).length
+                return (
+                  <button key={tab} onClick={() => setCorrectionDiscipline(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${correctionDiscipline === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+                  </button>
+                )
+              })}
+            </div>
+
+            {filteredCorrections.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">✏️</p>
-                <p className="font-medium text-gray-500">No corrections yet</p>
-                <p className="text-sm mt-1">Add corrections from the Chat Logs tab</p>
+                <p className="font-medium text-gray-500">No corrections found</p>
+                <p className="text-sm mt-1">Try adjusting your filters</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {corrections.map((c) => (
+                <p className="text-xs text-gray-400">Showing {filteredCorrections.length} result{filteredCorrections.length !== 1 ? 's' : ''}</p>
+                {filteredCorrections.map((c) => (
                   <div key={c.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{DISCIPLINE_LABELS[c.discipline] || c.discipline}</span>
@@ -600,8 +630,6 @@ export default function AdminPage() {
               </div>
               <button onClick={loadFeedback} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
-
-            {/* Summary */}
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-green-50 rounded-xl p-4 text-center">
                 <div className="text-2xl font-bold text-green-600">👍 {totalLikes}</div>
@@ -616,8 +644,6 @@ export default function AdminPage() {
                 <div className="text-xs text-gray-400 mt-1">Satisfaction Rate</div>
               </div>
             </div>
-
-            {/* Filters */}
             <div className="flex gap-3 mb-4 flex-wrap">
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Rating</label>
@@ -640,7 +666,6 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
-
             {feedbackLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredFeedback.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">💬</p>
@@ -653,7 +678,7 @@ export default function AdminPage() {
                   <div key={f.id} className={`border rounded-xl p-4 ${f.feedback === 'like' ? 'border-green-100 bg-green-50' : 'border-red-100 bg-red-50'}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className={`text-lg`}>{f.feedback === 'like' ? '👍' : '👎'}</span>
+                        <span className="text-lg">{f.feedback === 'like' ? '👍' : '👎'}</span>
                         <span className="text-xs bg-white px-2 py-1 rounded-full text-gray-600">{DISCIPLINE_LABELS[f.discipline] || f.discipline}</span>
                         <span className="text-xs text-gray-400">{f.user_email}</span>
                       </div>
