@@ -46,8 +46,12 @@ interface Subscriber {
 }
 
 interface Feedback {
+  id: string
+  user_email: string
   feedback: string
   discipline: string
+  question: string
+  answer: string
   created_at: string
 }
 
@@ -93,25 +97,19 @@ function ExpandableAnswer({ answer }: { answer: string }) {
   )
 }
 
-function SimpleBarChart({ data, label }: { data: { label: string, value: number }[], label: string }) {
+function SimpleBarChart({ data }: { data: { label: string, value: number }[] }) {
   const max = Math.max(...data.map(d => d.value), 1)
   return (
-    <div>
-      <p className="text-xs text-gray-400 mb-3">{label}</p>
-      <div className="space-y-2">
-        {data.map((d, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <div className="text-xs text-gray-500 w-24 truncate">{d.label}</div>
-            <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
-              <div
-                className="bg-blue-500 h-5 rounded-full transition-all"
-                style={{ width: `${(d.value / max) * 100}%` }}
-              />
-              <span className="absolute right-2 top-0 text-xs text-gray-600 leading-5">{d.value}</span>
-            </div>
+    <div className="space-y-2">
+      {data.map((d, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="text-xs text-gray-500 w-24 truncate">{d.label}</div>
+          <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
+            <div className="bg-blue-500 h-5 rounded-full transition-all" style={{ width: `${(d.value / max) * 100}%` }} />
+            <span className="absolute right-2 top-0 text-xs text-gray-600 leading-5">{d.value}</span>
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -141,6 +139,9 @@ export default function AdminPage() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([])
   const [subscribersLoading, setSubscribersLoading] = useState(false)
   const [feedback, setFeedback] = useState<Feedback[]>([])
+  const [feedbackFilter, setFeedbackFilter] = useState('all')
+  const [feedbackDiscipline, setFeedbackDiscipline] = useState('all')
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [dailyUsage, setDailyUsage] = useState<DailyUsage[]>([])
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
 
@@ -160,11 +161,7 @@ export default function AdminPage() {
 
   const loadSystemPrompt = async () => {
     setPromptLoading(true)
-    const { data } = await supabase
-      .from('system_prompts')
-      .select('prompt')
-      .eq('discipline', 'all')
-      .single()
+    const { data } = await supabase.from('system_prompts').select('prompt').eq('discipline', 'all').single()
     if (data) setSystemPrompt(data.prompt)
     setPromptLoading(false)
   }
@@ -181,49 +178,34 @@ export default function AdminPage() {
 
   const loadChatLogs = async () => {
     setLogsLoading(true)
-    const { data } = await supabase
-      .from('chat_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100)
+    const { data } = await supabase.from('chat_logs').select('*').order('created_at', { ascending: false }).limit(100)
     if (data) setChatLogs(data)
     setLogsLoading(false)
   }
 
   const loadCorrections = async () => {
-    const { data } = await supabase
-      .from('correction_notes')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('correction_notes').select('*').order('created_at', { ascending: false })
     if (data) setCorrections(data)
   }
 
   const loadSubscribers = async () => {
     setSubscribersLoading(true)
-    const { data } = await supabase
-      .from('subscribers')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('subscribers').select('*').order('created_at', { ascending: false })
     if (data) setSubscribers(data)
     setSubscribersLoading(false)
   }
 
+  const loadFeedback = async () => {
+    setFeedbackLoading(true)
+    const { data } = await supabase.from('answer_feedback').select('*').order('created_at', { ascending: false })
+    if (data) setFeedback(data)
+    setFeedbackLoading(false)
+  }
+
   const loadAnalytics = async () => {
     setAnalyticsLoading(true)
-
-    const { data: feedbackData } = await supabase
-      .from('answer_feedback')
-      .select('feedback, discipline, created_at')
-      .order('created_at', { ascending: false })
-    if (feedbackData) setFeedback(feedbackData)
-
-    const { data: usageData } = await supabase
-      .from('daily_usage')
-      .select('date, count')
-      .order('date', { ascending: false })
-      .limit(14)
+    const { data: usageData } = await supabase.from('daily_usage').select('date, count').order('date', { ascending: false }).limit(14)
     if (usageData) setDailyUsage(usageData)
-
     setAnalyticsLoading(false)
   }
 
@@ -231,15 +213,13 @@ export default function AdminPage() {
     if (activeTab === 'chat logs') loadChatLogs()
     if (activeTab === 'corrections') loadCorrections()
     if (activeTab === 'subscribers') loadSubscribers()
-    if (activeTab === 'analytics') loadAnalytics()
+    if (activeTab === 'feedback') loadFeedback()
+    if (activeTab === 'analytics') { loadAnalytics(); loadFeedback(); loadSubscribers(); loadChatLogs() }
   }, [activeTab])
 
   const handleSavePrompt = async () => {
     setPromptLoading(true)
-    await supabase
-      .from('system_prompts')
-      .update({ prompt: systemPrompt, updated_at: new Date().toISOString() })
-      .eq('discipline', 'all')
+    await supabase.from('system_prompts').update({ prompt: systemPrompt, updated_at: new Date().toISOString() }).eq('discipline', 'all')
     setPromptLoading(false)
     setPromptSaved(true)
     setTimeout(() => setPromptSaved(false), 3000)
@@ -257,7 +237,7 @@ export default function AdminPage() {
     setSavingCorrection(false)
     setCorrectionText('')
     setSelectedLog(null)
-    alert('✅ Correction saved! Future similar questions will use this correction.')
+    alert('✅ Correction saved!')
     loadCorrections()
   }
 
@@ -268,22 +248,17 @@ export default function AdminPage() {
   }
 
   const handleDeleteFile = async (file: RulebookFile) => {
-    if (!confirm(`Delete "${file.original_name}"? This will remove all its chunks from the AI.`)) return
+    if (!confirm(`Delete "${file.original_name}"?`)) return
     setDeletingFile(file.id)
     try {
       await fetch('/api/files', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileId: file.id,
-          discipline: file.discipline,
-          originalName: file.original_name,
-          fileName: file.file_name
-        })
+        body: JSON.stringify({ fileId: file.id, discipline: file.discipline, originalName: file.original_name, fileName: file.file_name })
       })
       await loadAllFiles()
     } catch {
-      alert('Failed to delete file. Please try again.')
+      alert('Failed to delete file.')
     }
     setDeletingFile(null)
   }
@@ -295,34 +270,21 @@ export default function AdminPage() {
     setUploadProgress('Preparing upload...')
     try {
       const fileName = `${discipline}/${Date.now()}_${file.name}`
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from('rulebook')
-        .createSignedUploadUrl(fileName)
+      const { data: signedData, error: signedError } = await supabase.storage.from('rulebook').createSignedUploadUrl(fileName)
       if (signedError || !signedData) throw new Error(`Could not create upload URL: ${signedError?.message}`)
       setUploadProgress('Uploading file to storage...')
-      const uploadResponse = await fetch(signedData.signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/pdf' },
-        body: file
-      })
+      const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/pdf' }, body: file })
       if (!uploadResponse.ok) throw new Error(`Direct upload failed: ${uploadResponse.statusText}`)
       setUploadProgress('Generating AI embeddings...')
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, discipline, originalName: file.name })
-      })
+      const response = await fetch('/api/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName, discipline, originalName: file.name }) })
       const data = await response.json()
       if (data.success) {
         setUploadProgress('')
         alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}`)
         await loadAllFiles()
-      } else {
-        throw new Error(data.error)
-      }
+      } else throw new Error(data.error)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      alert('Upload failed: ' + message)
+      alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
       setUploadProgress('')
     }
     setUploading(null)
@@ -334,11 +296,7 @@ export default function AdminPage() {
     .filter(l => {
       if (!logKeyword) return true
       const kw = logKeyword.toLowerCase()
-      return (
-        l.question?.toLowerCase().includes(kw) ||
-        l.answer?.toLowerCase().includes(kw) ||
-        l.user_email?.toLowerCase().includes(kw)
-      )
+      return l.question?.toLowerCase().includes(kw) || l.answer?.toLowerCase().includes(kw) || l.user_email?.toLowerCase().includes(kw)
     })
     .filter(l => {
       if (logDateFrom && new Date(l.created_at) < new Date(logDateFrom)) return false
@@ -346,7 +304,10 @@ export default function AdminPage() {
       return true
     })
 
-  // Analytics calculations
+  const filteredFeedback = feedback
+    .filter(f => feedbackFilter === 'all' || f.feedback === feedbackFilter)
+    .filter(f => feedbackDiscipline === 'all' || f.discipline === feedbackDiscipline)
+
   const activeSubscribers = subscribers.filter(s => s.status === 'active')
   const starterSubs = activeSubscribers.filter(s => s.plan === 'starter')
   const allDiscSubs = activeSubscribers.filter(s => s.plan === 'all_disciplines')
@@ -365,10 +326,7 @@ export default function AdminPage() {
     d.setDate(d.getDate() - i)
     const dateStr = d.toISOString().split('T')[0]
     const usage = dailyUsage.find(u => u.date === dateStr)
-    return {
-      label: d.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric' }),
-      value: usage?.count || 0
-    }
+    return { label: d.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric' }), value: usage?.count || 0 }
   }).reverse()
 
   const newSubsLast30Days = subscribers.filter(s => {
@@ -394,19 +352,10 @@ export default function AdminPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-8">
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">Admin password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                placeholder="Enter admin password"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} placeholder="Enter admin password" className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-            <button onClick={handleLogin} className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">
-              Login to Admin
-            </button>
+            <button onClick={handleLogin} className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">Login to Admin</button>
           </div>
         </div>
       </div>
@@ -428,8 +377,6 @@ export default function AdminPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Total subscribers', value: subscribers.length.toString() },
@@ -444,16 +391,9 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['rulebooks', 'system prompt', 'chat logs', 'corrections', 'subscribers', 'analytics'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
-                activeTab === tab ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
-              }`}
-            >
+          {['rulebooks', 'system prompt', 'chat logs', 'corrections', 'feedback', 'subscribers', 'analytics'].map((tab) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
           ))}
@@ -464,11 +404,7 @@ export default function AdminPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
             <p className="text-sm text-gray-400 mb-6">Upload multiple PDF or TXT files per discipline</p>
-            {uploadProgress && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">
-                ⏳ {uploadProgress}
-              </div>
-            )}
+            {uploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {uploadProgress}</div>}
             <div className="space-y-4">
               {DISCIPLINES.map((d) => {
                 const files = rulebookFiles[d.discipline] || []
@@ -494,11 +430,7 @@ export default function AdminPage() {
                                 <p className="text-xs text-gray-400">{file.chunk_count} chunks · {new Date(file.uploaded_at).toLocaleDateString()}</p>
                               </div>
                             </div>
-                            <button
-                              onClick={() => handleDeleteFile(file)}
-                              disabled={deletingFile === file.id}
-                              className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50"
-                            >
+                            <button onClick={() => handleDeleteFile(file)} disabled={deletingFile === file.id} className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50">
                               {deletingFile === file.id ? 'Deleting...' : 'Delete'}
                             </button>
                           </div>
@@ -522,24 +454,13 @@ export default function AdminPage() {
         {activeTab === 'system prompt' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">System Prompt Editor</h2>
-            <p className="text-sm text-gray-400 mb-4">This controls how the AI behaves for ALL disciplines. Changes apply immediately to new conversations.</p>
-            {promptLoading ? (
-              <div className="text-center py-8 text-gray-400">Loading...</div>
-            ) : (
+            <p className="text-sm text-gray-400 mb-4">This controls how the AI behaves for ALL disciplines.</p>
+            {promptLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : (
               <>
-                <textarea
-                  value={systemPrompt}
-                  onChange={(e) => setSystemPrompt(e.target.value)}
-                  rows={16}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
-                />
+                <textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={16} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700" />
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-xs text-gray-400">Tip: Add TC clarifications or rule corrections directly here</p>
-                  <button
-                    onClick={handleSavePrompt}
-                    disabled={promptLoading}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                  >
+                  <button onClick={handleSavePrompt} disabled={promptLoading} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                     {promptSaved ? 'Saved! ✓' : 'Save Changes'}
                   </button>
                 </div>
@@ -556,13 +477,7 @@ export default function AdminPage() {
               <button onClick={loadChatLogs} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
             <div className="mb-4">
-              <input
-                type="text"
-                value={logKeyword}
-                onChange={(e) => setLogKeyword(e.target.value)}
-                placeholder="Search by keyword, email, question or answer..."
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400"
-              />
+              <input type="text" value={logKeyword} onChange={(e) => setLogKeyword(e.target.value)} placeholder="Search by keyword, email, question or answer..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400" />
             </div>
             <div className="flex gap-3 mb-4">
               <div className="flex-1">
@@ -581,23 +496,16 @@ export default function AdminPage() {
               {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater'].map((tab) => {
                 const count = tab === 'all' ? chatLogs.length : chatLogs.filter(l => l.discipline === tab).length
                 return (
-                  <button
-                    key={tab}
-                    onClick={() => setLogDisciplineFilter(tab)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${logDisciplineFilter === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                  >
+                  <button key={tab} onClick={() => setLogDisciplineFilter(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${logDisciplineFilter === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                     {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
                   </button>
                 )
               })}
             </div>
-            {logsLoading ? (
-              <div className="text-center py-8 text-gray-400">Loading...</div>
-            ) : filteredLogs.length === 0 ? (
+            {logsLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredLogs.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">💬</p>
                 <p className="font-medium text-gray-500">No conversations found</p>
-                <p className="text-sm mt-1">Try adjusting your filters</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -613,9 +521,7 @@ export default function AdminPage() {
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
                     <ExpandableAnswer answer={log.answer} />
-                    <button onClick={() => { setSelectedLog(log); setCorrectionText('') }} className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium">
-                      ✏️ Add Correction
-                    </button>
+                    <button onClick={() => { setSelectedLog(log); setCorrectionText('') }} className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium">✏️ Add Correction</button>
                   </div>
                 ))}
               </div>
@@ -633,8 +539,8 @@ export default function AdminPage() {
                     <p className="text-sm text-gray-700 line-clamp-3">{selectedLog.answer}</p>
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Correct information / clarification:</label>
-                    <textarea value={correctionText} onChange={(e) => setCorrectionText(e.target.value)} rows={4} placeholder="Type the correct answer or clarification here..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 text-gray-900" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Correct information:</label>
+                    <textarea value={correctionText} onChange={(e) => setCorrectionText(e.target.value)} rows={4} placeholder="Type the correct answer..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 text-gray-900" />
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => setSelectedLog(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
@@ -684,6 +590,84 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Feedback tab */}
+        {activeTab === 'feedback' && (
+          <div className="bg-white rounded-xl border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-semibold text-gray-900">User Feedback</h2>
+                <p className="text-sm text-gray-400 mt-1">Like/dislike ratings from users</p>
+              </div>
+              <button onClick={loadFeedback} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-green-50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">👍 {totalLikes}</div>
+                <div className="text-xs text-gray-400 mt-1">Helpful</div>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-red-500">👎 {totalDislikes}</div>
+                <div className="text-xs text-gray-400 mt-1">Not Helpful</div>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{satisfactionRate}%</div>
+                <div className="text-xs text-gray-400 mt-1">Satisfaction Rate</div>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="flex gap-3 mb-4 flex-wrap">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Rating</label>
+                <div className="flex gap-2">
+                  {['all', 'like', 'dislike'].map(f => (
+                    <button key={f} onClick={() => setFeedbackFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${feedbackFilter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                      {f === 'all' ? 'All' : f === 'like' ? '👍 Helpful' : '👎 Not Helpful'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Discipline</label>
+                <div className="flex gap-2 flex-wrap">
+                  {['all', 'swimming', 'waterpolo', 'openwater', 'artistic', 'diving', 'highdiving', 'masters'].map(d => (
+                    <button key={d} onClick={() => setFeedbackDiscipline(d)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${feedbackDiscipline === d ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                      {d === 'all' ? 'All' : DISCIPLINE_LABELS[d] || d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {feedbackLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredFeedback.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-4xl mb-4">💬</p>
+                <p className="font-medium text-gray-500">No feedback found</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-gray-400">Showing {filteredFeedback.length} result{filteredFeedback.length !== 1 ? 's' : ''}</p>
+                {filteredFeedback.map((f) => (
+                  <div key={f.id} className={`border rounded-xl p-4 ${f.feedback === 'like' ? 'border-green-100 bg-green-50' : 'border-red-100 bg-red-50'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg`}>{f.feedback === 'like' ? '👍' : '👎'}</span>
+                        <span className="text-xs bg-white px-2 py-1 rounded-full text-gray-600">{DISCIPLINE_LABELS[f.discipline] || f.discipline}</span>
+                        <span className="text-xs text-gray-400">{f.user_email}</span>
+                      </div>
+                      <span className="text-xs text-gray-400">{new Date(f.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 mb-1">Q: {f.question}</p>
+                    <ExpandableAnswer answer={f.answer} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Subscribers tab */}
         {activeTab === 'subscribers' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
@@ -691,13 +675,10 @@ export default function AdminPage() {
               <h2 className="font-semibold text-gray-900">Subscribers</h2>
               <button onClick={loadSubscribers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
-            {subscribersLoading ? (
-              <div className="text-center py-8 text-gray-400">Loading...</div>
-            ) : subscribers.length === 0 ? (
+            {subscribersLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : subscribers.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">👥</p>
                 <p className="font-medium text-gray-500">No subscribers yet</p>
-                <p className="text-sm mt-1">Your first subscriber will appear here</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -740,11 +721,8 @@ export default function AdminPage() {
         {/* Analytics tab */}
         {activeTab === 'analytics' && (
           <div className="space-y-6">
-            {analyticsLoading ? (
-              <div className="text-center py-8 text-gray-400">Loading analytics...</div>
-            ) : (
+            {analyticsLoading ? <div className="text-center py-8 text-gray-400">Loading analytics...</div> : (
               <>
-                {/* Revenue & Subscriber Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
                     <div className="text-2xl font-bold text-green-600">RM {estimatedMRR.toFixed(2)}</div>
@@ -763,8 +741,6 @@ export default function AdminPage() {
                     <div className="text-xs text-gray-400 mt-1">Total Questions Asked</div>
                   </div>
                 </div>
-
-                {/* Plan breakdown */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Subscription Breakdown</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -780,22 +756,16 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Questions per day chart */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Questions Asked — Last 7 Days</h3>
-                  <SimpleBarChart data={last7Days} label="" />
+                  <SimpleBarChart data={last7Days} />
                 </div>
-
-                {/* Discipline usage chart */}
                 {disciplineUsage.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">Most Popular Disciplines</h3>
-                    <SimpleBarChart data={disciplineUsage} label="" />
+                    <SimpleBarChart data={disciplineUsage} />
                   </div>
                 )}
-
-                {/* Feedback stats */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">User Feedback</h3>
                   <div className="grid grid-cols-3 gap-4">
@@ -815,10 +785,7 @@ export default function AdminPage() {
                   {feedback.length > 0 && (
                     <div className="mt-4">
                       <div className="w-full bg-gray-100 rounded-full h-3">
-                        <div
-                          className="bg-green-500 h-3 rounded-full transition-all"
-                          style={{ width: `${satisfactionRate}%` }}
-                        />
+                        <div className="bg-green-500 h-3 rounded-full" style={{ width: `${satisfactionRate}%` }} />
                       </div>
                       <p className="text-xs text-gray-400 mt-1 text-center">{feedback.length} total ratings</p>
                     </div>
