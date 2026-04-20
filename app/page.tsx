@@ -1,4 +1,39 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+const ALL_DISCIPLINES = [
+  { name: 'Swimming', code: 'SW Rules', id: 'swimming' },
+  { name: 'Water Polo', code: 'WP Rules', id: 'waterpolo' },
+  { name: 'Open Water', code: 'OW Rules', id: 'openwater' },
+  { name: 'Artistic Swimming', code: 'AS Rules', id: 'artistic' },
+  { name: 'Diving', code: 'DV Rules', id: 'diving' },
+  { name: 'High Diving', code: 'HD Rules', id: 'highdiving' },
+  { name: 'Masters Swimming', code: 'MS Rules', id: 'masters' },
+]
+
 export default function Home() {
+  const [liveDisciplines, setLiveDisciplines] = useState<string[]>([])
+
+  useEffect(() => {
+    const fetchLive = async () => {
+      const { data } = await supabase
+        .from('rulebook_files')
+        .select('discipline')
+      if (data) {
+        const live = [...new Set(data.map((f: { discipline: string }) => f.discipline))]
+        setLiveDisciplines(live)
+      }
+    }
+    fetchLive()
+  }, [])
+
   return (
     <div className="min-h-screen bg-white font-sans">
       {/* Navigation */}
@@ -50,6 +85,20 @@ export default function Home() {
           </a>
         </div>
         <p className="text-sm text-gray-400 mt-4">No credit card needed for demo · No charge for 7 days on trial · Cancel anytime.</p>
+      </section>
+
+      {/* Multilingual Banner */}
+      <section className="bg-blue-600 px-8 py-12">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-blue-200 text-sm font-medium mb-2">🌍 Available in 90+ Languages</p>
+          <h2 className="text-2xl font-bold text-white mb-3">Ask in your language, get answers in your language</h2>
+          <p className="text-blue-200 mb-6">Whether you speak Bahasa Malaysia, Arabic, Chinese, Japanese, French or any other language — AquaRef answers in the same language you ask.</p>
+          <div className="flex flex-wrap justify-center gap-2 text-sm text-blue-200">
+            {['Bahasa Malaysia', 'English', 'العربية', '中文', '日本語', 'Français', 'Español', 'Deutsch', '한국어'].map((lang, i) => (
+              <span key={i} className="bg-blue-500 px-3 py-1 rounded-full">{lang}</span>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* Features */}
@@ -104,7 +153,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Disciplines */}
+      {/* Disciplines — fully dynamic */}
       <section id="disciplines" className="px-8 py-20">
         <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
@@ -114,27 +163,22 @@ export default function Home() {
             One platform for every aquatics sport
           </p>
           <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { name: "Swimming", code: "SW Rules", live: true },
-              { name: "Water Polo", code: "WP Rules", live: true },
-              { name: "Open Water", code: "OW Rules", live: false },
-              { name: "Artistic Swimming", code: "AS Rules", live: false },
-              { name: "Diving", code: "DV Rules", live: false },
-              { name: "High Diving", code: "HD Rules", live: false },
-              { name: "Masters Swimming", code: "MS Rules", live: false }
-            ].map((d, i) => (
-              <div key={i} className={`p-6 rounded-xl border ${d.live ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className={`font-semibold ${d.live ? "text-blue-900" : "text-gray-700"}`}>
-                    {d.name}
-                  </h3>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${d.live ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"}`}>
-                    {d.live ? "Live" : "Coming Soon"}
-                  </span>
+            {ALL_DISCIPLINES.map((d, i) => {
+              const isLive = liveDisciplines.includes(d.id)
+              return (
+                <div key={i} className={`p-6 rounded-xl border ${isLive ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={`font-semibold ${isLive ? 'text-blue-900' : 'text-gray-700'}`}>
+                      {d.name}
+                    </h3>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${isLive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                      {isLive ? 'Live' : 'Coming Soon'}
+                    </span>
+                  </div>
+                  <p className={`text-sm ${isLive ? 'text-blue-700' : 'text-gray-400'}`}>{d.code}</p>
                 </div>
-                <p className={`text-sm ${d.live ? "text-blue-700" : "text-gray-400"}`}>{d.code}</p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </section>
@@ -148,20 +192,6 @@ export default function Home() {
           <a href="/demo" className="inline-block bg-green-500 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-600">
             Try Free Demo →
           </a>
-        </div>
-      </section>
-
-      {/* Multilingual Banner */}
-      <section className="bg-blue-600 px-8 py-12">
-        <div className="max-w-3xl mx-auto text-center">
-          <p className="text-blue-200 text-sm font-medium mb-2">🌍 Available in 90+ Languages</p>
-          <h2 className="text-2xl font-bold text-white mb-3">Ask in your language, get answers in your language</h2>
-          <p className="text-blue-200 mb-4">Whether you speak Bahasa Malaysia, Arabic, Chinese, Japanese, French or any other language — AquaRef answers in the same language you ask.</p>
-          <div className="flex flex-wrap justify-center gap-2 text-sm text-blue-200">
-            {['Bahasa Malaysia', 'English', 'العربية', '中文', '日本語', 'Français', 'Español', 'Deutsch', '한국어'].map((lang, i) => (
-              <span key={i} className="bg-blue-500 px-3 py-1 rounded-full">{lang}</span>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -254,5 +284,5 @@ export default function Home() {
         </div>
       </footer>
     </div>
-  );
+  )
 }
