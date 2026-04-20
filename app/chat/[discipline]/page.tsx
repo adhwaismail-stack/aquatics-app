@@ -36,6 +36,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
   const [loading, setLoading] = useState(false)
   const [user, setUser] = useState<{ email?: string } | null>(null)
   const [usage, setUsage] = useState(0)
+  const [dailyLimit, setDailyLimit] = useState(50)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -46,6 +47,32 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         return
       }
       setUser(user)
+
+      // Fetch user plan to determine daily limit
+      const { data: sub } = await supabase
+        .from('user_subscriptions')
+        .select('plan')
+        .eq('user_email', user.email)
+        .single()
+
+      if (sub?.plan === 'all_disciplines') {
+        setDailyLimit(200)
+      } else {
+        setDailyLimit(50)
+      }
+
+      // Fetch today's usage
+      const today = new Date().toISOString().split('T')[0]
+      const { data: usageData } = await supabase
+        .from('daily_usage')
+        .select('count')
+        .eq('user_email', user.email)
+        .eq('date', today)
+        .single()
+
+      if (usageData) {
+        setUsage(usageData.count)
+      }
     }
     getUser()
   }, [])
@@ -58,12 +85,10 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
     const message = messages[index]
     const question = messages[index - 1]?.content || ''
 
-    // Update UI immediately
     setMessages(prev => prev.map((msg, i) =>
       i === index ? { ...msg, feedback } : msg
     ))
 
-    // Save to database
     await supabase.from('answer_feedback').insert({
       user_email: user?.email,
       discipline,
@@ -150,12 +175,12 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-xs text-gray-400">Today</div>
-              <div className="text-sm font-medium text-gray-700">{usage}/50 questions</div>
+              <div className="text-sm font-medium text-gray-700">{usage}/{dailyLimit} questions</div>
             </div>
             <div className="w-16 bg-gray-100 rounded-full h-2">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all"
-                style={{ width: `${Math.min((usage / 50) * 100, 100)}%` }}
+                style={{ width: `${Math.min((usage / dailyLimit) * 100, 100)}%` }}
               ></div>
             </div>
           </div>
@@ -251,7 +276,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                     </div>
                   </div>
 
-                  {/* Like/Dislike buttons */}
                   {!msg.content.startsWith('❌') && !msg.content.startsWith('⚠️') && (
                     <div className="flex items-center gap-2 mt-2 ml-1">
                       <span className="text-xs text-gray-400">Was this helpful?</span>
