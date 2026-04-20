@@ -223,6 +223,7 @@ export default function AdminPage() {
       .select('*')
       .is('stripe_customer_id', null)
       .eq('status', 'active')
+      .gt('current_period_end', new Date().toISOString())
       .order('created_at', { ascending: false })
     if (data) setBetaUsers(data)
     setBetaLoading(false)
@@ -376,18 +377,16 @@ export default function AdminPage() {
       .update({ current_period_end: newExpiry.toISOString(), status: 'active' })
       .eq('user_email', email)
 
-    alert(`✅ Beta access extended for ${email} by ${days} days (new expiry: ${newExpiry.toLocaleDateString()})`)
+    alert(`✅ Extended by ${days} days. New expiry: ${newExpiry.toLocaleDateString()}`)
     setExtendEmail(null)
     loadBetaUsers()
   }
 
   const handleRevokeBeta = async (email: string) => {
     if (!confirm(`Revoke beta access for ${email}? They will lose access immediately.`)) return
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
     await supabase
       .from('user_subscriptions')
-      .update({ current_period_end: yesterday.toISOString(), status: 'active' })
+      .update({ status: 'cancelled', current_period_end: new Date().toISOString() })
       .eq('user_email', email)
     alert(`✅ Beta access revoked for ${email}`)
     loadBetaUsers()
@@ -583,7 +582,7 @@ export default function AdminPage() {
         {activeTab === 'chat logs' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-semibold text-gray-900">Chat Logs</h2>
+              <h2 className="font-semibded text-gray-900">Chat Logs</h2>
               <button onClick={loadChatLogs} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
             <div className="mb-4">
@@ -789,28 +788,17 @@ export default function AdminPage() {
         {/* Beta Users tab */}
         {activeTab === 'beta users' && (
           <div className="space-y-6">
-            {/* Grant Beta Access */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <h2 className="font-semibold text-gray-900 mb-2">Grant Beta Access</h2>
               <p className="text-sm text-gray-400 mb-4">Give a user free access to all disciplines for a set period</p>
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-48">
                   <label className="block text-xs text-gray-400 mb-1">Email address</label>
-                  <input
-                    type="email"
-                    value={betaEmail}
-                    onChange={(e) => setBetaEmail(e.target.value)}
-                    placeholder="user@example.com"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400"
-                  />
+                  <input type="email" value={betaEmail} onChange={(e) => setBetaEmail(e.target.value)} placeholder="user@example.com" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Duration</label>
-                  <select
-                    value={betaDays}
-                    onChange={(e) => setBetaDays(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  >
+                  <select value={betaDays} onChange={(e) => setBetaDays(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
                     <option value="7">7 days</option>
                     <option value="14">14 days</option>
                     <option value="30">30 days</option>
@@ -819,18 +807,13 @@ export default function AdminPage() {
                   </select>
                 </div>
                 <div className="flex items-end">
-                  <button
-                    onClick={handleGrantBeta}
-                    disabled={grantingBeta || !betaEmail.trim()}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                  >
+                  <button onClick={handleGrantBeta} disabled={grantingBeta || !betaEmail.trim()} className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                     {grantingBeta ? 'Granting...' : '✅ Grant Access'}
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Beta Users List */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -839,27 +822,25 @@ export default function AdminPage() {
                 </div>
                 <button onClick={loadBetaUsers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
               </div>
-
               {betaLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : betaUsers.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <p className="text-4xl mb-4">🧪</p>
-                  <p className="font-medium text-gray-500">No beta users yet</p>
+                  <p className="font-medium text-gray-500">No active beta users</p>
                   <p className="text-sm mt-1">Grant beta access above to get started</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {betaUsers.map((u) => {
                     const expiry = new Date(u.current_period_end)
-                    const isExpired = expiry < new Date()
                     const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                     return (
-                      <div key={u.id} className={`border rounded-xl p-4 ${isExpired ? 'border-red-100 bg-red-50' : 'border-green-100 bg-green-50'}`}>
+                      <div key={u.id} className="border border-green-100 bg-green-50 rounded-xl p-4">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-gray-900">{u.user_email}</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                {isExpired ? '❌ Expired' : `✅ ${daysLeft} days left`}
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                ✅ {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
                               </span>
                               <span className="text-xs text-gray-400">
                                 Expires: {expiry.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -880,12 +861,8 @@ export default function AdminPage() {
                               </div>
                             ) : (
                               <>
-                                <button onClick={() => { setExtendEmail(u.user_email); setExtendDays('14') }} className="px-3 py-1 border border-blue-200 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50">
-                                  Extend
-                                </button>
-                                <button onClick={() => handleRevokeBeta(u.user_email)} className="px-3 py-1 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50">
-                                  Revoke
-                                </button>
+                                <button onClick={() => { setExtendEmail(u.user_email); setExtendDays('14') }} className="px-3 py-1 border border-blue-200 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50">Extend</button>
+                                <button onClick={() => handleRevokeBeta(u.user_email)} className="px-3 py-1 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50">Revoke</button>
                               </>
                             )}
                           </div>
