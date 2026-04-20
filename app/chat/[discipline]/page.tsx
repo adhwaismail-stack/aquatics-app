@@ -11,7 +11,8 @@ const disciplineNames: { [key: string]: string } = {
   artistic: 'Artistic Swimming',
   diving: 'Diving',
   highdiving: 'High Diving',
-  masters: 'Masters Swimming'
+  masters: 'Masters Swimming',
+  openwater: 'Open Water'
 }
 
 const disciplineCodes: { [key: string]: string } = {
@@ -20,7 +21,8 @@ const disciplineCodes: { [key: string]: string } = {
   artistic: 'AS Rules',
   diving: 'DV Rules',
   highdiving: 'HD Rules',
-  masters: 'MS Rules'
+  masters: 'MS Rules',
+  openwater: 'OW Rules'
 }
 
 interface Message {
@@ -48,7 +50,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
       }
       setUser(user)
 
-      // Fetch user plan to determine daily limit
       const { data: sub } = await supabase
         .from('user_subscriptions')
         .select('plan')
@@ -61,7 +62,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         setDailyLimit(50)
       }
 
-      // Fetch today's usage
       const today = new Date().toISOString().split('T')[0]
       const { data: usageData } = await supabase
         .from('daily_usage')
@@ -155,6 +155,60 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
     setLoading(false)
   }
 
+  const getIcon = () => {
+    const icons: { [key: string]: string } = {
+      swimming: '🏊',
+      waterpolo: '🤽',
+      artistic: '💃',
+      diving: '🤿',
+      highdiving: '🏔️',
+      masters: '🏅',
+      openwater: '🌊'
+    }
+    return icons[discipline] || '🏊'
+  }
+
+  const getSampleQuestions = () => {
+    const questions: { [key: string]: string[] } = {
+      swimming: [
+        'What is the false start rule?',
+        'What are the breaststroke turn rules?',
+        'Can a swimmer false start twice?'
+      ],
+      waterpolo: [
+        'What are the referee duties?',
+        'How long is each period?',
+        'What constitutes a foul?'
+      ],
+      openwater: [
+        'What is the minimum water temperature for Open Water?',
+        'Can swimmers wear wetsuits in Open Water?',
+        'What are the feeding rules in Open Water?'
+      ],
+      artistic: [
+        'How is artistic swimming scored?',
+        'What are the routine time limits?',
+        'What are the deck work rules?'
+      ],
+      diving: [
+        'How are dives scored?',
+        'What is the degree of difficulty?',
+        'What are the springboard height rules?'
+      ],
+      highdiving: [
+        'What are the platform height requirements?',
+        'How are high dives scored?',
+        'What safety rules apply?'
+      ],
+      masters: [
+        'What are the age group categories?',
+        'How are masters records set?',
+        'What are the eligibility rules?'
+      ]
+    }
+    return questions[discipline] || questions.swimming
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -192,13 +246,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.length === 0 && (
             <div className="text-center py-16">
-              <div className="text-4xl mb-4">
-                {discipline === 'swimming' ? '🏊' :
-                 discipline === 'waterpolo' ? '🤽' :
-                 discipline === 'artistic' ? '💃' :
-                 discipline === 'diving' ? '🤿' :
-                 discipline === 'highdiving' ? '🏔️' : '🏅'}
-              </div>
+              <div className="text-4xl mb-4">{getIcon()}</div>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 {disciplineNames[discipline]} Rules Assistant
               </h2>
@@ -207,15 +255,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                 Answers are based strictly on the official World Aquatics Regulations.
               </p>
               <div className="mt-6 grid grid-cols-1 gap-2 max-w-md mx-auto">
-                {(discipline === 'swimming' ? [
-                  'What is the false start rule?',
-                  'What are the breaststroke turn rules?',
-                  'Can a swimmer false start twice?'
-                ] : [
-                  'What are the referee duties?',
-                  'How long is each period?',
-                  'What constitutes a foul?'
-                ]).map((q, i) => (
+                {getSampleQuestions().map((q, i) => (
                   <button
                     key={i}
                     onClick={() => setInput(q)}
@@ -291,7 +331,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                       </button>
                       <button
                         onClick={() => handleFeedback(i, 'dislike')}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
+                        className={`flex items-center gap1 px-2 py-1 rounded-lg text-xs transition-colors ${
                           msg.feedback === 'dislike'
                             ? 'bg-red-100 text-red-700'
                             : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600'
@@ -347,7 +387,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
-            Answers based on official World Aquatics Regulations only. Always verify with your Meet Referee.
+            Answers based on official World Aquatics Regulations only · Available in 90+ languages · Always verify with your Meet Referee.
           </p>
         </div>
       </div>

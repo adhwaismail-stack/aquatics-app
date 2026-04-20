@@ -70,7 +70,7 @@ export default function Home() {
               },
               {
                 icon: "🌍",
-                title: "Full Multilingual",
+                title: "90+ Languages",
                 desc: "Ask in any of 90+ languages and get answers in that same language. No language barrier for officials worldwide."
               },
               {
@@ -85,8 +85,8 @@ export default function Home() {
               },
               {
                 icon: "🏊",
-                title: "6 Disciplines",
-                desc: "Swimming, Water Polo, Artistic Swimming, Diving, High Diving and Masters Swimming."
+                title: "7 Disciplines",
+                desc: "Swimming, Water Polo, Open Water, Artistic Swimming, Diving, High Diving and Masters Swimming."
               },
               {
                 icon: "🔒",
@@ -117,6 +117,7 @@ export default function Home() {
             {[
               { name: "Swimming", code: "SW Rules", live: true },
               { name: "Water Polo", code: "WP Rules", live: true },
+              { name: "Open Water", code: "OW Rules", live: false },
               { name: "Artistic Swimming", code: "AS Rules", live: false },
               { name: "Diving", code: "DV Rules", live: false },
               { name: "High Diving", code: "HD Rules", live: false },
@@ -150,6 +151,20 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Multilingual Banner */}
+      <section className="bg-blue-600 px-8 py-12">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-blue-200 text-sm font-medium mb-2">🌍 Available in 90+ Languages</p>
+          <h2 className="text-2xl font-bold text-white mb-3">Ask in your language, get answers in your language</h2>
+          <p className="text-blue-200 mb-4">Whether you speak Bahasa Malaysia, Arabic, Chinese, Japanese, French or any other language — AquaRef answers in the same language you ask.</p>
+          <div className="flex flex-wrap justify-center gap-2 text-sm text-blue-200">
+            {['Bahasa Malaysia', 'English', 'العربية', '中文', '日本語', 'Français', 'Español', 'Deutsch', '한국어'].map((lang, i) => (
+              <span key={i} className="bg-blue-500 px-3 py-1 rounded-full">{lang}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section id="pricing" className="bg-gray-50 px-8 py-20">
         <div className="max-w-4xl mx-auto">
@@ -172,7 +187,7 @@ export default function Home() {
                   "Choose 1 discipline",
                   "Full AI regulations chat",
                   "Rule number citations",
-                  "Multilingual support",
+                  "Multilingual — 90+ languages",
                   "Switch discipline once/month",
                   "50 questions per day"
                 ].map((f, i) => (
@@ -198,10 +213,10 @@ export default function Home() {
               </div>
               <ul className="space-y-3 mb-8">
                 {[
-                  "All 6 disciplines included",
+                  "All 7 disciplines included",
                   "Full AI regulations chat",
                   "Rule number citations",
-                  "Multilingual support",
+                  "Multilingual — 90+ languages",
                   "New disciplines added free",
                   "Regulations update alerts",
                   "200 questions per day"

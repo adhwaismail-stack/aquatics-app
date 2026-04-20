@@ -10,6 +10,7 @@ const disciplines = [
   { id: 'diving', name: 'Diving', code: 'DV Rules', icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring' },
   { id: 'highdiving', name: 'High Diving', code: 'HD Rules', icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules' },
   { id: 'masters', name: 'Masters Swimming', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
+  { id: 'openwater', name: 'Open Water', code: 'OW Rules', icon: '🌊', desc: 'Open water swimming rules, equipment, officials and competition regulations' },
 ]
 
 interface UserSubscription {

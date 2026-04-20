@@ -52,6 +52,7 @@ const DISCIPLINES = [
   { name: 'Diving', code: 'DV', discipline: 'diving' },
   { name: 'High Diving', code: 'HD', discipline: 'highdiving' },
   { name: 'Masters Swimming', code: 'MS', discipline: 'masters' },
+  { name: 'Open Water', code: 'OW', discipline: 'openwater' },
 ]
 
 const DISCIPLINE_LABELS: Record<string, string> = {
@@ -61,6 +62,7 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   diving: 'Diving',
   highdiving: 'High Diving',
   masters: 'Masters Swimming',
+  openwater: 'Open Water',
 }
 
 function ExpandableAnswer({ answer }: { answer: string }) {
@@ -573,7 +575,7 @@ export default function AdminPage() {
 
             {/* Discipline filter tabs */}
             <div className="flex gap-2 mb-6 flex-wrap">
-              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters'].map((tab) => {
+              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater'].map((tab) => {
                 const count = tab === 'all'
                   ? chatLogs.length
                   : chatLogs.filter(l => l.discipline === tab).length
@@ -590,6 +592,7 @@ export default function AdminPage() {
                     {tab === 'all' ? 'All' :
                      tab === 'waterpolo' ? 'Water Polo' :
                      tab === 'highdiving' ? 'High Diving' :
+                     tab === 'openwater' ? 'Open Water' :
                      tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
                   </button>
                 )
