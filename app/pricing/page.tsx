@@ -1,13 +1,24 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [showEmail, setShowEmail] = useState<string | null>(null)
+  const router = useRouter()
 
   const handleCheckout = async (plan: string) => {
+    if (plan === 'lite') {
+      if (!email) {
+        setShowEmail('lite')
+        return
+      }
+      router.push(`/login?email=${encodeURIComponent(email)}&plan=lite`)
+      return
+    }
+
     if (!email) {
       setShowEmail(plan)
       return
@@ -15,11 +26,9 @@ export default function PricingPage() {
 
     setLoading(plan)
 
-    const priceId = plan === 'starter'
-      ? 'price_1TMpZKDEuI3kdko2OvQ4Ep5c'
-
-      : 'price_1TMpcNDEuI3kdko2MSU0MDGB'
-
+    const priceId = plan === 'pro'
+      ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || 'price_1TOdBiDEuI3kdko2HWgCLV4s'
+      : process.env.NEXT_PUBLIC_STRIPE_ELITE_PRICE_ID || 'price_1TMpcNDEuI3kdko2MSU0MDGB'
 
     try {
       const response = await fetch('/api/checkout', {
@@ -44,7 +53,7 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-20 px-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="text-center mb-14">
           <div className="flex items-center justify-center gap-2 mb-6">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -56,79 +65,86 @@ export default function PricingPage() {
             Simple, honest pricing
           </h1>
           <p className="text-xl text-gray-500">
-            7-day free trial on all plans. Cancel anytime.
+            Start free. Upgrade when you're ready.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Starter Plan */}
-          <div className="bg-white p-8 rounded-xl border border-gray-200">
-            <h3 className="font-bold text-xl text-gray-900 mb-2">Starter</h3>
-            <p className="text-gray-500 text-sm mb-6">
-              For officials who officiate one sport
-            </p>
+        <div className="grid md:grid-cols-3 gap-6">
+
+          {/* LITE Plan */}
+          <div className="bg-white p-8 rounded-xl border border-gray-200 flex flex-col">
             <div className="mb-6">
-              <span className="text-4xl font-bold text-gray-900">RM 11.99</span>
-              <span className="text-gray-400 text-sm">/month</span>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">For The Casual Observer</p>
+              <h3 className="font-bold text-2xl text-gray-900 mb-1">AquaRef LITE</h3>
+              <p className="text-gray-400 text-sm italic mb-4">Your "Just-In-Case" Safety Net</p>
+              <div className="mb-2">
+                <span className="text-4xl font-bold text-gray-900">RM 0</span>
+                <span className="text-gray-400 text-sm">/month</span>
+              </div>
+              <p className="text-xs text-gray-400">Free forever. No credit card needed.</p>
             </div>
-            <ul className="space-y-3 mb-8">
+
+            <ul className="space-y-3 mb-8 flex-1">
               {[
-                'Choose 1 discipline',
-                'Full AI regulations chat',
-                'Rule number citations',
-                'Multilingual support',
-                'Switch discipline once/month',
-                '50 questions per day'
+                '5 Questions per month',
+                '1 Chosen Discipline (30-day lock)',
+                'Official WA 2025-29 Rule Citations',
+                '90+ Language Support',
+                'Instant AI Rule Search',
+                'Web & Mobile Access',
+                'Verification Disclaimer included',
               ].map((f, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm text-gray-600">
-                  <span className="text-blue-600">✓</span>{f}
+                  <span className="text-green-500">✓</span>{f}
                 </li>
               ))}
             </ul>
 
-            {showEmail === 'starter' && (
+            {showEmail === 'lite' && (
               <div className="mb-4">
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500 text-gray-900"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-400 text-gray-900"
                 />
               </div>
             )}
 
             <button
-              onClick={() => handleCheckout('starter')}
-              disabled={loading === 'starter'}
-              className="w-full border border-blue-600 text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50 disabled:opacity-50"
+              onClick={() => handleCheckout('lite')}
+              className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
             >
-              {loading === 'starter' ? 'Loading...' : 'Start 7-Day Free Trial'}
+              Get Started Free
             </button>
           </div>
 
-          {/* All Disciplines Plan */}
-          <div className="bg-blue-600 p-8 rounded-xl">
-            <div className="inline-block bg-blue-500 text-white text-xs px-3 py-1 rounded-full mb-4">
-              Most Popular
+          {/* PRO Plan */}
+          <div className="bg-blue-600 p-8 rounded-xl flex flex-col relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <span className="bg-orange-400 text-white text-xs px-4 py-1 rounded-full font-medium">Most Popular</span>
             </div>
-            <h3 className="font-bold text-xl text-white mb-2">All Disciplines</h3>
-            <p className="text-blue-200 text-sm mb-6">
-              For multi-sport officials and coaches
-            </p>
             <div className="mb-6">
-              <span className="text-4xl font-bold text-white">RM 27.99</span>
-              <span className="text-blue-200 text-sm">/month</span>
+              <p className="text-xs font-medium text-blue-200 uppercase tracking-widest mb-2">The Dedicated Specialist</p>
+              <h3 className="font-bold text-2xl text-white mb-1">AquaRef PRO</h3>
+              <p className="text-blue-200 text-sm italic mb-4">The standard for professional officials and coaches</p>
+              <div className="mb-2">
+                <span className="text-4xl font-bold text-white">RM 14.99</span>
+                <span className="text-blue-200 text-sm">/month</span>
+              </div>
+              <p className="text-xs text-blue-200">7-day free trial. Cancel anytime.</p>
             </div>
-            <ul className="space-y-3 mb-8">
+
+            <ul className="space-y-3 mb-8 flex-1">
               {[
-                'All 6 disciplines included',
-                'Full AI regulations chat',
-                'Rule number citations',
-                'Multilingual support',
-                'New disciplines added free',
-                'Rulebook update alerts',
-              '200 questions per day'
+                '50 Questions per day',
+                '1 Chosen Discipline (30-day lock)',
+                'Switch discipline once every 30 days',
+                'Official WA 2025-29 Rule Citations',
+                '90+ Language Support',
+                'Ad-Free Experience',
+                'Standard Email Support',
               ].map((f, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm text-white">
                   <span className="text-blue-200">✓</span>{f}
@@ -136,7 +152,7 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            {showEmail === 'all' && (
+            {showEmail === 'pro' && (
               <div className="mb-4">
                 <input
                   type="email"
@@ -149,17 +165,68 @@ export default function PricingPage() {
             )}
 
             <button
-              onClick={() => handleCheckout('all')}
-              disabled={loading === 'all'}
-              className="w-full bg-white text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50 disabled:opacity-50"
+              onClick={() => handleCheckout('pro')}
+              disabled={loading === 'pro'}
+              className="w-full bg-white text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50 disabled:opacity-50 transition-colors"
             >
-              {loading === 'all' ? 'Loading...' : 'Start 7-Day Free Trial'}
+              {loading === 'pro' ? 'Loading...' : 'Start 7-Day Free Trial'}
             </button>
           </div>
+
+          {/* ELITE Plan */}
+          <div className="bg-gray-900 p-8 rounded-xl flex flex-col">
+            <div className="mb-6">
+              <p className="text-xs font-medium text-yellow-400 uppercase tracking-widest mb-2">The Global Authority</p>
+              <h3 className="font-bold text-2xl text-white mb-1">AquaRef ELITE</h3>
+              <p className="text-gray-400 text-sm italic mb-4">Total access for high-level Referees and multi-sport Officials</p>
+              <div className="mb-2">
+                <span className="text-4xl font-bold text-white">RM 39.99</span>
+                <span className="text-gray-400 text-sm">/month</span>
+              </div>
+              <p className="text-xs text-gray-400">7-day free trial. Cancel anytime.</p>
+            </div>
+
+            <ul className="space-y-3 mb-8 flex-1">
+              {[
+                'UNLIMITED Questions (Fair Use)',
+                'ALL 7 Disciplines included',
+                'Instant Discipline Switching',
+                'Official WA 2025-29 Rule Citations',
+                '90+ Language Support',
+                'Priority VIP Support',
+                'Early Access to new features',
+              ].map((f, i) => (
+                <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
+                  <span className="text-yellow-400">✓</span>{f}
+                </li>
+              ))}
+            </ul>
+
+            {showEmail === 'elite' && (
+              <div className="mb-4">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="w-full px-4 py-3 border border-gray-600 rounded-lg text-sm mb-2 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                />
+              </div>
+            )}
+
+            <button
+              onClick={() => handleCheckout('elite')}
+              disabled={loading === 'elite'}
+              className="w-full bg-yellow-400 text-gray-900 py-3 rounded-lg font-medium hover:bg-yellow-300 disabled:opacity-50 transition-colors"
+            >
+              {loading === 'elite' ? 'Loading...' : 'Start 7-Day Free Trial'}
+            </button>
+          </div>
+
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-8">
-          No charge for 7 days. Cancel anytime before trial ends.
+          No charge for 7 days on paid plans. Cancel anytime before trial ends. LITE plan is free forever.
         </p>
       </div>
     </div>

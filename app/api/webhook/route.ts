@@ -11,6 +11,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+function getPlanFromPriceId(priceId: string): string {
+  if (priceId === process.env.STRIPE_PRO_PRICE_ID) return 'pro'
+  if (priceId === process.env.STRIPE_ELITE_PRICE_ID) return 'elite'
+  return 'pro' // default fallback
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.text()
   const signature = request.headers.get('stripe-signature')!
@@ -36,17 +42,11 @@ export async function POST(request: NextRequest) {
         const customerId = session.customer as string
         const subscriptionId = session.subscription as string
 
-        // Get subscription details
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
         const priceId = subscription.items.data[0].price.id
         const periodEnd = (subscription as unknown as { current_period_end: number }).current_period_end
+        const plan = getPlanFromPriceId(priceId)
 
-        // Determine plan name
-        const plan = priceId === process.env.STRIPE_STARTER_PRICE_ID
-          ? 'starter'
-          : 'all_disciplines'
-
-        // Save to subscribers table
         await supabase
           .from('subscribers')
           .upsert({
@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           }, { onConflict: 'email' })
 
-        // Save to user_subscriptions for access control
         await supabase
           .from('user_subscriptions')
           .upsert({
@@ -89,11 +88,8 @@ export async function POST(request: NextRequest) {
 
         if (subscriber) {
           const priceId = subscription.items.data[0].price.id
-          const plan = priceId === process.env.STRIPE_STARTER_PRICE_ID
-            ? 'starter'
-            : 'all_disciplines'
+          const plan = getPlanFromPriceId(priceId)
 
-          // Update subscribers table
           await supabase
             .from('subscribers')
             .update({
@@ -104,7 +100,6 @@ export async function POST(request: NextRequest) {
             })
             .eq('stripe_customer_id', customerId)
 
-          // Update user_subscriptions table
           await supabase
             .from('user_subscriptions')
             .update({
@@ -128,7 +123,6 @@ export async function POST(request: NextRequest) {
           .eq('stripe_customer_id', customerId)
           .single()
 
-        // Update subscribers table
         await supabase
           .from('subscribers')
           .update({
@@ -137,7 +131,6 @@ export async function POST(request: NextRequest) {
           })
           .eq('stripe_customer_id', customerId)
 
-        // Update user_subscriptions table
         if (subscriber) {
           await supabase
             .from('user_subscriptions')
@@ -162,7 +155,6 @@ export async function POST(request: NextRequest) {
           .eq('stripe_customer_id', customerId)
           .single()
 
-        // Update subscribers table
         await supabase
           .from('subscribers')
           .update({
@@ -171,7 +163,6 @@ export async function POST(request: NextRequest) {
           })
           .eq('stripe_customer_id', customerId)
 
-        // Update user_subscriptions table
         if (subscriber) {
           await supabase
             .from('user_subscriptions')
