@@ -55,7 +55,6 @@ export default function DashboardPage() {
         .single()
 
       if (error || !sub) {
-        // No subscription record — create LITE plan automatically
         await supabase.from('user_subscriptions').insert({
           user_email: user.email,
           plan: 'lite',
@@ -65,7 +64,6 @@ export default function DashboardPage() {
           selected_discipline: null,
           full_name: null
         })
-        // Redirect to onboarding to collect name
         window.location.href = '/onboarding'
         return
       }
@@ -88,6 +86,12 @@ export default function DashboardPage() {
         return
       }
 
+      // LITE user with no discipline selected — redirect to choose discipline
+      if (sub.plan === 'lite' && !sub.selected_discipline && sub.full_name) {
+        window.location.href = '/choose-discipline'
+        return
+      }
+
       setSubscription(sub)
       setLoading(false)
     }
@@ -102,9 +106,18 @@ export default function DashboardPage() {
   const canAccessDiscipline = (disciplineId: string) => {
     if (!subscription) return false
     if (subscription.status !== 'active') return false
-    if (subscription.plan === 'elite') return true
-    if (subscription.plan === 'pro') return subscription.selected_discipline === disciplineId
+    // LITE plan — never expires, just check selected discipline
     if (subscription.plan === 'lite') return subscription.selected_discipline === disciplineId
+    // PRO plan — check expiry and selected discipline
+    if (subscription.plan === 'pro') {
+      if (isExpired()) return false
+      return subscription.selected_discipline === disciplineId
+    }
+    // ELITE — check expiry, access all
+    if (subscription.plan === 'elite') {
+      if (isExpired()) return false
+      return true
+    }
     // Legacy plans
     if (subscription.plan === 'all_disciplines') return true
     if (subscription.plan === 'starter') return subscription.selected_discipline === disciplineId
@@ -112,6 +125,8 @@ export default function DashboardPage() {
   }
 
   const isExpired = () => {
+    // LITE never expires
+    if (subscription?.plan === 'lite') return false
     if (!subscription?.current_period_end) return false
     return new Date(subscription.current_period_end) < new Date()
   }
@@ -137,7 +152,7 @@ export default function DashboardPage() {
     if (isBetaTester()) return 'Free (Beta)'
     if (subscription?.plan === 'elite') return 'RM39.99/month'
     if (subscription?.plan === 'pro') return 'RM14.99/month'
-    if (subscription?.plan === 'lite') return 'Free'
+    if (subscription?.plan === 'lite') return 'Free forever'
     if (subscription?.plan === 'all_disciplines') return 'RM27.99/month'
     if (subscription?.plan === 'starter') return 'RM11.99/month'
     return '-'
@@ -214,28 +229,32 @@ export default function DashboardPage() {
               subscription?.plan === 'lite' ? 'bg-green-50 border-green-100' :
               'bg-blue-50 border-blue-100'
             }`}>
-              <p className={`text-xs mb-1 ${subscription?.plan === 'elite' ? 'text-yellow-400' : 'text-blue-500'}`}>Current Plan</p>
-              <p className={`font-bold text-lg ${subscription?.plan === 'elite' ? 'text-white' : 'text-blue-900'}`}>{getPlanName()}</p>
-              <p className={`text-sm mt-1 ${subscription?.plan === 'elite' ? 'text-gray-400' : 'text-blue-700'}`}>{getPlanPrice()}</p>
+              <p className={`text-xs mb-1 ${subscription?.plan === 'elite' ? 'text-yellow-400' : subscription?.plan === 'lite' ? 'text-green-600' : 'text-blue-500'}`}>Current Plan</p>
+              <p className={`font-bold text-lg ${subscription?.plan === 'elite' ? 'text-white' : subscription?.plan === 'lite' ? 'text-green-900' : 'text-blue-900'}`}>{getPlanName()}</p>
+              <p className={`text-sm mt-1 ${subscription?.plan === 'elite' ? 'text-gray-400' : subscription?.plan === 'lite' ? 'text-green-700' : 'text-blue-700'}`}>{getPlanPrice()}</p>
             </div>
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Status</span>
-                <span className={`font-medium ${isExpired() ? 'text-red-600' : 'text-green-600'}`}>
-                  {isExpired() ? 'Expired' : 'Active'}
-                </span>
+                <span className="font-medium text-green-600">Active</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Email</span>
                 <span className="text-gray-700">{user?.email}</span>
               </div>
-              {subscription?.current_period_end && (
+              {subscription?.current_period_end && subscription?.plan !== 'lite' && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{isBetaTester() ? 'Beta expires' : 'Renews on'}</span>
                   <span className="text-gray-700">
                     {new Date(subscription.current_period_end).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
+                </div>
+              )}
+              {subscription?.plan === 'lite' && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Expiry</span>
+                  <span className="text-green-600 font-medium">Never — Free forever</span>
                 </div>
               )}
               {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && subscription.selected_discipline && (
@@ -314,10 +333,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {subscription?.plan === 'lite' && !isExpired() && (
+        {subscription?.plan === 'lite' && (
           <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-900">🆓 AquaRef LITE — Free Plan</p>
+              <p className="text-sm font-medium text-green-900">🆓 AquaRef LITE — Free Forever</p>
               <p className="text-xs text-green-600 mt-0.5">5 questions per month · 1 discipline · Upgrade anytime for more access</p>
             </div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade</button>
@@ -332,7 +351,7 @@ export default function DashboardPage() {
                   ? `${disciplines.find(d => d.id === subscription.selected_discipline)?.name} selected`
                   : 'No discipline selected'}
               </p>
-              <p className="text-xs text-blue-600 mt-0.5">You can switch your discipline once every 30 days</p>
+              <p className="text-xs text-blue-600 mt-0.5">50 questions/day · Switch discipline once every 30 days</p>
             </div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade to ELITE</button>
           </div>
@@ -422,10 +441,10 @@ export default function DashboardPage() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => { window.location.href = '/pricing' }}
+                      onClick={() => { window.location.href = '/choose-discipline' }}
                       className="w-full bg-gray-100 text-gray-500 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
                     >
-                      {isExpired() ? 'Renew Access' : 'Upgrade to Access'}
+                      {subscription?.plan === 'lite' ? 'Select This Discipline' : isExpired() ? 'Renew Access' : 'Upgrade to Access'}
                     </button>
                   )}
                 </div>
