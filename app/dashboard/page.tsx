@@ -103,32 +103,35 @@ export default function DashboardPage() {
     window.location.href = '/'
   }
 
+  const isExpired = (sub?: UserSubscription | null) => {
+    const s = sub || subscription
+    if (s?.plan === 'lite') return false
+    if (!s?.current_period_end) return false
+    return new Date(s.current_period_end) < new Date()
+  }
+
   const canAccessDiscipline = (disciplineId: string) => {
     if (!subscription) return false
     if (subscription.status !== 'active') return false
-    // LITE plan — never expires, just check selected discipline
     if (subscription.plan === 'lite') return subscription.selected_discipline === disciplineId
-    // PRO plan — check expiry and selected discipline
     if (subscription.plan === 'pro') {
       if (isExpired()) return false
       return subscription.selected_discipline === disciplineId
     }
-    // ELITE — check expiry, access all
     if (subscription.plan === 'elite') {
       if (isExpired()) return false
       return true
     }
     // Legacy plans
-    if (subscription.plan === 'all_disciplines') return true
-    if (subscription.plan === 'starter') return subscription.selected_discipline === disciplineId
+    if (subscription.plan === 'all_disciplines') {
+      if (isExpired()) return false
+      return true
+    }
+    if (subscription.plan === 'starter') {
+      if (isExpired()) return false
+      return subscription.selected_discipline === disciplineId
+    }
     return false
-  }
-
-  const isExpired = () => {
-    // LITE never expires
-    if (subscription?.plan === 'lite') return false
-    if (!subscription?.current_period_end) return false
-    return new Date(subscription.current_period_end) < new Date()
   }
 
   const isBetaTester = () => {
@@ -441,7 +444,7 @@ export default function DashboardPage() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => { window.location.href = '/choose-discipline' }}
+                      onClick={() => { window.location.href = subscription?.plan === 'lite' ? '/choose-discipline' : '/pricing' }}
                       className="w-full bg-gray-100 text-gray-500 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
                     >
                       {subscription?.plan === 'lite' ? 'Select This Discipline' : isExpired() ? 'Renew Access' : 'Upgrade to Access'}
