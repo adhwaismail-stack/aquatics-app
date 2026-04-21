@@ -9,7 +9,7 @@ const disciplines = [
   { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', icon: '💃', desc: 'Solo, duet, team and combo routine rules and judging criteria' },
   { id: 'diving', name: 'Diving', code: 'DV Rules', icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring' },
   { id: 'highdiving', name: 'High Diving', code: 'HD Rules', icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules' },
-  { id: 'masters', name: 'Masters Swimming', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
+  { id: 'masters', name: 'Masters', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
   { id: 'openwater', name: 'Open Water', code: 'OW Rules', icon: '🌊', desc: 'Open water swimming rules, equipment, officials and competition regulations' },
 ]
 
@@ -48,33 +48,47 @@ export default function DashboardPage() {
         setLiveDisciplines(live)
       }
 
-      const { data: sub } = await supabase
+      const { data: sub, error } = await supabase
         .from('user_subscriptions')
         .select('plan, selected_discipline, status, current_period_end, stripe_customer_id, full_name')
         .eq('user_email', user.email)
         .single()
 
-      if (sub) {
-        if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id) {
-          const expiryDate = new Date()
-          expiryDate.setDate(expiryDate.getDate() + 14)
-          await supabase
-            .from('user_subscriptions')
-            .update({ current_period_end: expiryDate.toISOString() })
-            .eq('user_email', user.email)
-          sub.current_period_end = expiryDate.toISOString()
-        }
-
-        if (sub.full_name) {
-          setFullName(sub.full_name)
-        } else if (sub.status === 'active') {
-          window.location.href = '/onboarding'
-          return
-        }
-
-        setSubscription(sub)
+      if (error || !sub) {
+        // No subscription record — create LITE plan automatically
+        await supabase.from('user_subscriptions').insert({
+          user_email: user.email,
+          plan: 'lite',
+          status: 'active',
+          stripe_customer_id: null,
+          current_period_end: null,
+          selected_discipline: null,
+          full_name: null
+        })
+        // Redirect to onboarding to collect name
+        window.location.href = '/onboarding'
+        return
       }
 
+      // Existing beta tester without expiry — set 14 day expiry
+      if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id && sub.plan !== 'lite') {
+        const expiryDate = new Date()
+        expiryDate.setDate(expiryDate.getDate() + 14)
+        await supabase
+          .from('user_subscriptions')
+          .update({ current_period_end: expiryDate.toISOString() })
+          .eq('user_email', user.email)
+        sub.current_period_end = expiryDate.toISOString()
+      }
+
+      if (sub.full_name) {
+        setFullName(sub.full_name)
+      } else if (sub.status === 'active') {
+        window.location.href = '/onboarding'
+        return
+      }
+
+      setSubscription(sub)
       setLoading(false)
     }
     getUser()
@@ -88,10 +102,10 @@ export default function DashboardPage() {
   const canAccessDiscipline = (disciplineId: string) => {
     if (!subscription) return false
     if (subscription.status !== 'active') return false
-    if (subscription.current_period_end) {
-      const expiry = new Date(subscription.current_period_end)
-      if (expiry < new Date()) return false
-    }
+    if (subscription.plan === 'elite') return true
+    if (subscription.plan === 'pro') return subscription.selected_discipline === disciplineId
+    if (subscription.plan === 'lite') return subscription.selected_discipline === disciplineId
+    // Legacy plans
     if (subscription.plan === 'all_disciplines') return true
     if (subscription.plan === 'starter') return subscription.selected_discipline === disciplineId
     return false
@@ -103,13 +117,17 @@ export default function DashboardPage() {
   }
 
   const isBetaTester = () => {
-    return subscription?.current_period_end !== null &&
-      subscription?.stripe_customer_id === null
+    return subscription?.stripe_customer_id === null &&
+      subscription?.plan !== 'lite' &&
+      subscription?.current_period_end !== null
   }
 
   const getPlanName = () => {
     if (!subscription) return 'No Plan'
     if (isBetaTester()) return 'Beta Access — All Disciplines'
+    if (subscription.plan === 'elite') return 'AquaRef ELITE'
+    if (subscription.plan === 'pro') return 'AquaRef PRO'
+    if (subscription.plan === 'lite') return 'AquaRef LITE'
     if (subscription.plan === 'all_disciplines') return 'All Disciplines Plan'
     if (subscription.plan === 'starter') return 'Starter Plan'
     return 'Unknown Plan'
@@ -117,9 +135,19 @@ export default function DashboardPage() {
 
   const getPlanPrice = () => {
     if (isBetaTester()) return 'Free (Beta)'
+    if (subscription?.plan === 'elite') return 'RM39.99/month'
+    if (subscription?.plan === 'pro') return 'RM14.99/month'
+    if (subscription?.plan === 'lite') return 'Free'
     if (subscription?.plan === 'all_disciplines') return 'RM27.99/month'
     if (subscription?.plan === 'starter') return 'RM11.99/month'
     return '-'
+  }
+
+  const getQuestionsPerDay = () => {
+    if (subscription?.plan === 'elite') return 'Unlimited'
+    if (subscription?.plan === 'all_disciplines') return '200'
+    if (subscription?.plan === 'lite') return '5/month'
+    return '50'
   }
 
   const handleDisciplineClick = (disciplineId: string) => {
@@ -148,7 +176,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
-            {subscription?.plan === 'starter' && !isExpired() && (
+            {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && !isExpired() && (
               <button
                 onClick={() => { window.location.href = '/choose-discipline' }}
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -178,18 +206,17 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl p-6 max-w-md w-full">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-lg text-gray-900">My Plan</h3>
-              <button
-                onClick={() => setShowPlanModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl"
-              >
-                ✕
-              </button>
+              <button onClick={() => setShowPlanModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
 
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
-              <p className="text-xs text-blue-500 mb-1">Current Plan</p>
-              <p className="font-bold text-blue-900 text-lg">{getPlanName()}</p>
-              <p className="text-sm text-blue-700 mt-1">{getPlanPrice()}</p>
+            <div className={`border rounded-xl p-4 mb-4 ${
+              subscription?.plan === 'elite' ? 'bg-gray-900 border-gray-700' :
+              subscription?.plan === 'lite' ? 'bg-green-50 border-green-100' :
+              'bg-blue-50 border-blue-100'
+            }`}>
+              <p className={`text-xs mb-1 ${subscription?.plan === 'elite' ? 'text-yellow-400' : 'text-blue-500'}`}>Current Plan</p>
+              <p className={`font-bold text-lg ${subscription?.plan === 'elite' ? 'text-white' : 'text-blue-900'}`}>{getPlanName()}</p>
+              <p className={`text-sm mt-1 ${subscription?.plan === 'elite' ? 'text-gray-400' : 'text-blue-700'}`}>{getPlanPrice()}</p>
             </div>
 
             <div className="space-y-3 mb-6">
@@ -207,13 +234,11 @@ export default function DashboardPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{isBetaTester() ? 'Beta expires' : 'Renews on'}</span>
                   <span className="text-gray-700">
-                    {new Date(subscription.current_period_end).toLocaleDateString('en-MY', {
-                      day: 'numeric', month: 'long', year: 'numeric'
-                    })}
+                    {new Date(subscription.current_period_end).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
                 </div>
               )}
-              {subscription?.plan === 'starter' && subscription.selected_discipline && (
+              {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && subscription.selected_discipline && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Selected Discipline</span>
                   <span className="text-gray-700 capitalize">
@@ -222,31 +247,23 @@ export default function DashboardPage() {
                 </div>
               )}
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Questions per day</span>
-                <span className="text-gray-700">
-                  {subscription?.plan === 'all_disciplines' ? '200' : '50'}
-                </span>
+                <span className="text-gray-500">Questions</span>
+                <span className="text-gray-700">{getQuestionsPerDay()}</span>
               </div>
             </div>
 
             <div className="space-y-2">
               {!isBetaTester() && subscription?.stripe_customer_id && (
                 <button
-                  onClick={() => {
-                    setShowPlanModal(false)
-                    window.location.href = '/contact'
-                  }}
+                  onClick={() => { setShowPlanModal(false); window.location.href = '/contact' }}
                   className="w-full py-2.5 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
                 >
                   Cancel Subscription
                 </button>
               )}
-              {(isExpired() || !subscription || subscription.plan === 'starter') && (
+              {(subscription?.plan === 'lite' || subscription?.plan === 'pro' || subscription?.plan === 'starter' || isExpired() || !subscription) && (
                 <button
-                  onClick={() => {
-                    setShowPlanModal(false)
-                    window.location.href = '/pricing'
-                  }}
+                  onClick={() => { setShowPlanModal(false); window.location.href = '/pricing' }}
                   className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
                 >
                   {isExpired() ? 'Renew Subscription' : 'Upgrade Plan'}
@@ -281,31 +298,43 @@ export default function DashboardPage() {
               <p className="text-sm font-medium text-red-900">Your access has expired</p>
               <p className="text-xs text-red-600 mt-0.5">Subscribe to continue accessing AquaRef</p>
             </div>
-            <button
-              onClick={() => { window.location.href = '/pricing' }}
-              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-            >
-              View Plans
-            </button>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">View Plans</button>
           </div>
         )}
 
         {isBetaTester() && !isExpired() && (
           <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-900">
-                ✅ Beta Access — All Disciplines
-              </p>
+              <p className="text-sm font-medium text-green-900">✅ Beta Access — All Disciplines</p>
               <p className="text-xs text-green-600 mt-0.5">
                 Access expires: {new Date(subscription!.current_period_end!).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             </div>
-            <button
-              onClick={() => { window.location.href = '/pricing' }}
-              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-            >
-              Subscribe Now
-            </button>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Subscribe Now</button>
+          </div>
+        )}
+
+        {subscription?.plan === 'lite' && !isExpired() && (
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-green-900">🆓 AquaRef LITE — Free Plan</p>
+              <p className="text-xs text-green-600 mt-0.5">5 questions per month · 1 discipline · Upgrade anytime for more access</p>
+            </div>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade</button>
+          </div>
+        )}
+
+        {subscription?.plan === 'pro' && !isExpired() && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-900">
+                AquaRef PRO — {subscription.selected_discipline
+                  ? `${disciplines.find(d => d.id === subscription.selected_discipline)?.name} selected`
+                  : 'No discipline selected'}
+              </p>
+              <p className="text-xs text-blue-600 mt-0.5">You can switch your discipline once every 30 days</p>
+            </div>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade to ELITE</button>
           </div>
         )}
 
@@ -319,12 +348,7 @@ export default function DashboardPage() {
               </p>
               <p className="text-xs text-blue-600 mt-0.5">You can switch your discipline once per month</p>
             </div>
-            <button
-              onClick={() => { window.location.href = '/pricing' }}
-              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-            >
-              Upgrade to All Disciplines
-            </button>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade Plan</button>
           </div>
         )}
 
@@ -334,12 +358,7 @@ export default function DashboardPage() {
               <p className="text-sm font-medium text-yellow-900">No active subscription</p>
               <p className="text-xs text-yellow-600 mt-0.5">Subscribe to access the AI rules assistant</p>
             </div>
-            <button
-              onClick={() => { window.location.href = '/pricing' }}
-              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-            >
-              View Plans
-            </button>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">View Plans</button>
           </div>
         )}
 
@@ -349,10 +368,8 @@ export default function DashboardPage() {
             <div className="text-xs text-gray-400 mt-1">Disciplines available</div>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {subscription?.plan === 'all_disciplines' ? '200' : '50'}
-            </div>
-            <div className="text-xs text-gray-400 mt-1">Questions per day</div>
+            <div className="text-2xl font-bold text-blue-600">{getQuestionsPerDay()}</div>
+            <div className="text-xs text-gray-400 mt-1">Questions {subscription?.plan === 'lite' ? 'per month' : 'per day'}</div>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
             <div className="text-2xl font-bold text-blue-600">90+</div>
@@ -372,23 +389,18 @@ export default function DashboardPage() {
                 <div
                   key={d.id}
                   className={`bg-white rounded-xl border p-6 transition-all ${
-                    !isLive
-                      ? 'border-gray-100 opacity-50'
-                      : hasAccess
-                      ? 'border-blue-200 hover:border-blue-400 hover:shadow-sm cursor-pointer'
-                      : 'border-gray-200'
+                    !isLive ? 'border-gray-100 opacity-50' :
+                    hasAccess ? 'border-blue-200 hover:border-blue-400 hover:shadow-sm cursor-pointer' :
+                    'border-gray-200'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-3xl">{d.icon}</span>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      !isLive
-                        ? 'bg-gray-100 text-gray-400'
-                        : isSelected
-                        ? 'bg-green-100 text-green-700'
-                        : hasAccess
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-400'
+                      !isLive ? 'bg-gray-100 text-gray-400' :
+                      isSelected ? 'bg-green-100 text-green-700' :
+                      hasAccess ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-400'
                     }`}>
                       {!isLive ? 'Coming Soon' : isSelected ? '● Your Plan' : hasAccess ? '● Live' : '🔒 Locked'}
                     </span>
