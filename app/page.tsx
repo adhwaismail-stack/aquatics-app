@@ -23,9 +23,7 @@ export default function Home() {
 
   useEffect(() => {
     const fetchLive = async () => {
-      const { data } = await supabase
-        .from('rulebook_files')
-        .select('discipline')
+      const { data } = await supabase.from('rulebook_files').select('discipline')
       if (data) {
         const live = [...new Set(data.map((f: { discipline: string }) => f.discipline))]
         setLiveDisciplines(live)
@@ -50,12 +48,8 @@ export default function Home() {
           <a href="#pricing" className="hover:text-blue-600">Pricing</a>
         </div>
         <div className="flex items-center gap-3">
-          <a href="/login" className="text-sm text-gray-600 hover:text-blue-600 font-medium">
-            Login
-          </a>
-          <a href="/pricing" className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-            Start Free Trial
-          </a>
+          <a href="/login" className="text-sm text-gray-600 hover:text-blue-600 font-medium">Login</a>
+          <a href="/pricing" className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Start Free Trial</a>
         </div>
       </nav>
 
@@ -104,44 +98,16 @@ export default function Home() {
       {/* Features */}
       <section id="features" className="bg-gray-50 px-8 py-20">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
-            Built for the pool deck
-          </h2>
-          <p className="text-center text-gray-500 mb-14 text-lg">
-            Everything a Technical Official, coach or parent needs
-          </p>
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">Built for the pool deck</h2>
+          <p className="text-center text-gray-500 mb-14 text-lg">Everything a Technical Official, coach or parent needs</p>
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              {
-                icon: "📖",
-                title: "Regulations Only",
-                desc: "Answers strictly from official World Aquatics Regulations. No internet, no guessing, no hallucinations."
-              },
-              {
-                icon: "🌍",
-                title: "90+ Languages",
-                desc: "Ask in any of 90+ languages and get answers in that same language. No language barrier for officials worldwide."
-              },
-              {
-                icon: "🔢",
-                title: "Rule Citations",
-                desc: "Every answer includes the exact rule number — SW 7.6, WP 21.3. Always verifiable."
-              },
-              {
-                icon: "⚡",
-                title: "Instant Answers",
-                desc: "Get answers in seconds. Perfect for quick checks during competition preparation."
-              },
-              {
-                icon: "🏊",
-                title: "7 Disciplines",
-                desc: "Swimming, Water Polo, Open Water, Artistic Swimming, Diving, High Diving and Masters Swimming."
-              },
-              {
-                icon: "🔒",
-                title: "Always Current",
-                desc: "Regulations updated by admin whenever World Aquatics releases new rules. Always accurate."
-              }
+              { icon: "📖", title: "Regulations Only", desc: "Answers strictly from official World Aquatics Regulations. No internet, no guessing, no hallucinations." },
+              { icon: "🌍", title: "90+ Languages", desc: "Ask in any of 90+ languages and get answers in that same language. No language barrier for officials worldwide." },
+              { icon: "🔢", title: "Rule Citations", desc: "Every answer includes the exact rule number — SW 7.6, WP 21.3. Always verifiable." },
+              { icon: "⚡", title: "Instant Answers", desc: "Get answers in seconds. Perfect for quick checks during competition preparation." },
+              { icon: "🏊", title: "7 Disciplines", desc: "Swimming, Water Polo, Open Water, Artistic Swimming, Diving, High Diving and Masters Swimming." },
+              { icon: "🔒", title: "Always Current", desc: "Regulations updated by admin whenever World Aquatics releases new rules. Always accurate." }
             ].map((f, i) => (
               <div key={i} className="bg-white p-6 rounded-xl border border-gray-100">
                 <div className="text-3xl mb-4">{f.icon}</div>
@@ -153,24 +119,18 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Disciplines — fully dynamic */}
+      {/* Disciplines */}
       <section id="disciplines" className="px-8 py-20">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
-            All World Aquatics disciplines
-          </h2>
-          <p className="text-center text-gray-500 mb-14 text-lg">
-            One platform for every aquatics sport
-          </p>
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">All World Aquatics disciplines</h2>
+          <p className="text-center text-gray-500 mb-14 text-lg">One platform for every aquatics sport</p>
           <div className="grid md:grid-cols-3 gap-6">
             {ALL_DISCIPLINES.map((d, i) => {
               const isLive = liveDisciplines.includes(d.id)
               return (
                 <div key={i} className={`p-6 rounded-xl border ${isLive ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className={`font-semibold ${isLive ? 'text-blue-900' : 'text-gray-700'}`}>
-                      {d.name}
-                    </h3>
+                    <h3 className={`font-semibold ${isLive ? 'text-blue-900' : 'text-gray-700'}`}>{d.name}</h3>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${isLive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
                       {isLive ? 'Live' : 'Coming Soon'}
                     </span>
@@ -197,70 +157,83 @@ export default function Home() {
 
       {/* Pricing */}
       <section id="pricing" className="bg-gray-50 px-8 py-20">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
-            Simple, honest pricing
-          </h2>
-          <p className="text-center text-gray-500 mb-14 text-lg">
-            7-day free trial on all plans. Cancel anytime.
-          </p>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
-              <h3 className="font-bold text-xl text-gray-900 mb-2">Starter</h3>
-              <p className="text-gray-500 text-sm mb-6">For officials who officiate one sport</p>
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">Simple, honest pricing</h2>
+          <p className="text-center text-gray-500 mb-14 text-lg">Start free. Upgrade when you're ready.</p>
+
+          <div className="grid md:grid-cols-3 gap-6">
+
+            {/* LITE */}
+            <div className="bg-white p-8 rounded-xl border border-gray-200 flex flex-col">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">For The Casual Observer</p>
+              <h3 className="font-bold text-xl text-gray-900 mb-1">AquaRef LITE</h3>
+              <p className="text-gray-400 text-xs italic mb-4">Your "Just-In-Case" Safety Net</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-gray-900">RM 11.99</span>
+                <span className="text-4xl font-bold text-gray-900">RM 0</span>
                 <span className="text-gray-400 text-sm">/month</span>
               </div>
-              <ul className="space-y-3 mb-8">
-                {[
-                  "Choose 1 discipline",
-                  "Full AI regulations chat",
-                  "Rule number citations",
-                  "Multilingual — 90+ languages",
-                  "Switch discipline once/month",
-                  "50 questions per day"
-                ].map((f, i) => (
+              <ul className="space-y-2 mb-8 flex-1">
+                {['5 Questions per month', '1 Discipline (30-day lock)', 'Official WA Rule Citations', '90+ Language Support', 'Web & Mobile Access'].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-gray-600">
-                    <span className="text-blue-600">✓</span>{f}
+                    <span className="text-green-500">✓</span>{f}
                   </li>
                 ))}
               </ul>
-              <a href="/pricing" className="block w-full text-center border border-blue-600 text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50">
-                Start Free Trial
+              <a href="/pricing" className="block w-full text-center border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50">
+                Get Started Free
               </a>
             </div>
 
-            <div className="bg-blue-600 p-8 rounded-xl border border-blue-600">
-              <div className="inline-block bg-blue-500 text-white text-xs px-3 py-1 rounded-full mb-4">
-                Most Popular
+            {/* PRO */}
+            <div className="bg-blue-600 p-8 rounded-xl flex flex-col relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <span className="bg-orange-400 text-white text-xs px-4 py-1 rounded-full font-medium">Most Popular</span>
               </div>
-              <h3 className="font-bold text-xl text-white mb-2">All Disciplines</h3>
-              <p className="text-blue-200 text-sm mb-6">For multi-sport officials and coaches</p>
+              <p className="text-xs font-medium text-blue-200 uppercase tracking-widest mb-2">The Dedicated Specialist</p>
+              <h3 className="font-bold text-xl text-white mb-1">AquaRef PRO</h3>
+              <p className="text-blue-200 text-xs italic mb-4">For professional officials and coaches</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-white">RM 27.99</span>
+                <span className="text-4xl font-bold text-white">RM 14.99</span>
                 <span className="text-blue-200 text-sm">/month</span>
               </div>
-              <ul className="space-y-3 mb-8">
-                {[
-                  "All 7 disciplines included",
-                  "Full AI regulations chat",
-                  "Rule number citations",
-                  "Multilingual — 90+ languages",
-                  "New disciplines added free",
-                  "Regulations update alerts",
-                  "200 questions per day"
-                ].map((f, i) => (
+              <ul className="space-y-2 mb-8 flex-1">
+                {['50 Questions per day', '1 Discipline (switch every 30 days)', 'Official WA Rule Citations', '90+ Language Support', 'Ad-Free Experience', 'Standard Email Support'].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white">
                     <span className="text-blue-200">✓</span>{f}
                   </li>
                 ))}
               </ul>
               <a href="/pricing" className="block w-full text-center bg-white text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50">
-                Start Free Trial
+                Start 7-Day Free Trial
               </a>
             </div>
+
+            {/* ELITE */}
+            <div className="bg-gray-900 p-8 rounded-xl flex flex-col">
+              <p className="text-xs font-medium text-yellow-400 uppercase tracking-widest mb-2">The Global Authority</p>
+              <h3 className="font-bold text-xl text-white mb-1">AquaRef ELITE</h3>
+              <p className="text-gray-400 text-xs italic mb-4">For high-level Referees and multi-sport Officials</p>
+              <div className="mb-6">
+                <span className="text-4xl font-bold text-white">RM 39.99</span>
+                <span className="text-gray-400 text-sm">/month</span>
+              </div>
+              <ul className="space-y-2 mb-8 flex-1">
+                {['UNLIMITED Questions', 'ALL 7 Disciplines', 'Instant Discipline Switching', 'Official WA Rule Citations', '90+ Language Support', 'Priority VIP Support', 'Early Access to new features'].map((f, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
+                    <span className="text-yellow-400">✓</span>{f}
+                  </li>
+                ))}
+              </ul>
+              <a href="/pricing" className="block w-full text-center bg-yellow-400 text-gray-900 py-3 rounded-lg font-medium hover:bg-yellow-300">
+                Start 7-Day Free Trial
+              </a>
+            </div>
+
           </div>
+
+          <p className="text-center text-sm text-gray-400 mt-8">
+            No charge for 7 days on paid plans. Cancel anytime. LITE is free forever.
+          </p>
         </div>
       </section>
 
