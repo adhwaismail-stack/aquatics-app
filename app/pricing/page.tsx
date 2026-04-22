@@ -1,13 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '../lib/supabase'
 
 export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [showEmail, setShowEmail] = useState<string | null>(null)
+  const [userLoggedIn, setUserLoggedIn] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.email) {
+        setEmail(user.email)
+        setUserLoggedIn(true)
+      }
+    }
+    getUser()
+  }, [])
 
   const handleCheckout = async (plan: string) => {
     if (plan === 'lite') {
@@ -27,8 +40,8 @@ export default function PricingPage() {
     setLoading(plan)
 
     const priceId = plan === 'pro'
-      ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || 'price_1TOdBiDEuI3kdko2HWgCLV4s'
-      : process.env.NEXT_PUBLIC_STRIPE_ELITE_PRICE_ID || 'price_1TMpcNDEuI3kdko2MSU0MDGB'
+      ? 'price_1TOdBiDEuI3kdko2HWgCLV4s'
+      : 'price_1TMpcNDEuI3kdko2MSU0MDGB'
 
     try {
       const response = await fetch('/api/checkout', {
@@ -61,12 +74,13 @@ export default function PricingPage() {
             </div>
             <span className="font-bold text-xl text-gray-900">AquaRef</span>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Simple, honest pricing
-          </h1>
-          <p className="text-xl text-gray-500">
-            Start free. Upgrade when you're ready.
-          </p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, honest pricing</h1>
+          <p className="text-xl text-gray-500">Start free. Upgrade when you're ready.</p>
+          {userLoggedIn && (
+            <div className="mt-4 inline-block bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
+              <p className="text-sm text-blue-700">✅ Logged in as <strong>{email}</strong></p>
+            </div>
+          )}
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -100,7 +114,7 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            {showEmail === 'lite' && (
+            {showEmail === 'lite' && !userLoggedIn && (
               <div className="mb-4">
                 <input
                   type="email"
@@ -112,12 +126,21 @@ export default function PricingPage() {
               </div>
             )}
 
-            <button
-              onClick={() => handleCheckout('lite')}
-              className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
-            >
-              Get Started Free
-            </button>
+            {userLoggedIn ? (
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
+              >
+                Go to Dashboard →
+              </button>
+            ) : (
+              <button
+                onClick={() => handleCheckout('lite')}
+                className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
+              >
+                Get Started Free
+              </button>
+            )}
           </div>
 
           {/* PRO Plan */}
@@ -152,7 +175,7 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            {showEmail === 'pro' && (
+            {showEmail === 'pro' && !userLoggedIn && (
               <div className="mb-4">
                 <input
                   type="email"
@@ -161,6 +184,12 @@ export default function PricingPage() {
                   placeholder="Enter your email"
                   className="w-full px-4 py-3 border border-blue-400 rounded-lg text-sm mb-2 bg-blue-500 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-white"
                 />
+              </div>
+            )}
+
+            {userLoggedIn && (
+              <div className="mb-4 bg-blue-500 rounded-lg px-3 py-2">
+                <p className="text-xs text-blue-200">Upgrading as: <strong className="text-white">{email}</strong></p>
               </div>
             )}
 
@@ -188,7 +217,7 @@ export default function PricingPage() {
 
             <ul className="space-y-3 mb-8 flex-1">
               {[
-                'UNLIMITED Questions (Fair Use)',
+                'UNLIMITED Questions',
                 'ALL 7 Disciplines included',
                 'Instant Discipline Switching',
                 'Official WA 2025-29 Rule Citations',
@@ -202,7 +231,7 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            {showEmail === 'elite' && (
+            {showEmail === 'elite' && !userLoggedIn && (
               <div className="mb-4">
                 <input
                   type="email"
@@ -211,6 +240,12 @@ export default function PricingPage() {
                   placeholder="Enter your email"
                   className="w-full px-4 py-3 border border-gray-600 rounded-lg text-sm mb-2 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 />
+              </div>
+            )}
+
+            {userLoggedIn && (
+              <div className="mb-4 bg-gray-800 rounded-lg px-3 py-2">
+                <p className="text-xs text-gray-400">Upgrading as: <strong className="text-white">{email}</strong></p>
               </div>
             )}
 
