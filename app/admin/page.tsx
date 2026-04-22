@@ -99,6 +99,7 @@ const DISCIPLINES = [
   { name: 'High Diving', code: 'HD', discipline: 'highdiving' },
   { name: 'Masters', code: 'MS', discipline: 'masters' },
   { name: 'Open Water', code: 'OW', discipline: 'openwater' },
+  { name: 'Para Swimming', code: 'WPS', discipline: 'paraswimming' },
 ]
 
 const DISCIPLINE_LABELS: Record<string, string> = {
@@ -109,6 +110,7 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   highdiving: 'High Diving',
   masters: 'Masters',
   openwater: 'Open Water',
+  paraswimming: 'Para Swimming',
 }
 
 const countryToFlag = (countryName: string): string => {
@@ -620,14 +622,15 @@ export default function AdminPage() {
             <div className="space-y-4">
               {DISCIPLINES.map((d) => {
                 const files = rulebookFiles[d.discipline] || []
+                const isPara = d.discipline === 'paraswimming'
                 return (
-                  <div key={d.code} className="border border-gray-100 rounded-xl p-4">
+                  <div key={d.code} className={`border rounded-xl p-4 ${isPara ? 'border-purple-100' : 'border-gray-100'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h3 className="font-medium text-gray-900">{d.name}</h3>
-                        <p className="text-xs text-gray-400">{d.code} Rules</p>
+                        <h3 className={`font-medium ${isPara ? 'text-purple-900' : 'text-gray-900'}`}>{d.name}</h3>
+                        <p className="text-xs text-gray-400">{d.code} Rules{isPara ? ' · World Para Swimming (IPC)' : ''}</p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${files.length > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                      <span className={`text-xs px-2 py-1 rounded-full ${files.length > 0 ? isPara ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
                         {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} uploaded` : 'No files'}
                       </span>
                     </div>
@@ -636,7 +639,7 @@ export default function AdminPage() {
                         {files.map((file) => (
                           <div key={file.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-green-600">📄</span>
+                              <span className={isPara ? 'text-purple-600' : 'text-green-600'}>📄</span>
                               <div>
                                 <p className="text-sm text-gray-700 font-medium">{file.original_name}</p>
                                 <p className="text-xs text-gray-400">{file.chunk_count} chunks · {new Date(file.uploaded_at).toLocaleDateString()}</p>
@@ -650,7 +653,7 @@ export default function AdminPage() {
                       </div>
                     )}
                     <label className="cursor-pointer block">
-                      <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${uploading === d.discipline ? 'border-gray-200 text-gray-400' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}>
+                      <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${uploading === d.discipline ? 'border-gray-200 text-gray-400' : isPara ? 'border-purple-200 text-purple-600 hover:bg-purple-50' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}>
                         {uploading === d.discipline ? 'Processing...' : files.length > 0 ? '+ Add another document' : 'Upload PDF or TXT'}
                       </div>
                       <input type="file" accept=".pdf,.txt" className="hidden" disabled={uploading !== null} onChange={(e) => handleUpload(e, d.discipline)} />
@@ -705,11 +708,11 @@ export default function AdminPage() {
               </div>
             </div>
             <div className="flex gap-2 mb-6 flex-wrap">
-              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater'].map((tab) => {
+              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater', 'paraswimming'].map((tab) => {
                 const count = tab === 'all' ? chatLogs.length : chatLogs.filter(l => l.discipline === tab).length
                 return (
-                  <button key={tab} onClick={() => setLogDisciplineFilter(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${logDisciplineFilter === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+                  <button key={tab} onClick={() => setLogDisciplineFilter(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${logDisciplineFilter === tab ? tab === 'paraswimming' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab === 'paraswimming' ? 'Para Swimming' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
                   </button>
                 )
               })}
@@ -726,7 +729,7 @@ export default function AdminPage() {
                   <div key={log.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{DISCIPLINE_LABELS[log.discipline] || log.discipline}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${log.discipline === 'paraswimming' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{DISCIPLINE_LABELS[log.discipline] || log.discipline}</span>
                         <span className="text-xs text-gray-400">{log.user_email}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -783,11 +786,11 @@ export default function AdminPage() {
               <input type="text" value={correctionKeyword} onChange={(e) => setCorrectionKeyword(e.target.value)} placeholder="Search by question or correction..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400" />
             </div>
             <div className="flex gap-2 mb-6 flex-wrap">
-              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater'].map((tab) => {
+              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater', 'paraswimming'].map((tab) => {
                 const count = tab === 'all' ? corrections.length : corrections.filter(c => c.discipline === tab).length
                 return (
-                  <button key={tab} onClick={() => setCorrectionDiscipline(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${correctionDiscipline === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+                  <button key={tab} onClick={() => setCorrectionDiscipline(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${correctionDiscipline === tab ? tab === 'paraswimming' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab === 'paraswimming' ? 'Para Swimming' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
                   </button>
                 )
               })}
@@ -803,7 +806,7 @@ export default function AdminPage() {
                 {filteredCorrections.map((c) => (
                   <div key={c.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{DISCIPLINE_LABELS[c.discipline] || c.discipline}</span>
+                      <span className={`text-xs px-2 py-1 rounded-full ${c.discipline === 'paraswimming' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{DISCIPLINE_LABELS[c.discipline] || c.discipline}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
                         <button onClick={() => handleDeleteCorrection(c.id)} className="text-xs text-red-500 hover:text-red-600">Delete</button>
@@ -856,8 +859,8 @@ export default function AdminPage() {
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Discipline</label>
                 <div className="flex gap-2 flex-wrap">
-                  {['all', 'swimming', 'waterpolo', 'openwater', 'artistic', 'diving', 'highdiving', 'masters'].map(d => (
-                    <button key={d} onClick={() => setFeedbackDiscipline(d)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${feedbackDiscipline === d ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                  {['all', 'swimming', 'waterpolo', 'openwater', 'artistic', 'diving', 'highdiving', 'masters', 'paraswimming'].map(d => (
+                    <button key={d} onClick={() => setFeedbackDiscipline(d)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${feedbackDiscipline === d ? d === 'paraswimming' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                       {d === 'all' ? 'All' : DISCIPLINE_LABELS[d] || d}
                     </button>
                   ))}
@@ -877,7 +880,7 @@ export default function AdminPage() {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-lg">{f.feedback === 'like' ? '👍' : '👎'}</span>
-                        <span className="text-xs bg-white px-2 py-1 rounded-full text-gray-600">{DISCIPLINE_LABELS[f.discipline] || f.discipline}</span>
+                        <span className={`text-xs bg-white px-2 py-1 rounded-full ${f.discipline === 'paraswimming' ? 'text-purple-700' : 'text-gray-600'}`}>{DISCIPLINE_LABELS[f.discipline] || f.discipline}</span>
                         <span className="text-xs text-gray-400">{f.user_email}</span>
                       </div>
                       <span className="text-xs text-gray-400">{new Date(f.created_at).toLocaleString()}</span>
@@ -1017,7 +1020,7 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2 mt-1">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPlanColor(sub.plan)}`}>{getPlanLabel(sub.plan)}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
-                          {sub.selected_discipline && <span className="text-xs text-gray-400">{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>}
+                          {sub.selected_discipline && <span className={`text-xs ${sub.selected_discipline === 'paraswimming' ? 'text-purple-500' : 'text-gray-400'}`}>{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>}
                           {sub.country && <span className="text-xs text-gray-400">{countryToFlag(sub.country)} {sub.country}</span>}
                         </div>
                       </div>
