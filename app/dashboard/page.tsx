@@ -20,6 +20,17 @@ interface UserSubscription {
   current_period_end: string | null
   stripe_customer_id: string | null
   full_name: string | null
+  country: string | null
+}
+
+async function detectCountry(): Promise<string | null> {
+  try {
+    const res = await fetch('https://ip-api.com/json/?fields=country')
+    const data = await res.json()
+    return data.country || null
+  } catch {
+    return null
+  }
 }
 
 export default function DashboardPage() {
@@ -50,11 +61,13 @@ export default function DashboardPage() {
 
       const { data: sub, error } = await supabase
         .from('user_subscriptions')
-        .select('plan, selected_discipline, status, current_period_end, stripe_customer_id, full_name')
+        .select('plan, selected_discipline, status, current_period_end, stripe_customer_id, full_name, country')
         .eq('user_email', user.email)
         .single()
 
       if (error || !sub) {
+        // New user — detect country and create LITE record
+        const country = await detectCountry()
         await supabase.from('user_subscriptions').insert({
           user_email: user.email,
           plan: 'lite',
@@ -62,10 +75,23 @@ export default function DashboardPage() {
           stripe_customer_id: null,
           current_period_end: null,
           selected_discipline: null,
-          full_name: null
+          full_name: null,
+          country
         })
         window.location.href = '/onboarding'
         return
+      }
+
+      // Update country if missing
+      if (!sub.country) {
+        const country = await detectCountry()
+        if (country) {
+          await supabase
+            .from('user_subscriptions')
+            .update({ country })
+            .eq('user_email', user.email)
+          sub.country = country
+        }
       }
 
       // Existing beta tester without expiry — set 14 day expiry
@@ -122,7 +148,6 @@ export default function DashboardPage() {
       if (isExpired()) return false
       return true
     }
-    // Legacy plans
     if (subscription.plan === 'all_disciplines') {
       if (isExpired()) return false
       return true
@@ -161,13 +186,13 @@ export default function DashboardPage() {
     return '-'
   }
 
-const getQuestionsPerDay = () => {
-  if (subscription?.plan === 'elite') return 'Unlimited'
-  if (subscription?.plan === 'pro') return '50'
-  if (subscription?.plan === 'lite') return '5'
-  if (subscription?.plan === 'all_disciplines') return '200' // legacy
-  return '50' // default (starter/legacy)
-}
+  const getQuestionsPerDay = () => {
+    if (subscription?.plan === 'elite') return 'Unlimited'
+    if (subscription?.plan === 'pro') return '50'
+    if (subscription?.plan === 'lite') return '5'
+    if (subscription?.plan === 'all_disciplines') return '200'
+    return '50'
+  }
 
   const handleDisciplineClick = (disciplineId: string) => {
     if (canAccessDiscipline(disciplineId)) {
@@ -247,6 +272,12 @@ const getQuestionsPerDay = () => {
                 <span className="text-gray-500">Email</span>
                 <span className="text-gray-700">{user?.email}</span>
               </div>
+              {subscription?.country && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Country</span>
+                  <span className="text-gray-700">{subscription.country}</span>
+                </div>
+              )}
               {subscription?.current_period_end && subscription?.plan !== 'lite' && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{isBetaTester() ? 'Beta expires' : 'Renews on'}</span>
