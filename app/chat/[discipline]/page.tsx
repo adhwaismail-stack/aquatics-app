@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { use } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const disciplineNames: { [key: string]: string } = {
   swimming: 'Swimming',
@@ -291,7 +292,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         </div>
       </div>
 
-      {/* Para Swimming disclaimer banner — Option C */}
+      {/* Para Swimming disclaimer banner */}
       {isParaSwimming && (
         <div className="bg-purple-50 border-b border-purple-100 px-6 py-2">
           <div className="max-w-4xl mx-auto text-center">
@@ -392,10 +393,11 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                   </p>
                 </div>
               ) : (
-                <div className="max-w-3xl">
+                <div className="max-w-3xl w-full">
                   <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
                     <div className="text-gray-700 text-sm">
                       <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
                         components={{
                           h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h1>,
                           h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-4 mb-2">{children}</h2>,
@@ -406,6 +408,26 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                           ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
                           li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                           blockquote: ({ children }) => <blockquote className={`border-l-4 pl-4 italic text-gray-600 my-3 ${isParaSwimming ? 'border-purple-200' : 'border-blue-200'}`}>{children}</blockquote>,
+                          table: ({ children }) => (
+                            <div className="overflow-x-auto mb-4 rounded-lg border border-gray-200">
+                              <table className="min-w-full text-sm">{children}</table>
+                            </div>
+                          ),
+                          thead: ({ children }) => (
+                            <thead className={`${isParaSwimming ? 'bg-purple-50' : 'bg-blue-50'}`}>{children}</thead>
+                          ),
+                          tbody: ({ children }) => (
+                            <tbody className="divide-y divide-gray-100 bg-white">{children}</tbody>
+                          ),
+                          tr: ({ children }) => (
+                            <tr className="hover:bg-gray-50 transition-colors">{children}</tr>
+                          ),
+                          th: ({ children }) => (
+                            <th className={`px-4 py-2.5 text-left text-xs font-semibold ${isParaSwimming ? 'text-purple-700' : 'text-blue-700'} border-b border-gray-200`}>{children}</th>
+                          ),
+                          td: ({ children }) => (
+                            <td className="px-4 py-2.5 text-gray-700 text-xs">{children}</td>
+                          ),
                         }}
                       >
                         {msg.content}
