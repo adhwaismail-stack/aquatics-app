@@ -143,7 +143,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* LITE CTA Banner — replaces Demo banner */}
+      {/* LITE CTA Banner */}
       <section className="bg-green-50 border-y border-green-100 px-8 py-12">
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-green-700 text-sm font-medium mb-2">🆓 Free forever — no credit card needed</p>
@@ -186,46 +186,46 @@ export default function Home() {
             </div>
 
             {/* PRO */}
-            <div className="bg-blue-600 p-8 rounded-xl flex flex-col relative">
+            <div className="bg-blue-400 p-8 rounded-xl flex flex-col relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="bg-orange-400 text-white text-xs px-4 py-1 rounded-full font-medium">Most Popular</span>
+                <span className="bg-white text-blue-600 text-xs px-4 py-1 rounded-full font-semibold shadow-sm">Most Popular</span>
               </div>
-              <p className="text-xs font-medium text-blue-200 uppercase tracking-widest mb-2">The Dedicated Specialist</p>
+              <p className="text-xs font-medium text-blue-100 uppercase tracking-widest mb-2">The Dedicated Specialist</p>
               <h3 className="font-bold text-xl text-white mb-1">AquaRef PRO</h3>
-              <p className="text-blue-200 text-xs italic mb-4">For professional officials and coaches</p>
+              <p className="text-blue-100 text-xs italic mb-4">For professional officials and coaches</p>
               <div className="mb-6">
                 <span className="text-4xl font-bold text-white">RM 14.99</span>
-                <span className="text-blue-200 text-sm">/month</span>
+                <span className="text-blue-100 text-sm">/month</span>
               </div>
               <ul className="space-y-2 mb-8 flex-1">
                 {['50 Questions per day', '1 Discipline (switch every 30 days)', 'Official WA Rule Citations', '90+ Language Support', 'Ad-Free Experience', 'Standard Email Support'].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-white">
-                    <span className="text-blue-200">✓</span>{f}
+                    <span className="text-blue-100">✓</span>{f}
                   </li>
                 ))}
               </ul>
-              <a href="/pricing" className="block w-full text-center bg-white text-blue-600 py-3 rounded-lg font-medium hover:bg-blue-50">
+              <a href="/pricing" className="block w-full text-center bg-white text-blue-500 py-3 rounded-lg font-medium hover:bg-blue-50">
                 Start 7-Day Free Trial
               </a>
             </div>
 
             {/* ELITE */}
-            <div className="bg-gray-900 p-8 rounded-xl flex flex-col">
+            <div className="bg-slate-800 p-8 rounded-xl flex flex-col">
               <p className="text-xs font-medium text-yellow-400 uppercase tracking-widest mb-2">The Global Authority</p>
               <h3 className="font-bold text-xl text-white mb-1">AquaRef ELITE</h3>
-              <p className="text-gray-400 text-xs italic mb-4">For high-level Referees and multi-sport Officials</p>
+              <p className="text-slate-400 text-xs italic mb-4">For high-level Referees and multi-sport Officials</p>
               <div className="mb-6">
                 <span className="text-4xl font-bold text-white">RM 39.99</span>
-                <span className="text-gray-400 text-sm">/month</span>
+                <span className="text-slate-400 text-sm">/month</span>
               </div>
               <ul className="space-y-2 mb-8 flex-1">
                 {['UNLIMITED Questions', 'ALL 7 Disciplines', 'Instant Discipline Switching', 'Official WA Rule Citations', '90+ Language Support', 'Priority VIP Support', 'Early Access to new features'].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
+                  <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
                     <span className="text-yellow-400">✓</span>{f}
                   </li>
                 ))}
               </ul>
-              <a href="/pricing" className="block w-full text-center bg-yellow-400 text-gray-900 py-3 rounded-lg font-medium hover:bg-yellow-300">
+              <a href="/pricing" className="block w-full text-center bg-yellow-400 text-slate-900 py-3 rounded-lg font-medium hover:bg-yellow-300">
                 Start 7-Day Free Trial
               </a>
             </div>
