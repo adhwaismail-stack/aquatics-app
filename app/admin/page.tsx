@@ -17,6 +17,8 @@ interface ChatLog {
   question: string
   answer: string
   created_at: string
+  input_tokens?: number
+  output_tokens?: number
 }
 
 interface CorrectionNote {
@@ -80,6 +82,12 @@ interface BetaUser {
 interface DailyUsage {
   date: string
   count: number
+}
+
+interface TokenLog {
+  input_tokens: number
+  output_tokens: number
+  created_at: string
 }
 
 const DISCIPLINES = [
@@ -187,6 +195,8 @@ export default function AdminPage() {
   const [grantingBeta, setGrantingBeta] = useState(false)
   const [extendEmail, setExtendEmail] = useState<string | null>(null)
   const [extendDays, setExtendDays] = useState('14')
+  const [tokenLogs, setTokenLogs] = useState<TokenLog[]>([])
+  const [lastLogins, setLastLogins] = useState<Record<string, string>>({})
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -222,7 +232,17 @@ export default function AdminPage() {
   const loadChatLogs = async () => {
     setLogsLoading(true)
     const { data } = await supabase.from('chat_logs').select('*').order('created_at', { ascending: false }).limit(100)
-    if (data) setChatLogs(data)
+    if (data) {
+      setChatLogs(data)
+      // Build last login map from chat logs
+      const loginMap: Record<string, string> = {}
+      data.forEach((log: ChatLog) => {
+        if (!loginMap[log.user_email] || new Date(log.created_at) > new Date(loginMap[log.user_email])) {
+          loginMap[log.user_email] = log.created_at
+        }
+      })
+      setLastLogins(loginMap)
+    }
     setLogsLoading(false)
   }
 
@@ -233,10 +253,8 @@ export default function AdminPage() {
 
   const loadSubscribers = async () => {
     setSubscribersLoading(true)
-    // Load from subscribers table (Stripe paid users)
     const { data: subs } = await supabase.from('subscribers').select('*').order('created_at', { ascending: false })
     if (subs) setSubscribers(subs)
-    // Load from user_subscriptions table (all users including LITE)
     const { data: userSubs } = await supabase.from('user_subscriptions').select('*').order('created_at', { ascending: false })
     if (userSubs) setUserSubscriptions(userSubs)
     setSubscribersLoading(false)
@@ -266,6 +284,14 @@ export default function AdminPage() {
     setAnalyticsLoading(true)
     const { data: usageData } = await supabase.from('daily_usage').select('date, count').order('date', { ascending: false }).limit(14)
     if (usageData) setDailyUsage(usageData)
+
+    // Load token usage
+    const { data: tokenData } = await supabase
+      .from('chat_logs')
+      .select('input_tokens, output_tokens, created_at')
+      .not('input_tokens', 'is', null)
+    if (tokenData) setTokenLogs(tokenData)
+
     setAnalyticsLoading(false)
   }
 
@@ -357,31 +383,13 @@ export default function AdminPage() {
     setGrantingBeta(true)
     const expiryDate = new Date()
     expiryDate.setDate(expiryDate.getDate() + parseInt(betaDays))
-
-    const { data: existing } = await supabase
-      .from('user_subscriptions')
-      .select('id')
-      .eq('user_email', betaEmail.trim().toLowerCase())
-      .single()
-
+    const { data: existing } = await supabase.from('user_subscriptions').select('id').eq('user_email', betaEmail.trim().toLowerCase()).single()
     if (existing) {
-      await supabase.from('user_subscriptions').update({
-        plan: 'elite',
-        status: 'active',
-        current_period_end: expiryDate.toISOString(),
-        stripe_customer_id: null
-      }).eq('user_email', betaEmail.trim().toLowerCase())
+      await supabase.from('user_subscriptions').update({ plan: 'elite', status: 'active', current_period_end: expiryDate.toISOString(), stripe_customer_id: null }).eq('user_email', betaEmail.trim().toLowerCase())
     } else {
-      await supabase.from('user_subscriptions').insert({
-        user_email: betaEmail.trim().toLowerCase(),
-        plan: 'elite',
-        status: 'active',
-        current_period_end: expiryDate.toISOString(),
-        stripe_customer_id: null
-      })
+      await supabase.from('user_subscriptions').insert({ user_email: betaEmail.trim().toLowerCase(), plan: 'elite', status: 'active', current_period_end: expiryDate.toISOString(), stripe_customer_id: null })
     }
-
-    alert(`✅ Beta access granted to ${betaEmail} for ${betaDays} days (expires ${expiryDate.toLocaleDateString()})`)
+    alert(`✅ Beta access granted to ${betaEmail} for ${betaDays} days`)
     setBetaEmail('')
     setBetaDays('14')
     setGrantingBeta(false)
@@ -433,7 +441,6 @@ export default function AdminPage() {
     .filter(f => feedbackFilter === 'all' || f.feedback === feedbackFilter)
     .filter(f => feedbackDiscipline === 'all' || f.discipline === feedbackDiscipline)
 
-  // Updated plan calculations
   const liteSubs = userSubscriptions.filter(s => s.plan === 'lite' && s.status === 'active')
   const proSubs = userSubscriptions.filter(s => (s.plan === 'pro' || s.plan === 'starter') && s.status === 'active' && s.stripe_customer_id)
   const eliteSubs = userSubscriptions.filter(s => (s.plan === 'elite' || s.plan === 'all_disciplines') && s.status === 'active' && s.stripe_customer_id)
@@ -462,6 +469,36 @@ export default function AdminPage() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     return created > thirtyDaysAgo && s.stripe_customer_id !== null
   }).length
+
+  // Token cost calculations
+  const totalInputTokens = tokenLogs.reduce((sum, l) => sum + (l.input_tokens || 0), 0)
+  const totalOutputTokens = tokenLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
+  const costUSD = (totalInputTokens * 0.0000008) + (totalOutputTokens * 0.000004)
+  const costRM = costUSD * 4.5
+
+  const thisMonthStart = new Date()
+  thisMonthStart.setDate(1)
+  thisMonthStart.setHours(0, 0, 0, 0)
+  const thisMonthLogs = tokenLogs.filter(l => new Date(l.created_at) >= thisMonthStart)
+  const thisMonthInputTokens = thisMonthLogs.reduce((sum, l) => sum + (l.input_tokens || 0), 0)
+  const thisMonthOutputTokens = thisMonthLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
+  const thisMonthCostRM = ((thisMonthInputTokens * 0.0000008) + (thisMonthOutputTokens * 0.000004)) * 4.5
+
+  // Top 10 most active users
+  const userQuestionCounts = chatLogs.reduce((acc, log) => {
+    acc[log.user_email] = (acc[log.user_email] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const top10Users = Object.entries(userQuestionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+
+  // Last 10 logins
+  const last10Logins = [...chatLogs]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .filter((log, index, self) => self.findIndex(l => l.user_email === log.user_email) === index)
+    .slice(0, 10)
 
   if (!authenticated) {
     return (
@@ -644,7 +681,10 @@ export default function AdminPage() {
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{DISCIPLINE_LABELS[log.discipline] || log.discipline}</span>
                         <span className="text-xs text-gray-400">{log.user_email}</span>
                       </div>
-                      <span className="text-xs text-gray-400">{new Date(log.created_at).toLocaleString()}</span>
+                      <div className="flex items-center gap-2">
+                        {log.input_tokens && <span className="text-xs text-gray-300">{(log.input_tokens + (log.output_tokens || 0)).toLocaleString()} tokens</span>}
+                        <span className="text-xs text-gray-400">{new Date(log.created_at).toLocaleString()}</span>
+                      </div>
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
                     <ExpandableAnswer answer={log.answer} />
@@ -831,7 +871,6 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
-
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -903,7 +942,6 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Plan summary */}
                 <div className="grid grid-cols-4 gap-3 mb-6">
                   <div className="bg-green-50 rounded-xl p-3 text-center">
                     <div className="text-xl font-bold text-green-600">{liteSubs.length}</div>
@@ -922,7 +960,6 @@ export default function AdminPage() {
                     <div className="text-xs text-gray-400 mt-1">Cancelled</div>
                   </div>
                 </div>
-
                 {userSubscriptions.map((sub) => (
                   <div key={sub.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-center justify-between">
@@ -930,20 +967,20 @@ export default function AdminPage() {
                         <p className="text-sm font-medium text-gray-900">{sub.full_name || '—'}</p>
                         <p className="text-xs text-gray-400">{sub.user_email}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPlanColor(sub.plan)}`}>
-                            {getPlanLabel(sub.plan)}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                            {sub.status}
-                          </span>
-                          {sub.selected_discipline && (
-                            <span className="text-xs text-gray-400">{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>
-                          )}
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPlanColor(sub.plan)}`}>{getPlanLabel(sub.plan)}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
+                          {sub.selected_discipline && <span className="text-xs text-gray-400">{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>}
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-gray-400">Joined</p>
                         <p className="text-xs text-gray-600">{new Date(sub.created_at).toLocaleDateString()}</p>
+                        {lastLogins[sub.user_email] && (
+                          <>
+                            <p className="text-xs text-gray-400 mt-1">Last active</p>
+                            <p className="text-xs text-gray-600">{new Date(lastLogins[sub.user_email]).toLocaleDateString()}</p>
+                          </>
+                        )}
                         {sub.current_period_end && sub.plan !== 'lite' && (
                           <>
                             <p className="text-xs text-gray-400 mt-1">Renews</p>
@@ -983,7 +1020,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Updated Subscription Breakdown */}
+                {/* Subscription Breakdown */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Subscription Breakdown</h3>
                   <div className="grid grid-cols-3 gap-4">
@@ -1005,16 +1042,81 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* AI Token Cost */}
+                <div className="bg-white rounded-xl border border-gray-100 p-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">🤖 AI Token Cost</h3>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-purple-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">This Month</p>
+                      <p className="text-2xl font-bold text-purple-700">RM {thisMonthCostRM.toFixed(4)}</p>
+                      <p className="text-xs text-gray-400 mt-1">{(thisMonthInputTokens + thisMonthOutputTokens).toLocaleString()} tokens used</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">All Time</p>
+                      <p className="text-2xl font-bold text-gray-700">RM {costRM.toFixed(4)}</p>
+                      <p className="text-xs text-gray-400 mt-1">{(totalInputTokens + totalOutputTokens).toLocaleString()} tokens used</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-400 mb-1">Input Tokens (all time)</p>
+                      <p className="text-lg font-bold text-blue-700">{totalInputTokens.toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">RM {(totalInputTokens * 0.0000008 * 4.5).toFixed(4)}</p>
+                    </div>
+                    <div className="bg-orange-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-400 mb-1">Output Tokens (all time)</p>
+                      <p className="text-lg font-bold text-orange-700">{totalOutputTokens.toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">RM {(totalOutputTokens * 0.000004 * 4.5).toFixed(4)}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3 text-center">Haiku: $0.80/M input · $4.00/M output · USD×4.5 = RM</p>
+                </div>
+
+                {/* Questions per day */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Questions Asked — Last 7 Days</h3>
                   <SimpleBarChart data={last7Days} />
                 </div>
+
                 {disciplineUsage.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">Most Popular Disciplines</h3>
                     <SimpleBarChart data={disciplineUsage} />
                   </div>
                 )}
+
+                {/* Top 10 Most Active Users */}
+                {top10Users.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-6">
+                    <h3 className="font-semibold text-gray-900 mb-4">🏆 Top 10 Most Active Users</h3>
+                    <div className="space-y-2">
+                      {top10Users.map(([email, count], i) => (
+                        <div key={email} className="flex items-center gap-3">
+                          <span className="text-xs text-gray-400 w-4">{i + 1}</span>
+                          <span className="text-sm text-gray-700 flex-1 truncate">{email}</span>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{count} questions</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Last 10 Logins */}
+                {last10Logins.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-6">
+                    <h3 className="font-semibold text-gray-900 mb-4">🕐 Last 10 Active Users</h3>
+                    <div className="space-y-2">
+                      {last10Logins.map((log) => (
+                        <div key={log.user_email} className="flex items-center justify-between">
+                          <span className="text-sm text-gray-700 truncate flex-1">{log.user_email}</span>
+                          <span className="text-xs text-gray-400">{new Date(log.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Feedback */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">User Feedback</h3>
                   <div className="grid grid-cols-3 gap-4">
