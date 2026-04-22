@@ -41,6 +41,7 @@ export default function DashboardPage() {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null)
   const [showPlanModal, setShowPlanModal] = useState(false)
   const [fullName, setFullName] = useState<string | null>(null)
+  const [showBetaWelcome, setShowBetaWelcome] = useState(false)
 
   useEffect(() => {
     const getUser = async () => {
@@ -117,6 +118,17 @@ export default function DashboardPage() {
 
       setSubscription(sub)
       setLoading(false)
+
+      // Show beta welcome modal only once
+      const isBeta = sub.stripe_customer_id === null &&
+        sub.plan !== 'lite' &&
+        sub.current_period_end !== null
+      if (isBeta) {
+        const hasSeenWelcome = localStorage.getItem('aquaref_beta_welcome_v1')
+        if (!hasSeenWelcome) {
+          setShowBetaWelcome(true)
+        }
+      }
     }
     getUser()
   }, [])
@@ -197,6 +209,11 @@ export default function DashboardPage() {
     }
   }
 
+  const handleDismissBetaWelcome = () => {
+    localStorage.setItem('aquaref_beta_welcome_v1', 'seen')
+    setShowBetaWelcome(false)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -240,6 +257,53 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Beta Welcome Modal — shown only once */}
+      {showBetaWelcome && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">A</span>
+              </div>
+              <span className="font-bold text-lg text-gray-900">AquaRef</span>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-1">Beta</span>
+            </div>
+
+            <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
+              <p>Dear {fullName || 'Beta Tester'},</p>
+
+              <p>
+                Thank you so much for being part of the <strong>AquaRef Beta programme</strong>. Your support and feedback mean a lot to me as I work to make this tool truly useful for the aquatics community.
+              </p>
+
+              <p>
+                I would greatly appreciate it if you could test the AI for your respective discipline and share your honest feedback — whether the answers are accurate, helpful, and properly cited. Your insights as a Technical Official are invaluable.
+              </p>
+
+              <p>
+                I'm also excited to share that <strong className="text-purple-700">Para Swimming 🏋️</strong> is now available on AquaRef, powered by the official <strong>World Para Swimming (WPS)</strong> regulations under IPC. Feel free to explore it!
+              </p>
+
+              <p>
+                You can share your feedback directly in the chat using the <strong>👍</strong> or <strong>👎</strong> buttons after each answer.
+              </p>
+
+              <div className="pt-2 border-t border-gray-100">
+                <p>Sincerely,</p>
+                <p className="font-semibold text-gray-900 mt-1">Adhwa</p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleDismissBetaWelcome}
+              className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition-colors"
+            >
+              Got it, thanks! 🙏
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Plan Modal */}
       {showPlanModal && (
