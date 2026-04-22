@@ -45,6 +45,18 @@ interface Subscriber {
   created_at: string
 }
 
+interface UserSubscription {
+  id: string
+  user_email: string
+  plan: string
+  status: string
+  current_period_end: string
+  stripe_customer_id: string | null
+  full_name: string | null
+  selected_discipline: string | null
+  created_at: string
+}
+
 interface FeedbackItem {
   id: string
   user_email: string
@@ -76,7 +88,7 @@ const DISCIPLINES = [
   { name: 'Artistic Swimming', code: 'AS', discipline: 'artistic' },
   { name: 'Diving', code: 'DV', discipline: 'diving' },
   { name: 'High Diving', code: 'HD', discipline: 'highdiving' },
-  { name: 'Masters Swimming', code: 'MS', discipline: 'masters' },
+  { name: 'Masters', code: 'MS', discipline: 'masters' },
   { name: 'Open Water', code: 'OW', discipline: 'openwater' },
 ]
 
@@ -86,8 +98,24 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   artistic: 'Artistic Swimming',
   diving: 'Diving',
   highdiving: 'High Diving',
-  masters: 'Masters Swimming',
+  masters: 'Masters',
   openwater: 'Open Water',
+}
+
+const getPlanLabel = (plan: string) => {
+  if (plan === 'lite') return 'LITE'
+  if (plan === 'pro') return 'PRO'
+  if (plan === 'elite') return 'ELITE'
+  if (plan === 'all_disciplines') return 'ELITE (legacy)'
+  if (plan === 'starter') return 'PRO (legacy)'
+  return plan
+}
+
+const getPlanColor = (plan: string) => {
+  if (plan === 'elite' || plan === 'all_disciplines') return 'bg-yellow-100 text-yellow-800'
+  if (plan === 'pro' || plan === 'starter') return 'bg-blue-100 text-blue-700'
+  if (plan === 'lite') return 'bg-green-100 text-green-700'
+  return 'bg-gray-100 text-gray-500'
 }
 
 function ExpandableAnswer({ answer }: { answer: string }) {
@@ -144,6 +172,7 @@ export default function AdminPage() {
   const [rulebookFiles, setRulebookFiles] = useState<Record<string, RulebookFile[]>>({})
   const [deletingFile, setDeletingFile] = useState<string | null>(null)
   const [subscribers, setSubscribers] = useState<Subscriber[]>([])
+  const [userSubscriptions, setUserSubscriptions] = useState<UserSubscription[]>([])
   const [subscribersLoading, setSubscribersLoading] = useState(false)
   const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [feedbackFilter, setFeedbackFilter] = useState('all')
@@ -204,8 +233,12 @@ export default function AdminPage() {
 
   const loadSubscribers = async () => {
     setSubscribersLoading(true)
-    const { data } = await supabase.from('subscribers').select('*').order('created_at', { ascending: false })
-    if (data) setSubscribers(data)
+    // Load from subscribers table (Stripe paid users)
+    const { data: subs } = await supabase.from('subscribers').select('*').order('created_at', { ascending: false })
+    if (subs) setSubscribers(subs)
+    // Load from user_subscriptions table (all users including LITE)
+    const { data: userSubs } = await supabase.from('user_subscriptions').select('*').order('created_at', { ascending: false })
+    if (userSubs) setUserSubscriptions(userSubs)
     setSubscribersLoading(false)
   }
 
@@ -332,19 +365,16 @@ export default function AdminPage() {
       .single()
 
     if (existing) {
-      await supabase
-        .from('user_subscriptions')
-        .update({
-          plan: 'all_disciplines',
-          status: 'active',
-          current_period_end: expiryDate.toISOString(),
-          stripe_customer_id: null
-        })
-        .eq('user_email', betaEmail.trim().toLowerCase())
+      await supabase.from('user_subscriptions').update({
+        plan: 'elite',
+        status: 'active',
+        current_period_end: expiryDate.toISOString(),
+        stripe_customer_id: null
+      }).eq('user_email', betaEmail.trim().toLowerCase())
     } else {
       await supabase.from('user_subscriptions').insert({
         user_email: betaEmail.trim().toLowerCase(),
-        plan: 'all_disciplines',
+        plan: 'elite',
         status: 'active',
         current_period_end: expiryDate.toISOString(),
         stripe_customer_id: null
@@ -360,23 +390,12 @@ export default function AdminPage() {
 
   const handleExtendBeta = async (email: string) => {
     const days = parseInt(extendDays)
-    const { data: user } = await supabase
-      .from('user_subscriptions')
-      .select('current_period_end')
-      .eq('user_email', email)
-      .single()
-
+    const { data: user } = await supabase.from('user_subscriptions').select('current_period_end').eq('user_email', email).single()
     if (!user) return
-
     const currentExpiry = new Date(user.current_period_end)
     const newExpiry = new Date(Math.max(currentExpiry.getTime(), Date.now()))
     newExpiry.setDate(newExpiry.getDate() + days)
-
-    await supabase
-      .from('user_subscriptions')
-      .update({ current_period_end: newExpiry.toISOString(), status: 'active' })
-      .eq('user_email', email)
-
+    await supabase.from('user_subscriptions').update({ current_period_end: newExpiry.toISOString(), status: 'active' }).eq('user_email', email)
     alert(`✅ Extended by ${days} days. New expiry: ${newExpiry.toLocaleDateString()}`)
     setExtendEmail(null)
     loadBetaUsers()
@@ -384,10 +403,7 @@ export default function AdminPage() {
 
   const handleRevokeBeta = async (email: string) => {
     if (!confirm(`Revoke beta access for ${email}? They will lose access immediately.`)) return
-    await supabase
-      .from('user_subscriptions')
-      .update({ status: 'cancelled', current_period_end: new Date().toISOString() })
-      .eq('user_email', email)
+    await supabase.from('user_subscriptions').update({ status: 'cancelled', current_period_end: new Date().toISOString() }).eq('user_email', email)
     alert(`✅ Beta access revoked for ${email}`)
     loadBetaUsers()
   }
@@ -417,10 +433,12 @@ export default function AdminPage() {
     .filter(f => feedbackFilter === 'all' || f.feedback === feedbackFilter)
     .filter(f => feedbackDiscipline === 'all' || f.discipline === feedbackDiscipline)
 
-  const activeSubscribers = subscribers.filter(s => s.status === 'active')
-  const starterSubs = activeSubscribers.filter(s => s.plan === 'starter')
-  const allDiscSubs = activeSubscribers.filter(s => s.plan === 'all_disciplines')
-  const estimatedMRR = (starterSubs.length * 11.99) + (allDiscSubs.length * 27.99)
+  // Updated plan calculations
+  const liteSubs = userSubscriptions.filter(s => s.plan === 'lite' && s.status === 'active')
+  const proSubs = userSubscriptions.filter(s => (s.plan === 'pro' || s.plan === 'starter') && s.status === 'active' && s.stripe_customer_id)
+  const eliteSubs = userSubscriptions.filter(s => (s.plan === 'elite' || s.plan === 'all_disciplines') && s.status === 'active' && s.stripe_customer_id)
+  const estimatedMRR = (proSubs.length * 14.99) + (eliteSubs.length * 39.99)
+
   const totalLikes = feedback.filter(f => f.feedback === 'like').length
   const totalDislikes = feedback.filter(f => f.feedback === 'dislike').length
   const satisfactionRate = feedback.length > 0 ? Math.round((totalLikes / feedback.length) * 100) : 0
@@ -438,11 +456,11 @@ export default function AdminPage() {
     return { label: d.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric' }), value: usage?.count || 0 }
   }).reverse()
 
-  const newSubsLast30Days = subscribers.filter(s => {
+  const newSubsLast30Days = userSubscriptions.filter(s => {
     const created = new Date(s.created_at)
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    return created > thirtyDaysAgo
+    return created > thirtyDaysAgo && s.stripe_customer_id !== null
   }).length
 
   if (!authenticated) {
@@ -488,8 +506,8 @@ export default function AdminPage() {
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total subscribers', value: subscribers.length.toString() },
-            { label: 'Active subscribers', value: activeSubscribers.length.toString() },
+            { label: 'Total users', value: userSubscriptions.length.toString() },
+            { label: 'Paid subscribers', value: (proSubs.length + eliteSubs.length).toString() },
             { label: 'Questions today', value: chatLogs.filter(l => l.created_at?.startsWith(new Date().toISOString().split('T')[0])).length.toString() },
             { label: 'Corrections saved', value: corrections.length.toString() },
           ].map((s, i) => (
@@ -582,7 +600,7 @@ export default function AdminPage() {
         {activeTab === 'chat logs' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-semibded text-gray-900">Chat Logs</h2>
+              <h2 className="font-semibold text-gray-900">Chat Logs</h2>
               <button onClick={loadChatLogs} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
             <div className="mb-4">
@@ -790,7 +808,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <h2 className="font-semibold text-gray-900 mb-2">Grant Beta Access</h2>
-              <p className="text-sm text-gray-400 mb-4">Give a user free access to all disciplines for a set period</p>
+              <p className="text-sm text-gray-400 mb-4">Give a user free ELITE access for a set period</p>
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-48">
                   <label className="block text-xs text-gray-400 mb-1">Email address</label>
@@ -808,7 +826,7 @@ export default function AdminPage() {
                 </div>
                 <div className="flex items-end">
                   <button onClick={handleGrantBeta} disabled={grantingBeta || !betaEmail.trim()} className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                    {grantingBeta ? 'Granting...' : '✅ Grant Access'}
+                    {grantingBeta ? 'Granting...' : '✅ Grant Beta Access'}
                   </button>
                 </div>
               </div>
@@ -826,7 +844,6 @@ export default function AdminPage() {
                 <div className="text-center py-12 text-gray-400">
                   <p className="text-4xl mb-4">🧪</p>
                   <p className="font-medium text-gray-500">No active beta users</p>
-                  <p className="text-sm mt-1">Grant beta access above to get started</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -839,12 +856,8 @@ export default function AdminPage() {
                           <div>
                             <p className="text-sm font-medium text-gray-900">{u.user_email}</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                ✅ {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                Expires: {expiry.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
-                              </span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">✅ {daysLeft} day{daysLeft !== 1 ? 's' : ''} left</span>
+                              <span className="text-xs text-gray-400">Expires: {expiry.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -880,43 +893,63 @@ export default function AdminPage() {
         {activeTab === 'subscribers' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-semibold text-gray-900">Subscribers</h2>
+              <h2 className="font-semibold text-gray-900">All Users</h2>
               <button onClick={loadSubscribers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
-            {subscribersLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : subscribers.length === 0 ? (
+            {subscribersLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : userSubscriptions.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">👥</p>
-                <p className="font-medium text-gray-500">No subscribers yet</p>
+                <p className="font-medium text-gray-500">No users yet</p>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="bg-green-50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">{subscribers.filter(s => s.status === 'active').length}</div>
-                    <div className="text-xs text-gray-400 mt-1">Active</div>
+                {/* Plan summary */}
+                <div className="grid grid-cols-4 gap-3 mb-6">
+                  <div className="bg-green-50 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold text-green-600">{liteSubs.length}</div>
+                    <div className="text-xs text-gray-400 mt-1">LITE (Free)</div>
                   </div>
-                  <div className="bg-orange-50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-orange-600">{subscribers.filter(s => s.status === 'past_due').length}</div>
-                    <div className="text-xs text-gray-400 mt-1">Past Due</div>
+                  <div className="bg-blue-50 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold text-blue-600">{proSubs.length}</div>
+                    <div className="text-xs text-gray-400 mt-1">PRO</div>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-gray-600">{subscribers.filter(s => s.status === 'cancelled').length}</div>
+                  <div className="bg-yellow-50 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold text-yellow-600">{eliteSubs.length}</div>
+                    <div className="text-xs text-gray-400 mt-1">ELITE</div>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold text-gray-600">{userSubscriptions.filter(s => s.status === 'cancelled').length}</div>
                     <div className="text-xs text-gray-400 mt-1">Cancelled</div>
                   </div>
                 </div>
-                {subscribers.map((sub) => (
+
+                {userSubscriptions.map((sub) => (
                   <div key={sub.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{sub.email}</p>
+                        <p className="text-sm font-medium text-gray-900">{sub.full_name || '—'}</p>
+                        <p className="text-xs text-gray-400">{sub.user_email}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">{sub.plan === 'starter' ? 'Starter' : 'All Disciplines'}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPlanColor(sub.plan)}`}>
+                            {getPlanLabel(sub.plan)}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {sub.status}
+                          </span>
+                          {sub.selected_discipline && (
+                            <span className="text-xs text-gray-400">{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>
+                          )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-gray-400">Renews</p>
-                        <p className="text-xs text-gray-600">{sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : 'N/A'}</p>
+                        <p className="text-xs text-gray-400">Joined</p>
+                        <p className="text-xs text-gray-600">{new Date(sub.created_at).toLocaleDateString()}</p>
+                        {sub.current_period_end && sub.plan !== 'lite' && (
+                          <>
+                            <p className="text-xs text-gray-400 mt-1">Renews</p>
+                            <p className="text-xs text-gray-600">{new Date(sub.current_period_end).toLocaleDateString()}</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -938,7 +971,7 @@ export default function AdminPage() {
                   </div>
                   <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
                     <div className="text-2xl font-bold text-blue-600">{newSubsLast30Days}</div>
-                    <div className="text-xs text-gray-400 mt-1">New Subscribers (30 days)</div>
+                    <div className="text-xs text-gray-400 mt-1">New Paid (30 days)</div>
                   </div>
                   <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
                     <div className="text-2xl font-bold text-purple-600">{satisfactionRate}%</div>
@@ -949,21 +982,29 @@ export default function AdminPage() {
                     <div className="text-xs text-gray-400 mt-1">Total Questions Asked</div>
                   </div>
                 </div>
+
+                {/* Updated Subscription Breakdown */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Subscription Breakdown</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">Starter Plan (RM11.99)</p>
-                      <p className="text-2xl font-bold text-gray-900">{starterSubs.length}</p>
-                      <p className="text-xs text-green-600 mt-1">RM {(starterSubs.length * 11.99).toFixed(2)}/month</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-green-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">AquaRef LITE (Free)</p>
+                      <p className="text-2xl font-bold text-green-700">{liteSubs.length}</p>
+                      <p className="text-xs text-gray-400 mt-1">RM 0.00/month</p>
                     </div>
                     <div className="bg-blue-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">All Disciplines (RM27.99)</p>
-                      <p className="text-2xl font-bold text-blue-900">{allDiscSubs.length}</p>
-                      <p className="text-xs text-green-600 mt-1">RM {(allDiscSubs.length * 27.99).toFixed(2)}/month</p>
+                      <p className="text-xs text-gray-400 mb-1">AquaRef PRO (RM14.99)</p>
+                      <p className="text-2xl font-bold text-blue-900">{proSubs.length}</p>
+                      <p className="text-xs text-green-600 mt-1">RM {(proSubs.length * 14.99).toFixed(2)}/month</p>
+                    </div>
+                    <div className="bg-yellow-50 rounded-xl p-4">
+                      <p className="text-xs text-gray-400 mb-1">AquaRef ELITE (RM39.99)</p>
+                      <p className="text-2xl font-bold text-yellow-800">{eliteSubs.length}</p>
+                      <p className="text-xs text-green-600 mt-1">RM {(eliteSubs.length * 39.99).toFixed(2)}/month</p>
                     </div>
                   </div>
                 </div>
+
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Questions Asked — Last 7 Days</h3>
                   <SimpleBarChart data={last7Days} />
