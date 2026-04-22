@@ -27,29 +27,78 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check daily usage limit
-    const today = new Date().toISOString().split('T')[0]
-    const { data: usage } = await supabase
-      .from('daily_usage')
-      .select('count')
-      .eq('user_email', userEmail)
-      .eq('date', today)
-      .single()
-
-  // Get user subscription to check plan
+    // Get user subscription to check plan
     const { data: userSub } = await supabase
       .from('user_subscriptions')
-      .select('plan')
+      .select('plan, created_at')
       .eq('user_email', userEmail)
       .single()
 
-    const dailyLimit = userSub?.plan === 'all_disciplines' ? 200 : 50
+    const plan = userSub?.plan || 'lite'
 
-    if (usage && usage.count >= dailyLimit) {
-      return NextResponse.json(
-        { error: `Daily limit reached. Your ${dailyLimit} questions per day limit resets at midnight.` },
-        { status: 429 }
-      )
+    // ── LITE plan: 5 questions per month ──
+    if (plan === 'lite') {
+      // Calculate start of current 30-day window from account creation
+      const accountCreated = new Date(userSub?.created_at || new Date())
+      const now = new Date()
+      const daysSinceCreation = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
+      const cycleDay = daysSinceCreation % 30
+      const cycleStart = new Date(now)
+      cycleStart.setDate(cycleStart.getDate() - cycleDay)
+      cycleStart.setHours(0, 0, 0, 0)
+
+      const { data: monthlyLogs } = await supabase
+        .from('chat_logs')
+        .select('id', { count: 'exact' })
+        .eq('user_email', userEmail)
+        .gte('created_at', cycleStart.toISOString())
+
+      const monthlyCount = monthlyLogs?.length || 0
+      const remaining = 5 - monthlyCount
+
+      // Calculate reset date
+      const resetDate = new Date(cycleStart)
+      resetDate.setDate(resetDate.getDate() + 30)
+      const resetDateStr = resetDate.toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })
+      const daysUntilReset = Math.ceil((resetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+      if (monthlyCount >= 5) {
+        return NextResponse.json(
+          {
+            error: `monthly_limit_reached`,
+            message: `You've used all 5 free questions this month. Your quota resets in ${daysUntilReset} day${daysUntilReset !== 1 ? 's' : ''} on ${resetDateStr}. Upgrade to PRO for 50 questions per day!`,
+            resetDate: resetDateStr,
+            daysUntilReset,
+            upgradeUrl: '/pricing'
+          },
+          { status: 429 }
+        )
+      }
+
+      // Warn on last question
+      if (remaining === 1) {
+        // Will be handled in response below
+      }
+    }
+
+    // ── PRO / ELITE / legacy plans: daily limit ──
+    if (plan !== 'lite') {
+      const today = new Date().toISOString().split('T')[0]
+      const { data: usage } = await supabase
+        .from('daily_usage')
+        .select('count')
+        .eq('user_email', userEmail)
+        .eq('date', today)
+        .single()
+
+      const dailyLimit = plan === 'elite' ? 99999 : plan === 'all_disciplines' ? 200 : 50
+
+      if (usage && usage.count >= dailyLimit) {
+        return NextResponse.json(
+          { error: `Daily limit reached. Your ${dailyLimit} questions per day limit resets at midnight.` },
+          { status: 429 }
+        )
+      }
     }
 
     // Step 1: Get system prompt from database
@@ -118,9 +167,8 @@ export async function POST(request: NextRequest) {
       .select('question, correct_note')
       .eq('discipline', discipline)
 
-    // Find corrections relevant to this question
     const relevantCorrections = (corrections || []).filter(c =>
-           keywords.some((keyword: string) =>
+      keywords.some((keyword: string) =>
         c.question.toLowerCase().includes(keyword) ||
         c.correct_note.toLowerCase().includes(keyword)
       )
@@ -144,16 +192,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Limit to 15 chunks
     const finalChunks = allChunks.slice(0, 15)
     const context = finalChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
 
-    // Step 8: Add correction notes to context if any
     const correctionsContext = relevantCorrections.length > 0
       ? `\n\nADDITIONAL VERIFIED INFORMATION (use this to supplement your answer, do not mention this label to the user):\n${relevantCorrections.map(c => `${c.correct_note}`).join('\n\n')}`
       : ''
 
-    // Step 9: Ask Claude
+    // Step 8: Ask Claude
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
@@ -179,11 +225,50 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString()
     })
 
-    // Update daily usage
-    await supabase.rpc('increment_usage', {
-      p_email: userEmail,
-      p_date: today
-    })
+    // Update daily usage (skip for LITE)
+    if (plan !== 'lite') {
+      const today = new Date().toISOString().split('T')[0]
+      await supabase.rpc('increment_usage', {
+        p_email: userEmail,
+        p_date: today
+      })
+    }
+
+    // Calculate remaining questions for LITE
+    let remainingQuestions = null
+    if (plan === 'lite') {
+      const accountCreated = new Date(userSub?.created_at || new Date())
+      const now = new Date()
+      const daysSinceCreation = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
+      const cycleDay = daysSinceCreation % 30
+      const cycleStart = new Date(now)
+      cycleStart.setDate(cycleStart.getDate() - cycleDay)
+      cycleStart.setHours(0, 0, 0, 0)
+
+      const { data: monthlyLogs } = await supabase
+        .from('chat_logs')
+        .select('id')
+        .eq('user_email', userEmail)
+        .gte('created_at', cycleStart.toISOString())
+
+      remainingQuestions = 5 - (monthlyLogs?.length || 0)
+
+      const resetDate = new Date(cycleStart)
+      resetDate.setDate(resetDate.getDate() + 30)
+      const daysUntilReset = Math.ceil((resetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+      if (remainingQuestions <= 0) {
+        remainingQuestions = 0
+      }
+
+      return NextResponse.json({
+        answer,
+        remainingQuestions,
+        daysUntilReset,
+        resetDate: resetDate.toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' }),
+        isLastQuestion: remainingQuestions === 0
+      })
+    }
 
     return NextResponse.json({ answer })
 

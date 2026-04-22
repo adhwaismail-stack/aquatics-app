@@ -11,7 +11,7 @@ const disciplineNames: { [key: string]: string } = {
   artistic: 'Artistic Swimming',
   diving: 'Diving',
   highdiving: 'High Diving',
-  masters: 'Masters Swimming',
+  masters: 'Masters',
   openwater: 'Open Water'
 }
 
@@ -39,6 +39,10 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
   const [user, setUser] = useState<{ email?: string } | null>(null)
   const [usage, setUsage] = useState(0)
   const [dailyLimit, setDailyLimit] = useState(50)
+  const [plan, setPlan] = useState<string>('lite')
+  const [monthlyRemaining, setMonthlyRemaining] = useState<number>(5)
+  const [resetDate, setResetDate] = useState<string>('')
+  const [daysUntilReset, setDaysUntilReset] = useState<number>(30)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -52,26 +56,53 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
 
       const { data: sub } = await supabase
         .from('user_subscriptions')
-        .select('plan')
+        .select('plan, created_at')
         .eq('user_email', user.email)
         .single()
 
-      if (sub?.plan === 'all_disciplines') {
-        setDailyLimit(200)
+      const userPlan = sub?.plan || 'lite'
+      setPlan(userPlan)
+
+      if (userPlan === 'lite') {
+        // Calculate monthly usage for LITE
+        const accountCreated = new Date(sub?.created_at || new Date())
+        const now = new Date()
+        const daysSinceCreation = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
+        const cycleDay = daysSinceCreation % 30
+        const cycleStart = new Date(now)
+        cycleStart.setDate(cycleStart.getDate() - cycleDay)
+        cycleStart.setHours(0, 0, 0, 0)
+
+        const { data: monthlyLogs } = await supabase
+          .from('chat_logs')
+          .select('id')
+          .eq('user_email', user.email)
+          .gte('created_at', cycleStart.toISOString())
+
+        const used = monthlyLogs?.length || 0
+        setMonthlyRemaining(Math.max(0, 5 - used))
+
+        const resetDateObj = new Date(cycleStart)
+        resetDateObj.setDate(resetDateObj.getDate() + 30)
+        setResetDate(resetDateObj.toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' }))
+        setDaysUntilReset(Math.ceil((resetDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+        setDailyLimit(5)
+        setUsage(used)
       } else {
-        setDailyLimit(50)
-      }
+        // Daily limit for PRO/ELITE
+        if (userPlan === 'elite') setDailyLimit(99999)
+        else if (userPlan === 'all_disciplines') setDailyLimit(200)
+        else setDailyLimit(50)
 
-      const today = new Date().toISOString().split('T')[0]
-      const { data: usageData } = await supabase
-        .from('daily_usage')
-        .select('count')
-        .eq('user_email', user.email)
-        .eq('date', today)
-        .single()
+        const today = new Date().toISOString().split('T')[0]
+        const { data: usageData } = await supabase
+          .from('daily_usage')
+          .select('count')
+          .eq('user_email', user.email)
+          .eq('date', today)
+          .single()
 
-      if (usageData) {
-        setUsage(usageData.count)
+        if (usageData) setUsage(usageData.count)
       }
     }
     getUser()
@@ -125,11 +156,20 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
       const data = await response.json()
 
       if (response.status === 429) {
-        setMessages([...newMessages, {
-          role: 'assistant',
-          content: '⚠️ ' + data.error,
-          feedback: null
-        }])
+        if (data.error === 'monthly_limit_reached') {
+          setMonthlyRemaining(0)
+          setMessages([...newMessages, {
+            role: 'assistant',
+            content: `⚠️ ${data.message}`,
+            feedback: null
+          }])
+        } else {
+          setMessages([...newMessages, {
+            role: 'assistant',
+            content: '⚠️ ' + data.error,
+            feedback: null
+          }])
+        }
       } else if (data.error) {
         setMessages([...newMessages, {
           role: 'assistant',
@@ -143,6 +183,21 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
           feedback: null
         }])
         setUsage(prev => prev + 1)
+
+        // Update LITE remaining count
+        if (plan === 'lite' && data.remainingQuestions !== undefined) {
+          setMonthlyRemaining(data.remainingQuestions)
+          if (data.isLastQuestion) {
+            // Show last question warning
+            setTimeout(() => {
+              setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `⚠️ You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}. [Upgrade to PRO](/pricing) for 50 questions per day!`,
+                feedback: null
+              }])
+            }, 500)
+          }
+        }
       }
     } catch {
       setMessages([...newMessages, {
@@ -157,57 +212,26 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
 
   const getIcon = () => {
     const icons: { [key: string]: string } = {
-      swimming: '🏊',
-      waterpolo: '🤽',
-      artistic: '💃',
-      diving: '🤿',
-      highdiving: '🏔️',
-      masters: '🏅',
-      openwater: '🌊'
+      swimming: '🏊', waterpolo: '🤽', artistic: '💃',
+      diving: '🤿', highdiving: '🏔️', masters: '🏅', openwater: '🌊'
     }
     return icons[discipline] || '🏊'
   }
 
   const getSampleQuestions = () => {
     const questions: { [key: string]: string[] } = {
-      swimming: [
-        'What is the false start rule?',
-        'What are the breaststroke turn rules?',
-        'Can a swimmer false start twice?'
-      ],
-      waterpolo: [
-        'What are the referee duties?',
-        'How long is each period?',
-        'What constitutes a foul?'
-      ],
-      openwater: [
-        'What is the minimum water temperature for Open Water?',
-        'Can swimmers wear wetsuits in Open Water?',
-        'What are the feeding rules in Open Water?'
-      ],
-      artistic: [
-        'How is artistic swimming scored?',
-        'What are the routine time limits?',
-        'What are the deck work rules?'
-      ],
-      diving: [
-        'How are dives scored?',
-        'What is the degree of difficulty?',
-        'What are the springboard height rules?'
-      ],
-      highdiving: [
-        'What are the platform height requirements?',
-        'How are high dives scored?',
-        'What safety rules apply?'
-      ],
-      masters: [
-        'What are the age group categories?',
-        'How are masters records set?',
-        'What are the eligibility rules?'
-      ]
+      swimming: ['What is the false start rule?', 'What are the breaststroke turn rules?', 'Can a swimmer false start twice?'],
+      waterpolo: ['What are the referee duties?', 'How long is each period?', 'What constitutes a foul?'],
+      openwater: ['What is the minimum water temperature for Open Water?', 'Can swimmers wear wetsuits in Open Water?', 'What are the feeding rules in Open Water?'],
+      artistic: ['How is artistic swimming scored?', 'What are the routine time limits?', 'What are the deck work rules?'],
+      diving: ['How are dives scored?', 'What is the degree of difficulty?', 'What are the springboard height rules?'],
+      highdiving: ['What are the platform height requirements?', 'How are high dives scored?', 'What safety rules apply?'],
+      masters: ['What are the age group categories?', 'How are masters records set?', 'What are the eligibility rules?']
     }
     return questions[discipline] || questions.swimming
   }
+
+  const isLimitReached = plan === 'lite' ? monthlyRemaining <= 0 : usage >= dailyLimit
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -215,31 +239,76 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
       <div className="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a href="/dashboard" className="text-gray-400 hover:text-gray-600 text-sm">
-              ← Back
-            </a>
+            <a href="/dashboard" className="text-gray-400 hover:text-gray-600 text-sm">← Back</a>
             <div className="w-px h-4 bg-gray-200"></div>
             <div>
-              <h1 className="font-semibold text-gray-900">
-                {disciplineNames[discipline] || discipline}
-              </h1>
+              <h1 className="font-semibold text-gray-900">{disciplineNames[discipline] || discipline}</h1>
               <p className="text-xs text-gray-400">{disciplineCodes[discipline]}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-xs text-gray-400">Today</div>
-              <div className="text-sm font-medium text-gray-700">{usage}/{dailyLimit} questions</div>
+
+          {/* Question meter — hide for ELITE */}
+          {plan !== 'elite' && (
+            <div className="flex items-center gap-3">
+              {plan === 'lite' ? (
+                <div className="text-right">
+                  <div className="text-xs text-gray-400">This month</div>
+                  <div className="text-sm font-medium text-gray-700">
+                    {monthlyRemaining} of 5 left
+                  </div>
+                  {resetDate && (
+                    <div className="text-xs text-gray-400">Resets {daysUntilReset}d</div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-right">
+                  <div className="text-xs text-gray-400">Today</div>
+                  <div className="text-sm font-medium text-gray-700">{usage}/{dailyLimit} questions</div>
+                </div>
+              )}
+              <div className="w-16 bg-gray-100 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all"
+                  style={{
+                    width: plan === 'lite'
+                      ? `${Math.min(((5 - monthlyRemaining) / 5) * 100, 100)}%`
+                      : `${Math.min((usage / dailyLimit) * 100, 100)}%`
+                  }}
+                />
+              </div>
             </div>
-            <div className="w-16 bg-gray-100 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all"
-                style={{ width: `${Math.min((usage / dailyLimit) * 100, 100)}%` }}
-              ></div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
+
+      {/* LITE limit warning banner */}
+      {plan === 'lite' && monthlyRemaining <= 1 && monthlyRemaining > 0 && (
+        <div className="bg-orange-50 border-b border-orange-100 px-6 py-2">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-xs text-orange-700">
+              ⚠️ <strong>{monthlyRemaining} question left</strong> this month. Resets on {resetDate}.{' '}
+              <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for 50/day.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* LITE limit reached banner */}
+      {plan === 'lite' && monthlyRemaining <= 0 && (
+        <div className="bg-red-50 border-b border-red-100 px-6 py-3">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-sm font-medium text-red-800 mb-1">
+              You've used all 5 free questions this month
+            </p>
+            <p className="text-xs text-red-600 mb-2">
+              Resets in {daysUntilReset} days on {resetDate}
+            </p>
+            <a href="/pricing" className="inline-block bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700">
+              Upgrade to PRO — RM14.99/month
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -254,6 +323,13 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                 Ask any question about {disciplineNames[discipline]} rules.
                 Answers are based strictly on the official World Aquatics Regulations.
               </p>
+              {plan === 'lite' && (
+                <div className="mt-3 inline-block bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                  <p className="text-xs text-green-700">
+                    🆓 LITE Plan — <strong>{monthlyRemaining} of 5</strong> free questions remaining this month
+                  </p>
+                </div>
+              )}
               <div className="mt-6 grid grid-cols-1 gap-2 max-w-md mx-auto">
                 {getSampleQuestions().map((q, i) => (
                   <button
@@ -276,21 +352,8 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                 </div>
               )}
               {msg.role === 'user' ? (
-                <div
-                  style={{
-                    backgroundColor: '#1e40af',
-                    borderRadius: '16px 16px 4px 16px',
-                    padding: '12px 20px',
-                    maxWidth: '75%'
-                  }}
-                >
-                  <p style={{
-                    color: '#ffffff',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    margin: 0,
-                    lineHeight: '1.5'
-                  }}>
+                <div style={{ backgroundColor: '#1e40af', borderRadius: '16px 16px 4px 16px', padding: '12px 20px', maxWidth: '75%' }}>
+                  <p style={{ color: '#ffffff', fontSize: '14px', fontWeight: '600', margin: 0, lineHeight: '1.5' }}>
                     {msg.content}
                   </p>
                 </div>
@@ -321,21 +384,13 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                       <span className="text-xs text-gray-400">Was this helpful?</span>
                       <button
                         onClick={() => handleFeedback(i, 'like')}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
-                          msg.feedback === 'like'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600'
-                        }`}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${msg.feedback === 'like' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600'}`}
                       >
                         👍 {msg.feedback === 'like' ? 'Helpful' : ''}
                       </button>
                       <button
                         onClick={() => handleFeedback(i, 'dislike')}
-                        className={`flex items-center gap1 px-2 py-1 rounded-lg text-xs transition-colors ${
-                          msg.feedback === 'dislike'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600'
-                        }`}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${msg.feedback === 'dislike' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600'}`}
                       >
                         👎 {msg.feedback === 'dislike' ? 'Not helpful' : ''}
                       </button>
@@ -374,13 +429,17 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder={`Ask a ${disciplineNames[discipline] || discipline} rules question...`}
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={(e) => e.key === 'Enter' && !isLimitReached && sendMessage()}
+              placeholder={isLimitReached
+                ? plan === 'lite' ? 'Monthly limit reached — upgrade to continue' : 'Daily limit reached — resets at midnight'
+                : `Ask a ${disciplineNames[discipline] || discipline} rules question...`
+              }
+              disabled={isLimitReached}
+              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
             />
             <button
               onClick={sendMessage}
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || isLimitReached}
               className="bg-blue-600 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send
