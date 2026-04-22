@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
 
     // ── LITE plan: 5 questions per month ──
     if (plan === 'lite') {
-      // Calculate start of current 30-day window from account creation
       const accountCreated = new Date(userSub?.created_at || new Date())
       const now = new Date()
       const daysSinceCreation = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
@@ -54,9 +53,7 @@ export async function POST(request: NextRequest) {
         .gte('created_at', cycleStart.toISOString())
 
       const monthlyCount = monthlyLogs?.length || 0
-      const remaining = 5 - monthlyCount
 
-      // Calculate reset date
       const resetDate = new Date(cycleStart)
       resetDate.setDate(resetDate.getDate() + 30)
       const resetDateStr = resetDate.toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -73,11 +70,6 @@ export async function POST(request: NextRequest) {
           },
           { status: 429 }
         )
-      }
-
-      // Warn on last question
-      if (remaining === 1) {
-        // Will be handled in response below
       }
     }
 
@@ -199,7 +191,7 @@ export async function POST(request: NextRequest) {
       ? `\n\nADDITIONAL VERIFIED INFORMATION (use this to supplement your answer, do not mention this label to the user):\n${relevantCorrections.map(c => `${c.correct_note}`).join('\n\n')}`
       : ''
 
-    // Step 8: Ask Claude
+    // Step 8: Ask Claude — capture token usage
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
@@ -216,12 +208,26 @@ export async function POST(request: NextRequest) {
       ? message.content[0].text
       : 'Unable to generate answer'
 
-    // Save to chat logs
+    // Capture token usage
+    const inputTokens = message.usage.input_tokens
+    const outputTokens = message.usage.output_tokens
+
+    // Also capture translation tokens
+    const translationInputTokens = translationResponse.usage.input_tokens
+    const translationOutputTokens = translationResponse.usage.output_tokens
+
+    // Total tokens for this request
+    const totalInputTokens = inputTokens + translationInputTokens
+    const totalOutputTokens = outputTokens + translationOutputTokens
+
+    // Save to chat logs with token usage
     await supabase.from('chat_logs').insert({
       user_email: userEmail,
       discipline,
       question,
       answer,
+      input_tokens: totalInputTokens,
+      output_tokens: totalOutputTokens,
       created_at: new Date().toISOString()
     })
 
@@ -235,7 +241,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate remaining questions for LITE
-    let remainingQuestions = null
     if (plan === 'lite') {
       const accountCreated = new Date(userSub?.created_at || new Date())
       const now = new Date()
@@ -251,15 +256,11 @@ export async function POST(request: NextRequest) {
         .eq('user_email', userEmail)
         .gte('created_at', cycleStart.toISOString())
 
-      remainingQuestions = 5 - (monthlyLogs?.length || 0)
+      const remainingQuestions = Math.max(0, 5 - (monthlyLogs?.length || 0))
 
       const resetDate = new Date(cycleStart)
       resetDate.setDate(resetDate.getDate() + 30)
       const daysUntilReset = Math.ceil((resetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-
-      if (remainingQuestions <= 0) {
-        remainingQuestions = 0
-      }
 
       return NextResponse.json({
         answer,
