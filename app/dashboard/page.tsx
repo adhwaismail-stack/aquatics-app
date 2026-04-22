@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [showPlanModal, setShowPlanModal] = useState(false)
   const [fullName, setFullName] = useState<string | null>(null)
   const [showBetaWelcome, setShowBetaWelcome] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
 
   useEffect(() => {
     const getUser = async () => {
@@ -136,6 +137,27 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     window.location.href = '/'
+  }
+
+  const handleManageSubscription = async () => {
+    if (!user?.email) return
+    setPortalLoading(true)
+    try {
+      const response = await fetch('/api/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail: user.email })
+      })
+      const data = await response.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert('Unable to open billing portal. Please contact hello@aquaref.co')
+      }
+    } catch {
+      alert('Something went wrong. Please try again.')
+    }
+    setPortalLoading(false)
   }
 
   const isExpired = (sub?: UserSubscription | null) => {
@@ -272,23 +294,18 @@ export default function DashboardPage() {
 
             <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
               <p>Dear {fullName || 'Beta Tester'},</p>
-
               <p>
                 Thank you so much for being part of the <strong>AquaRef Beta programme</strong>. Your support and feedback mean a lot to me as I work to make this tool truly useful for the aquatics community.
               </p>
-
               <p>
                 I would greatly appreciate it if you could test the AI for your respective discipline and share your honest feedback — whether the answers are accurate, helpful, and properly cited. Your insights as a Technical Official are invaluable.
               </p>
-
               <p>
                 I'm also excited to share that <strong className="text-purple-700">Para Swimming 🏋️</strong> is now available on AquaRef, powered by the official <strong>World Para Swimming (WPS)</strong> regulations under IPC. Feel free to explore it!
               </p>
-
               <p>
                 You can share your feedback directly in the chat using the <strong>👍</strong> or <strong>👎</strong> buttons after each answer.
               </p>
-
               <div className="pt-2 border-t border-gray-100">
                 <p>Sincerely,</p>
                 <p className="font-semibold text-gray-900 mt-1">Adhwa</p>
@@ -368,14 +385,18 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-2">
+              {/* Manage Subscription — only for real paid users */}
               {!isBetaTester() && subscription?.stripe_customer_id && (
                 <button
-                  onClick={() => { setShowPlanModal(false); window.location.href = '/contact' }}
-                  className="w-full py-2.5 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
+                  onClick={handleManageSubscription}
+                  disabled={portalLoading}
+                  className="w-full py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50 transition-colors"
                 >
-                  Cancel Subscription
+                  {portalLoading ? 'Opening...' : '⚙️ Manage Subscription'}
                 </button>
               )}
+
+              {/* Upgrade Plan — for LITE, PRO, starter or expired */}
               {(subscription?.plan === 'lite' || subscription?.plan === 'pro' || subscription?.plan === 'starter' || isExpired() || !subscription) && (
                 <button
                   onClick={() => { setShowPlanModal(false); window.location.href = '/pricing' }}
@@ -384,6 +405,7 @@ export default function DashboardPage() {
                   {isExpired() ? 'Renew Subscription' : 'Upgrade Plan'}
                 </button>
               )}
+
               <button
                 onClick={() => setShowPlanModal(false)}
                 className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50"
