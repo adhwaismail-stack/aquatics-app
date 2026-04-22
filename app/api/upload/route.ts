@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 120
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,7 +41,6 @@ function getArticleLabel(articleNum: string): string {
 }
 
 function removeTOC(text: string): string {
-  // Remove table of contents pages — lines that are mostly dots and numbers
   const lines = text.split('\n')
   const filtered = lines.filter(line => {
     const dotRatio = (line.match(/\./g) || []).length / (line.length || 1)
@@ -52,26 +52,22 @@ function removeTOC(text: string): string {
 
 function cleanText(text: string): string {
   return text
-    .replace(/\f/g, '\n\n')           // form feed = new page = paragraph break
+    .replace(/\f/g, '\n\n')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
-    .replace(/\.{4,}/g, ' ')          // remove dot leaders (.......)
-    .replace(/_{4,}/g, ' ')           // remove underscores
-    .replace(/[ \t]{2,}/g, ' ')       // collapse multiple spaces
-    .replace(/\n{3,}/g, '\n\n')       // max 2 newlines
+    .replace(/\.{4,}/g, ' ')
+    .replace(/_{4,}/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
 
 function smartChunk(text: string): string[] {
-  // Remove TOC before processing
   const noTOC = removeTOC(text)
   const cleaned = cleanText(noTOC)
   const chunks: string[] = []
 
-  // Split by article number patterns
-  // Matches: "4.1 ", "4.1.1 ", "SW 4.1 ", "WP 2.5.3 " etc.
   const articlePattern = /(?=(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+)\.(\d+)(?:\.(\d+))?\s+[A-Z][a-z])/g
-
   const parts = cleaned.split(articlePattern)
 
   const contentParts: string[] = []
@@ -86,8 +82,6 @@ function smartChunk(text: string): string[] {
     const numMatch = part.match(/^(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+\.\d+(?:\.\d+)?)/)
     const articleNum = numMatch ? numMatch[1] : ''
     const label = articleNum ? getArticleLabel(articleNum) : ''
-
-    // Preserve paragraph structure within chunk
     const normalized = part.replace(/\n\n/g, ' | ').replace(/\n/g, ' ').trim()
 
     if (normalized.length <= 3000) {
@@ -95,7 +89,6 @@ function smartChunk(text: string): string[] {
         chunks.push(label + normalized)
       }
     } else {
-      // Split long chunks at sentence boundaries
       let remaining = normalized
       while (remaining.length > 3000) {
         const cutPoint = remaining.lastIndexOf('. ', 2800)
@@ -113,13 +106,11 @@ function smartChunk(text: string): string[] {
     }
   }
 
-  // Fallback: size-based chunking with overlap
   if (chunks.length < 10) {
     console.log(`Only got ${chunks.length} chunks from article split, using size-based fallback`)
     const fallback: string[] = []
     const chunkSize = 1500
     const overlap = 300
-
     for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
       const chunk = cleaned.slice(i, i + chunkSize).trim()
       if (chunk.length > 100) {
@@ -130,6 +121,78 @@ function smartChunk(text: string): string[] {
   }
 
   return chunks.filter(c => c.trim().length > 100)
+}
+
+async function extractVisualDescriptions(arrayBuffer: ArrayBuffer, discipline: string): Promise<string[]> {
+  try {
+    const fileSizeBytes = arrayBuffer.byteLength
+    const fileSizeMB = fileSizeBytes / (1024 * 1024)
+
+    if (fileSizeMB > 20) {
+      console.log(`PDF too large for vision (${fileSizeMB.toFixed(1)}MB), skipping visual extraction`)
+      return []
+    }
+
+    console.log(`Running vision extraction on ${fileSizeMB.toFixed(1)}MB PDF...`)
+
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY!
+    })
+
+    const base64PDF = Buffer.from(arrayBuffer).toString('base64')
+
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4000,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64PDF
+            }
+          } as any,
+          {
+            type: 'text',
+            text: `You are analyzing a ${discipline} rulebook PDF. Find ALL visual elements such as diagrams, tables, pool layouts, field diagrams, equipment illustrations, and figures.
+
+For each visual element found, write a detailed text description in this exact format:
+[VISUAL: Article X.X] Description of what the diagram shows, including all measurements, labels, dimensions, and specifications visible.
+
+Rules:
+- Only describe actual visual elements (diagrams, tables, figures, layouts)
+- Include all numbers, measurements and labels you can see
+- If no visual elements exist, reply only with: NO_VISUAL_CONTENT
+- Do not describe text paragraphs, only visual elements`
+          }
+        ]
+      }]
+    })
+
+    const content = response.content[0]
+    if (content.type !== 'text') return []
+
+    const text = content.text.trim()
+    if (text === 'NO_VISUAL_CONTENT' || text.includes('NO_VISUAL_CONTENT')) {
+      console.log('No visual content found in PDF')
+      return []
+    }
+
+    const visuals = text
+      .split(/(?=\[VISUAL:)/)
+      .map(v => v.trim())
+      .filter(v => v.startsWith('[VISUAL:') && v.length > 50)
+
+    console.log(`Found ${visuals.length} visual descriptions`)
+    return visuals
+
+  } catch (err) {
+    console.error('Vision extraction failed (non-fatal):', err)
+    return []
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -176,15 +239,24 @@ export async function POST(request: NextRequest) {
 
     console.log(`Extracted ${text.length} characters from ${originalName}`)
 
-    const chunks = smartChunk(text)
-    console.log(`Created ${chunks.length} chunks`)
+    const textChunks = smartChunk(text)
+    console.log(`Created ${textChunks.length} text chunks`)
 
-    if (chunks.length === 0) {
+    if (textChunks.length === 0) {
       return NextResponse.json(
         { error: 'Could not extract any content from file.' },
         { status: 400 }
       )
     }
+
+    // Extract visual descriptions if PDF
+    let visualChunks: string[] = []
+    if (!originalName.endsWith('.txt')) {
+      visualChunks = await extractVisualDescriptions(arrayBuffer, discipline)
+    }
+
+    const chunks = [...textChunks, ...visualChunks]
+    console.log(`Total chunks: ${chunks.length} (${textChunks.length} text + ${visualChunks.length} visual)`)
 
     if (replaceFileId) {
       const { data: oldFile } = await supabase
@@ -255,8 +327,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully processed ${chunks.length} chunks`,
+      message: `Successfully processed ${chunks.length} chunks (${textChunks.length} text + ${visualChunks.length} visual)`,
       chunks: chunks.length,
+      textChunks: textChunks.length,
+      visualChunks: visualChunks.length,
       discipline,
       fileId: fileRecord?.id
     })
