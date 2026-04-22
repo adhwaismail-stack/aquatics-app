@@ -111,6 +111,50 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   openwater: 'Open Water',
 }
 
+const countryToFlag = (countryName: string): string => {
+  const countries: Record<string, string> = {
+    'Malaysia': '🇲🇾',
+    'Singapore': '🇸🇬',
+    'Indonesia': '🇮🇩',
+    'Thailand': '🇹🇭',
+    'Philippines': '🇵🇭',
+    'Vietnam': '🇻🇳',
+    'Brunei': '🇧🇳',
+    'Myanmar': '🇲🇲',
+    'Cambodia': '🇰🇭',
+    'Laos': '🇱🇦',
+    'Australia': '🇦🇺',
+    'New Zealand': '🇳🇿',
+    'United Kingdom': '🇬🇧',
+    'United States': '🇺🇸',
+    'Canada': '🇨🇦',
+    'Japan': '🇯🇵',
+    'China': '🇨🇳',
+    'South Korea': '🇰🇷',
+    'India': '🇮🇳',
+    'Germany': '🇩🇪',
+    'France': '🇫🇷',
+    'Netherlands': '🇳🇱',
+    'Spain': '🇪🇸',
+    'Italy': '🇮🇹',
+    'United Arab Emirates': '🇦🇪',
+    'Saudi Arabia': '🇸🇦',
+    'Qatar': '🇶🇦',
+    'Bahrain': '🇧🇭',
+    'Kuwait': '🇰🇼',
+    'Egypt': '🇪🇬',
+    'South Africa': '🇿🇦',
+    'Nigeria': '🇳🇬',
+    'Kenya': '🇰🇪',
+    'Hong Kong': '🇭🇰',
+    'Taiwan': '🇹🇼',
+    'Pakistan': '🇵🇰',
+    'Bangladesh': '🇧🇩',
+    'Sri Lanka': '🇱🇰',
+  }
+  return countries[countryName] || '🌍'
+}
+
 const getPlanLabel = (plan: string) => {
   if (plan === 'lite') return 'LITE'
   if (plan === 'pro') return 'PRO'
@@ -145,7 +189,7 @@ function SimpleBarChart({ data }: { data: { label: string, value: number }[] }) 
     <div className="space-y-2">
       {data.map((d, i) => (
         <div key={i} className="flex items-center gap-3">
-          <div className="text-xs text-gray-500 w-24 truncate">{d.label}</div>
+          <div className="text-xs text-gray-500 w-28 truncate">{d.label}</div>
           <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
             <div className="bg-blue-500 h-5 rounded-full transition-all" style={{ width: `${(d.value / max) * 100}%` }} />
             <span className="absolute right-2 top-0 text-xs text-gray-600 leading-5">{d.value}</span>
@@ -502,7 +546,7 @@ export default function AdminPage() {
 
   const countryData = Object.entries(countryCounts)
     .sort((a, b) => b[1] - a[1])
-    .map(([label, value]) => ({ label, value }))
+    .map(([label, value]) => ({ label: `${countryToFlag(label)} ${label}`, value }))
 
   if (!authenticated) {
     return (
@@ -974,7 +1018,7 @@ export default function AdminPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPlanColor(sub.plan)}`}>{getPlanLabel(sub.plan)}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
                           {sub.selected_discipline && <span className="text-xs text-gray-400">{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>}
-                          {sub.country && <span className="text-xs text-gray-400">🌍 {sub.country}</span>}
+                          {sub.country && <span className="text-xs text-gray-400">{countryToFlag(sub.country)} {sub.country}</span>}
                         </div>
                       </div>
                       <div className="text-right">
