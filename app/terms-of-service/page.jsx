@@ -100,7 +100,7 @@ export default function TermsOfService() {
   )
 }
 
-function Section({ title, children }: { title: string, children: React.ReactNode }) {
+function Section({ title, children }) {
   return (
     <section style={{ marginBottom: '2rem' }}>
       <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#03045e', marginBottom: '0.75rem', fontFamily: 'sans-serif' }}>{title}</h2>
