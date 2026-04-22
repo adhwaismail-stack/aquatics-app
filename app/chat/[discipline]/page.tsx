@@ -187,16 +187,15 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         // Update LITE remaining count
         if (plan === 'lite' && data.remainingQuestions !== undefined) {
           setMonthlyRemaining(data.remainingQuestions)
-          if (data.isLastQuestion) {
-            // Show last question warning
-            setTimeout(() => {
-              setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `⚠️ You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}. [Upgrade to PRO](/pricing) for 50 questions per day!`,
-                feedback: null
-              }])
-            }, 500)
-          }
+if (data.isLastQuestion) {
+  setTimeout(() => {
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `⚠️ You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}.\n\n[👉 Upgrade to PRO for 50 questions per day →](/pricing)`,
+      feedback: null
+    }])
+  }, 500)
+}
         }
       }
     } catch {
