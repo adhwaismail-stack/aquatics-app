@@ -245,15 +245,17 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Navbar */}
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          {/* Clickable logo → dashboard */}
+          <a href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">A</span>
             </div>
             <span className="font-bold text-xl text-gray-900">AquaRef</span>
-          </div>
+          </a>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
             {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && !isExpired() && (
@@ -291,7 +293,6 @@ export default function DashboardPage() {
               <span className="font-bold text-lg text-gray-900">AquaRef</span>
               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-1">Beta</span>
             </div>
-
             <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
               <p>Dear {fullName || 'Beta Tester'},</p>
               <p>
@@ -311,7 +312,6 @@ export default function DashboardPage() {
                 <p className="font-semibold text-gray-900 mt-1">Adhwa</p>
               </div>
             </div>
-
             <button
               onClick={handleDismissBetaWelcome}
               className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition-colors"
@@ -330,7 +330,6 @@ export default function DashboardPage() {
               <h3 className="font-bold text-lg text-gray-900">My Plan</h3>
               <button onClick={() => setShowPlanModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
-
             <div className={`border rounded-xl p-4 mb-4 ${
               subscription?.plan === 'elite' ? 'bg-gray-900 border-gray-700' :
               subscription?.plan === 'lite' ? 'bg-green-50 border-green-100' :
@@ -340,7 +339,6 @@ export default function DashboardPage() {
               <p className={`font-bold text-lg ${subscription?.plan === 'elite' ? 'text-white' : subscription?.plan === 'lite' ? 'text-green-900' : 'text-blue-900'}`}>{getPlanName()}</p>
               <p className={`text-sm mt-1 ${subscription?.plan === 'elite' ? 'text-gray-400' : subscription?.plan === 'lite' ? 'text-green-700' : 'text-blue-700'}`}>{getPlanPrice()}</p>
             </div>
-
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Status</span>
@@ -383,9 +381,7 @@ export default function DashboardPage() {
                 <span className="text-gray-700">{getQuestionsPerDay()}</span>
               </div>
             </div>
-
             <div className="space-y-2">
-              {/* Manage Subscription — only for real paid users */}
               {!isBetaTester() && subscription?.stripe_customer_id && (
                 <button
                   onClick={handleManageSubscription}
@@ -395,8 +391,6 @@ export default function DashboardPage() {
                   {portalLoading ? 'Opening...' : '⚙️ Manage Subscription'}
                 </button>
               )}
-
-              {/* Upgrade Plan — for LITE, PRO, starter or expired */}
               {(subscription?.plan === 'lite' || subscription?.plan === 'pro' || subscription?.plan === 'starter' || isExpired() || !subscription) && (
                 <button
                   onClick={() => { setShowPlanModal(false); window.location.href = '/pricing' }}
@@ -405,7 +399,6 @@ export default function DashboardPage() {
                   {isExpired() ? 'Renew Subscription' : 'Upgrade Plan'}
                 </button>
               )}
-
               <button
                 onClick={() => setShowPlanModal(false)}
                 className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50"
@@ -413,7 +406,6 @@ export default function DashboardPage() {
                 Close
               </button>
             </div>
-
             <p className="text-xs text-gray-400 text-center mt-4">
               For billing help, contact <a href="mailto:hello@aquaref.co" className="text-blue-500">hello@aquaref.co</a>
             </p>
@@ -421,7 +413,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-6 py-10">
+      {/* Main content */}
+      <div className="flex-1 max-w-6xl mx-auto w-full px-6 py-10">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Welcome back{fullName ? `, ${fullName}` : ''}! 👋
@@ -591,6 +584,27 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-100 bg-white px-6 py-6 mt-10">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center">
+              <span className="text-white font-bold text-xs">A</span>
+            </div>
+            <span className="font-bold text-gray-900 text-sm">AquaRef</span>
+          </div>
+          <p className="text-xs text-gray-400 text-center">
+            For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.
+          </p>
+          <div className="flex gap-5 text-xs text-gray-400">
+            <a href="/privacy-policy" className="hover:text-gray-600">Privacy Policy</a>
+            <a href="/terms-of-service" className="hover:text-gray-600">Terms</a>
+            <a href="/contact" className="hover:text-gray-600">Contact Us</a>
+          </div>
+        </div>
+      </footer>
+
     </div>
   )
 }
