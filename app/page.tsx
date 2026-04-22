@@ -15,7 +15,7 @@ const ALL_DISCIPLINES = [
   { name: 'Artistic Swimming', code: 'AS Rules', id: 'artistic' },
   { name: 'Diving', code: 'DV Rules', id: 'diving' },
   { name: 'High Diving', code: 'HD Rules', id: 'highdiving' },
-  { name: 'Masters Swimming', code: 'MS Rules', id: 'masters' },
+  { name: 'Masters', code: 'MS Rules', id: 'masters' },
 ]
 
 export default function Home() {
@@ -49,7 +49,7 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-3">
           <a href="/login" className="text-sm text-gray-600 hover:text-blue-600 font-medium">Login</a>
-          <a href="/pricing" className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Start Free Trial</a>
+          <a href="/login" className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Get Started Free</a>
         </div>
       </nav>
 
@@ -68,17 +68,17 @@ export default function Home() {
           No guessing. No internet. Just the rules.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <a href="/login" className="bg-green-500 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-green-600">
+            🆓 Get Started Free
+          </a>
           <a href="/pricing" className="bg-blue-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-blue-700">
-            Start 7-Day Free Trial
-          </a>
-          <a href="/demo" className="bg-green-500 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-green-600">
-            🎮 Try Free Demo
-          </a>
-          <a href="#pricing" className="border border-gray-200 text-gray-700 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-50">
             See Pricing
           </a>
+          <a href="#features" className="border border-gray-200 text-gray-700 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-50">
+            Learn More
+          </a>
         </div>
-        <p className="text-sm text-gray-400 mt-4">No credit card needed for demo · No charge for 7 days on trial · Cancel anytime.</p>
+        <p className="text-sm text-gray-400 mt-4">Free forever on LITE · No credit card needed · Cancel anytime on paid plans.</p>
       </section>
 
       {/* Multilingual Banner */}
@@ -143,14 +143,15 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Demo CTA Banner */}
+      {/* LITE CTA Banner — replaces Demo banner */}
       <section className="bg-green-50 border-y border-green-100 px-8 py-12">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-green-700 text-sm font-medium mb-2">🎮 Try before you subscribe</p>
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">See AquaRef in action — free</h2>
-          <p className="text-gray-500 mb-6">Ask 2 real swimming rules questions. No account needed. No credit card.</p>
-          <a href="/demo" className="inline-block bg-green-500 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-600">
-            Try Free Demo →
+          <p className="text-green-700 text-sm font-medium mb-2">🆓 Free forever — no credit card needed</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Start with AquaRef LITE today</h2>
+          <p className="text-gray-500 mb-2">Get 5 free questions per month on your chosen discipline.</p>
+          <p className="text-gray-400 text-sm mb-6">Sign up in 30 seconds · No credit card · Upgrade anytime</p>
+          <a href="/login" className="inline-block bg-green-500 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-600">
+            Get Started Free →
           </a>
         </div>
       </section>
@@ -179,7 +180,7 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <a href="/pricing" className="block w-full text-center border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50">
+              <a href="/login" className="block w-full text-center border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50">
                 Get Started Free
               </a>
             </div>
