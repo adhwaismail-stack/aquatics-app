@@ -9,13 +9,14 @@ const supabase = createClient(
 )
 
 const ALL_DISCIPLINES = [
-  { name: 'Swimming', code: 'SW Rules', id: 'swimming' },
-  { name: 'Water Polo', code: 'WP Rules', id: 'waterpolo' },
-  { name: 'Open Water', code: 'OW Rules', id: 'openwater' },
-  { name: 'Artistic Swimming', code: 'AS Rules', id: 'artistic' },
-  { name: 'Diving', code: 'DV Rules', id: 'diving' },
-  { name: 'High Diving', code: 'HD Rules', id: 'highdiving' },
-  { name: 'Masters', code: 'MS Rules', id: 'masters' },
+  { name: 'Swimming', code: 'SW Rules', id: 'swimming', isPara: false },
+  { name: 'Water Polo', code: 'WP Rules', id: 'waterpolo', isPara: false },
+  { name: 'Open Water', code: 'OW Rules', id: 'openwater', isPara: false },
+  { name: 'Artistic Swimming', code: 'AS Rules', id: 'artistic', isPara: false },
+  { name: 'Diving', code: 'DV Rules', id: 'diving', isPara: false },
+  { name: 'High Diving', code: 'HD Rules', id: 'highdiving', isPara: false },
+  { name: 'Masters', code: 'MS Rules', id: 'masters', isPara: false },
+  { name: 'Para Swimming *', code: 'WPS Rules', id: 'paraswimming', isPara: true },
 ]
 
 export default function Home() {
@@ -106,7 +107,7 @@ export default function Home() {
               { icon: "🌍", title: "90+ Languages", desc: "Ask in any of 90+ languages and get answers in that same language. No language barrier for officials worldwide." },
               { icon: "🔢", title: "Rule Citations", desc: "Every answer includes the exact rule number — SW 7.6, WP 21.3. Always verifiable." },
               { icon: "⚡", title: "Instant Answers", desc: "Get answers in seconds. Perfect for quick checks during competition preparation." },
-              { icon: "🏊", title: "7 Disciplines", desc: "Swimming, Water Polo, Open Water, Artistic Swimming, Diving, High Diving and Masters Swimming." },
+              { icon: "🏊", title: "8 Disciplines", desc: "Swimming, Water Polo, Open Water, Artistic Swimming, Diving, High Diving, Masters and Para Swimming." },
               { icon: "🔒", title: "Always Current", desc: "Regulations updated by admin whenever World Aquatics releases new rules. Always accurate." }
             ].map((f, i) => (
               <div key={i} className="bg-white p-6 rounded-xl border border-gray-100">
@@ -122,24 +123,48 @@ export default function Home() {
       {/* Disciplines */}
       <section id="disciplines" className="px-8 py-20">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">All World Aquatics disciplines</h2>
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">All aquatics disciplines</h2>
           <p className="text-center text-gray-500 mb-14 text-lg">One platform for every aquatics sport</p>
           <div className="grid md:grid-cols-3 gap-6">
             {ALL_DISCIPLINES.map((d, i) => {
               const isLive = liveDisciplines.includes(d.id)
               return (
-                <div key={i} className={`p-6 rounded-xl border ${isLive ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
+                <div key={i} className={`p-6 rounded-xl border ${
+                  d.isPara
+                    ? isLive ? 'border-purple-200 bg-purple-50' : 'border-gray-100 bg-gray-50'
+                    : isLive ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50'
+                }`}>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className={`font-semibold ${isLive ? 'text-blue-900' : 'text-gray-700'}`}>{d.name}</h3>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${isLive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    <h3 className={`font-semibold ${
+                      d.isPara
+                        ? isLive ? 'text-purple-900' : 'text-gray-700'
+                        : isLive ? 'text-blue-900' : 'text-gray-700'
+                    }`}>{d.name}</h3>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      d.isPara
+                        ? isLive ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
+                        : isLive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
                       {isLive ? 'Live' : 'Coming Soon'}
                     </span>
                   </div>
-                  <p className={`text-sm ${isLive ? 'text-blue-700' : 'text-gray-400'}`}>{d.code}</p>
+                  <p className={`text-sm ${
+                    d.isPara
+                      ? isLive ? 'text-purple-700' : 'text-gray-400'
+                      : isLive ? 'text-blue-700' : 'text-gray-400'
+                  }`}>{d.code}</p>
+                  {d.isPara && (
+                    <p className="text-xs text-purple-400 mt-1">World Para Swimming (IPC)</p>
+                  )}
                 </div>
               )
             })}
           </div>
+
+          {/* Para Swimming footnote */}
+          <p className="text-xs text-gray-400 mt-6 text-center">
+            * Para Swimming rules are governed by World Para Swimming (WPS) under the International Paralympic Committee (IPC), independent of World Aquatics.
+          </p>
         </div>
       </section>
 
@@ -219,7 +244,7 @@ export default function Home() {
                 <span className="text-slate-400 text-sm">/month</span>
               </div>
               <ul className="space-y-2 mb-8 flex-1">
-                {['UNLIMITED Questions', 'ALL 7 Disciplines', 'Instant Discipline Switching', 'Official WA Rule Citations', '90+ Language Support', 'Priority VIP Support', 'Early Access to new features'].map((f, i) => (
+                {['UNLIMITED Questions', 'ALL 8 Disciplines', 'Instant Discipline Switching', 'Official WA Rule Citations', '90+ Language Support', 'Priority VIP Support', 'Early Access to new features'].map((f, i) => (
                   <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
                     <span className="text-yellow-400">✓</span>{f}
                   </li>

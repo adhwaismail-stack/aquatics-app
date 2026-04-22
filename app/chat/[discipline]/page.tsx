@@ -12,7 +12,8 @@ const disciplineNames: { [key: string]: string } = {
   diving: 'Diving',
   highdiving: 'High Diving',
   masters: 'Masters',
-  openwater: 'Open Water'
+  openwater: 'Open Water',
+  paraswimming: 'Para Swimming'
 }
 
 const disciplineCodes: { [key: string]: string } = {
@@ -22,7 +23,8 @@ const disciplineCodes: { [key: string]: string } = {
   diving: 'DV Rules',
   highdiving: 'HD Rules',
   masters: 'MS Rules',
-  openwater: 'OW Rules'
+  openwater: 'OW Rules',
+  paraswimming: 'WPS Rules'
 }
 
 interface Message {
@@ -45,6 +47,8 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
   const [daysUntilReset, setDaysUntilReset] = useState<number>(30)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  const isParaSwimming = discipline === 'paraswimming'
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -64,7 +68,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
       setPlan(userPlan)
 
       if (userPlan === 'lite') {
-        // Calculate monthly usage for LITE
         const accountCreated = new Date(sub?.created_at || new Date())
         const now = new Date()
         const daysSinceCreation = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
@@ -89,7 +92,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         setDailyLimit(5)
         setUsage(used)
       } else {
-        // Daily limit for PRO/ELITE
         if (userPlan === 'elite') setDailyLimit(99999)
         else if (userPlan === 'all_disciplines') setDailyLimit(200)
         else setDailyLimit(50)
@@ -184,18 +186,17 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         }])
         setUsage(prev => prev + 1)
 
-        // Update LITE remaining count
         if (plan === 'lite' && data.remainingQuestions !== undefined) {
           setMonthlyRemaining(data.remainingQuestions)
-if (data.isLastQuestion) {
-  setTimeout(() => {
-    setMessages(prev => [...prev, {
-      role: 'assistant',
-      content: `⚠️ You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}.\n\n[👉 Upgrade to PRO for 50 questions per day →](/pricing)`,
-      feedback: null
-    }])
-  }, 500)
-}
+          if (data.isLastQuestion) {
+            setTimeout(() => {
+              setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `⚠️ You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}.\n\n[👉 Upgrade to PRO for 50 questions per day →](/pricing)`,
+                feedback: null
+              }])
+            }, 500)
+          }
         }
       }
     } catch {
@@ -212,7 +213,8 @@ if (data.isLastQuestion) {
   const getIcon = () => {
     const icons: { [key: string]: string } = {
       swimming: '🏊', waterpolo: '🤽', artistic: '💃',
-      diving: '🤿', highdiving: '🏔️', masters: '🏅', openwater: '🌊'
+      diving: '🤿', highdiving: '🏔️', masters: '🏅',
+      openwater: '🌊', paraswimming: '🏋️'
     }
     return icons[discipline] || '🏊'
   }
@@ -225,7 +227,8 @@ if (data.isLastQuestion) {
       artistic: ['How is artistic swimming scored?', 'What are the routine time limits?', 'What are the deck work rules?'],
       diving: ['How are dives scored?', 'What is the degree of difficulty?', 'What are the springboard height rules?'],
       highdiving: ['What are the platform height requirements?', 'How are high dives scored?', 'What safety rules apply?'],
-      masters: ['What are the age group categories?', 'How are masters records set?', 'What are the eligibility rules?']
+      masters: ['What are the age group categories?', 'How are masters records set?', 'What are the eligibility rules?'],
+      paraswimming: ['What are the Para Swimming classification classes?', 'What are the start rules for Para swimmers?', 'What equipment is permitted in Para Swimming?']
     }
     return questions[discipline] || questions.swimming
   }
@@ -241,8 +244,16 @@ if (data.isLastQuestion) {
             <a href="/dashboard" className="text-gray-400 hover:text-gray-600 text-sm">← Back</a>
             <div className="w-px h-4 bg-gray-200"></div>
             <div>
-              <h1 className="font-semibold text-gray-900">{disciplineNames[discipline] || discipline}</h1>
-              <p className="text-xs text-gray-400">{disciplineCodes[discipline]}</p>
+              <h1 className="font-semibold text-gray-900 flex items-center gap-2">
+                {disciplineNames[discipline] || discipline}
+                {isParaSwimming && (
+                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">WPS</span>
+                )}
+              </h1>
+              <p className={`text-xs ${isParaSwimming ? 'text-purple-400' : 'text-gray-400'}`}>
+                {disciplineCodes[discipline]}
+                {isParaSwimming && ' · World Para Swimming (IPC)'}
+              </p>
             </div>
           </div>
 
@@ -267,7 +278,7 @@ if (data.isLastQuestion) {
               )}
               <div className="w-16 bg-gray-100 rounded-full h-2">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all"
+                  className={`h-2 rounded-full transition-all ${isParaSwimming ? 'bg-purple-600' : 'bg-blue-600'}`}
                   style={{
                     width: plan === 'lite'
                       ? `${Math.min(((5 - monthlyRemaining) / 5) * 100, 100)}%`
@@ -279,6 +290,17 @@ if (data.isLastQuestion) {
           )}
         </div>
       </div>
+
+      {/* Para Swimming disclaimer banner — Option C */}
+      {isParaSwimming && (
+        <div className="bg-purple-50 border-b border-purple-100 px-6 py-2">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-xs text-purple-700">
+              ⚠️ Para Swimming rules are governed by <strong>World Para Swimming (WPS)</strong> under the International Paralympic Committee (IPC), independent of World Aquatics. Always verify with official WPS regulations and your Meet Referee.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* LITE limit warning banner */}
       {plan === 'lite' && monthlyRemaining <= 1 && monthlyRemaining > 0 && (
@@ -315,13 +337,22 @@ if (data.isLastQuestion) {
           {messages.length === 0 && (
             <div className="text-center py-16">
               <div className="text-4xl mb-4">{getIcon()}</div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              <h2 className={`text-xl font-semibold mb-2 ${isParaSwimming ? 'text-purple-900' : 'text-gray-900'}`}>
                 {disciplineNames[discipline]} Rules Assistant
               </h2>
               <p className="text-gray-500 text-sm max-w-md mx-auto leading-relaxed">
                 Ask any question about {disciplineNames[discipline]} rules.
-                Answers are based strictly on the official World Aquatics Regulations.
+                {isParaSwimming
+                  ? ' Answers are based strictly on official World Para Swimming (WPS) Regulations.'
+                  : ' Answers are based strictly on the official World Aquatics Regulations.'}
               </p>
+              {isParaSwimming && (
+                <div className="mt-3 inline-block bg-purple-50 border border-purple-200 rounded-lg px-4 py-2">
+                  <p className="text-xs text-purple-700">
+                    🏋️ Governed by <strong>World Para Swimming (WPS)</strong> under IPC
+                  </p>
+                </div>
+              )}
               {plan === 'lite' && (
                 <div className="mt-3 inline-block bg-green-50 border border-green-200 rounded-lg px-4 py-2">
                   <p className="text-xs text-green-700">
@@ -334,7 +365,11 @@ if (data.isLastQuestion) {
                   <button
                     key={i}
                     onClick={() => setInput(q)}
-                    className="text-left px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 font-medium hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                    className={`text-left px-4 py-3 bg-white border rounded-lg text-sm font-medium transition-colors ${
+                      isParaSwimming
+                        ? 'border-purple-200 text-gray-700 hover:border-purple-400 hover:bg-purple-50'
+                        : 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                    }`}
                   >
                     {q}
                   </button>
@@ -346,12 +381,12 @@ if (data.isLastQuestion) {
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
-                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-1">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-1 ${isParaSwimming ? 'bg-purple-600' : 'bg-blue-600'}`}>
                   <span className="text-white text-xs font-bold">A</span>
                 </div>
               )}
               {msg.role === 'user' ? (
-                <div style={{ backgroundColor: '#1e40af', borderRadius: '16px 16px 4px 16px', padding: '12px 20px', maxWidth: '75%' }}>
+                <div style={{ backgroundColor: isParaSwimming ? '#7c3aed' : '#1e40af', borderRadius: '16px 16px 4px 16px', padding: '12px 20px', maxWidth: '75%' }}>
                   <p style={{ color: '#ffffff', fontSize: '14px', fontWeight: '600', margin: 0, lineHeight: '1.5' }}>
                     {msg.content}
                   </p>
@@ -366,11 +401,11 @@ if (data.isLastQuestion) {
                           h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-4 mb-2">{children}</h2>,
                           h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
                           p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-blue-700">{children}</strong>,
+                          strong: ({ children }) => <strong className={`font-semibold ${isParaSwimming ? 'text-purple-700' : 'text-blue-700'}`}>{children}</strong>,
                           ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
                           ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
                           li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                          blockquote: ({ children }) => <blockquote className="border-l-4 border-blue-200 pl-4 italic text-gray-600 my-3">{children}</blockquote>,
+                          blockquote: ({ children }) => <blockquote className={`border-l-4 pl-4 italic text-gray-600 my-3 ${isParaSwimming ? 'border-purple-200' : 'border-blue-200'}`}>{children}</blockquote>,
                         }}
                       >
                         {msg.content}
@@ -402,14 +437,14 @@ if (data.isLastQuestion) {
 
           {loading && (
             <div className="flex justify-start">
-              <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${isParaSwimming ? 'bg-purple-600' : 'bg-blue-600'}`}>
                 <span className="text-white text-xs font-bold">A</span>
               </div>
               <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
                 <div className="flex gap-1 items-center">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${isParaSwimming ? 'bg-purple-400' : 'bg-blue-400'}`}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${isParaSwimming ? 'bg-purple-400' : 'bg-blue-400'}`} style={{animationDelay: '0.2s'}}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${isParaSwimming ? 'bg-purple-400' : 'bg-blue-400'}`} style={{animationDelay: '0.4s'}}></div>
                   <span className="text-xs text-gray-400 ml-2">Searching regulations...</span>
                 </div>
               </div>
@@ -434,18 +469,28 @@ if (data.isLastQuestion) {
                 : `Ask a ${disciplineNames[discipline] || discipline} rules question...`
               }
               disabled={isLimitReached}
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+              className={`flex-1 px-4 py-3 border rounded-xl text-sm text-gray-900 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400 ${
+                isParaSwimming
+                  ? 'border-purple-200 focus:ring-2 focus:ring-purple-400'
+                  : 'border-gray-200 focus:ring-2 focus:ring-blue-500'
+              }`}
             />
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim() || isLimitReached}
-              className="bg-blue-600 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`text-white px-6 py-3 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+                isParaSwimming
+                  ? 'bg-purple-600 hover:bg-purple-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
               Send
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
-            Answers based on official World Aquatics Regulations only · Available in 90+ languages · Always verify with your Meet Referee.
+            {isParaSwimming
+              ? 'Answers based on World Para Swimming (WPS) Regulations only · Available in 90+ languages · Always verify with your Meet Referee.'
+              : 'Answers based on official World Aquatics Regulations only · Available in 90+ languages · Always verify with your Meet Referee.'}
           </p>
         </div>
       </div>

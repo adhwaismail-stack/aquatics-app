@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const DISCIPLINES = [
-  { id: 'swimming', name: 'Swimming', code: 'SW Rules', icon: '🏊', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules' },
-  { id: 'waterpolo', name: 'Water Polo', code: 'WP Rules', icon: '🤽', desc: 'Field of play, players, referees, gameplay and penalty rules' },
-  { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', icon: '💃', desc: 'Solo, duet, team and combo routine rules and judging criteria' },
-  { id: 'diving', name: 'Diving', code: 'DV Rules', icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring' },
-  { id: 'highdiving', name: 'High Diving', code: 'HD Rules', icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules' },
-  { id: 'masters', name: 'Masters', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
-  { id: 'openwater', name: 'Open Water', code: 'OW Rules', icon: '🌊', desc: 'Open water swimming rules, equipment, officials and competition regulations' },
+  { id: 'swimming', name: 'Swimming', code: 'SW Rules', icon: '🏊', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules', isPara: false },
+  { id: 'waterpolo', name: 'Water Polo', code: 'WP Rules', icon: '🤽', desc: 'Field of play, players, referees, gameplay and penalty rules', isPara: false },
+  { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', icon: '💃', desc: 'Solo, duet, team and combo routine rules and judging criteria', isPara: false },
+  { id: 'diving', name: 'Diving', code: 'DV Rules', icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring', isPara: false },
+  { id: 'highdiving', name: 'High Diving', code: 'HD Rules', icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules', isPara: false },
+  { id: 'masters', name: 'Masters', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules', isPara: false },
+  { id: 'openwater', name: 'Open Water', code: 'OW Rules', icon: '🌊', desc: 'Open water swimming rules, equipment, officials and competition regulations', isPara: false },
+  { id: 'paraswimming', name: 'Para Swimming', code: 'WPS Rules', icon: '🏋️', desc: 'Para swimming classifications, rules and competition regulations under World Para Swimming (IPC)', isPara: true },
 ]
 
 export default function ChooseDisciplinePage() {
@@ -42,7 +43,6 @@ export default function ChooseDisciplinePage() {
         setPlan(sub.plan)
         setCurrentDiscipline(sub.selected_discipline)
 
-        // Check 30-day cooldown
         if (sub.discipline_changed_at && sub.selected_discipline) {
           const lastChanged = new Date(sub.discipline_changed_at)
           const nextSwitch = new Date(lastChanged)
@@ -133,7 +133,9 @@ export default function ChooseDisciplinePage() {
                   onClick={() => setSelected(d.id)}
                   className={`text-left p-5 rounded-xl border-2 transition-all ${
                     selected === d.id
-                      ? 'border-blue-600 bg-blue-50 shadow-sm'
+                      ? d.isPara
+                        ? 'border-purple-600 bg-purple-50 shadow-sm'
+                        : 'border-blue-600 bg-blue-50 shadow-sm'
                       : d.id === currentDiscipline
                       ? 'border-green-300 bg-green-50'
                       : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
@@ -141,27 +143,46 @@ export default function ChooseDisciplinePage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xl">{d.icon}</span>
-                    {selected === d.id && (
-                      <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full">✓ Selected</span>
-                    )}
-                    {d.id === currentDiscipline && selected !== d.id && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Current</span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {d.isPara && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">WPS</span>
+                      )}
+                      {selected === d.id && (
+                        <span className={`text-xs text-white px-2 py-1 rounded-full ${d.isPara ? 'bg-purple-600' : 'bg-blue-600'}`}>✓ Selected</span>
+                      )}
+                      {d.id === currentDiscipline && selected !== d.id && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Current</span>
+                      )}
+                    </div>
                   </div>
-                  <h3 className={`font-semibold mb-1 ${selected === d.id ? 'text-blue-700' : 'text-gray-900'}`}>
+                  <h3 className={`font-semibold mb-1 ${
+                    selected === d.id
+                      ? d.isPara ? 'text-purple-700' : 'text-blue-700'
+                      : 'text-gray-900'
+                  }`}>
                     {d.name}
                   </h3>
-                  <p className="text-xs text-gray-400">{d.code}</p>
+                  <p className={`text-xs font-medium mb-0.5 ${d.isPara ? 'text-purple-500' : 'text-gray-400'}`}>{d.code}</p>
+                  {d.isPara && <p className="text-xs text-purple-400 mb-1">World Para Swimming (IPC)</p>}
                   <p className="text-xs text-gray-500 mt-1 leading-relaxed">{d.desc}</p>
                 </button>
               ))}
             </div>
 
+            {/* Para Swimming footnote */}
+            <p className="text-xs text-gray-400 mb-6">
+              * Para Swimming rules are governed by World Para Swimming (WPS) under the International Paralympic Committee (IPC), independent of World Aquatics.
+            </p>
+
             <div className="text-center">
               <button
                 onClick={handleSave}
                 disabled={!selected || saving || selected === currentDiscipline}
-                className="bg-blue-600 text-white px-10 py-3 rounded-xl font-medium text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`text-white px-10 py-3 rounded-xl font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+                  selected && DISCIPLINES.find(d => d.id === selected)?.isPara
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 {saving ? 'Saving...' : currentDiscipline ? 'Switch Discipline →' : 'Confirm My Discipline →'}
               </button>

@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const disciplines = [
-  { id: 'swimming', name: 'Swimming', code: 'SW Rules', icon: '🏊', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules' },
-  { id: 'waterpolo', name: 'Water Polo', code: 'WP Rules', icon: '🤽', desc: 'Field of play, players, referees, gameplay and penalty rules' },
-  { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', icon: '💃', desc: 'Solo, duet, team and combo routine rules and judging criteria' },
-  { id: 'diving', name: 'Diving', code: 'DV Rules', icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring' },
-  { id: 'highdiving', name: 'High Diving', code: 'HD Rules', icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules' },
-  { id: 'masters', name: 'Masters', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules' },
-  { id: 'openwater', name: 'Open Water', code: 'OW Rules', icon: '🌊', desc: 'Open water swimming rules, equipment, officials and competition regulations' },
+  { id: 'swimming', name: 'Swimming', code: 'SW Rules', icon: '🏊', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules', isPara: false },
+  { id: 'waterpolo', name: 'Water Polo', code: 'WP Rules', icon: '🤽', desc: 'Field of play, players, referees, gameplay and penalty rules', isPara: false },
+  { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', icon: '💃', desc: 'Solo, duet, team and combo routine rules and judging criteria', isPara: false },
+  { id: 'diving', name: 'Diving', code: 'DV Rules', icon: '🤿', desc: 'Springboard, platform, synchronised diving rules and scoring', isPara: false },
+  { id: 'highdiving', name: 'High Diving', code: 'HD Rules', icon: '🏔️', desc: 'Platform heights, entry requirements and competition rules', isPara: false },
+  { id: 'masters', name: 'Masters', code: 'MS Rules', icon: '🏅', desc: 'Age group categories, records and masters competition rules', isPara: false },
+  { id: 'openwater', name: 'Open Water', code: 'OW Rules', icon: '🌊', desc: 'Open water swimming rules, equipment, officials and competition regulations', isPara: false },
+  { id: 'paraswimming', name: 'Para Swimming', code: 'WPS Rules', icon: '🏋️', desc: 'Para swimming classifications, rules and competition regulations under World Para Swimming (IPC)', isPara: true },
 ]
 
 interface UserSubscription {
@@ -66,7 +67,6 @@ export default function DashboardPage() {
         .single()
 
       if (error || !sub) {
-        // New user — detect country and create LITE record
         const country = await detectCountry()
         await supabase.from('user_subscriptions').insert({
           user_email: user.email,
@@ -82,7 +82,6 @@ export default function DashboardPage() {
         return
       }
 
-      // Update country if missing
       if (!sub.country) {
         const country = await detectCountry()
         if (country) {
@@ -94,7 +93,6 @@ export default function DashboardPage() {
         }
       }
 
-      // Existing beta tester without expiry — set 14 day expiry
       if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id && sub.plan !== 'lite') {
         const expiryDate = new Date()
         expiryDate.setDate(expiryDate.getDate() + 14)
@@ -112,7 +110,6 @@ export default function DashboardPage() {
         return
       }
 
-      // LITE user with no discipline selected — redirect to choose discipline
       if (sub.plan === 'lite' && !sub.selected_discipline && sub.full_name) {
         window.location.href = '/choose-discipline'
         return
@@ -444,7 +441,7 @@ export default function DashboardPage() {
                   key={d.id}
                   className={`bg-white rounded-xl border p-6 transition-all ${
                     !isLive ? 'border-gray-100 opacity-50' :
-                    hasAccess ? 'border-blue-200 hover:border-blue-400 hover:shadow-sm cursor-pointer' :
+                    hasAccess ? `${d.isPara ? 'border-purple-200 hover:border-purple-400' : 'border-blue-200 hover:border-blue-400'} hover:shadow-sm cursor-pointer` :
                     'border-gray-200'
                   }`}
                 >
@@ -452,15 +449,16 @@ export default function DashboardPage() {
                     <span className="text-3xl">{d.icon}</span>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                       !isLive ? 'bg-gray-100 text-gray-400' :
-                      isSelected ? 'bg-green-100 text-green-700' :
-                      hasAccess ? 'bg-blue-100 text-blue-700' :
+                      isSelected ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}` :
+                      hasAccess ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}` :
                       'bg-gray-100 text-gray-400'
                     }`}>
                       {!isLive ? 'Coming Soon' : isSelected ? '● Your Plan' : hasAccess ? '● Live' : '🔒 Locked'}
                     </span>
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-1">{d.name}</h3>
-                  <p className="text-xs text-gray-400 mb-1">{d.code}</p>
+                  <p className={`text-xs mb-1 ${d.isPara ? 'text-purple-500 font-medium' : 'text-gray-400'}`}>{d.code}</p>
+                  {d.isPara && <p className="text-xs text-purple-400 mb-1">World Para Swimming (IPC)</p>}
                   <p className="text-xs text-gray-400 mb-4 leading-relaxed">{d.desc}</p>
 
                   {!isLive ? (
@@ -470,7 +468,7 @@ export default function DashboardPage() {
                   ) : hasAccess ? (
                     <button
                       onClick={() => handleDisciplineClick(d.id)}
-                      className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors text-white ${d.isPara ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                     >
                       Ask Rules Question →
                     </button>
@@ -486,6 +484,11 @@ export default function DashboardPage() {
               )
             })}
           </div>
+
+          {/* Para Swimming footnote */}
+          <p className="text-xs text-gray-400 mt-4">
+            * Para Swimming rules are governed by World Para Swimming (WPS) under the International Paralympic Committee (IPC), independent of World Aquatics.
+          </p>
         </div>
 
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
