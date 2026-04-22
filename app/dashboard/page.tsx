@@ -161,12 +161,13 @@ export default function DashboardPage() {
     return '-'
   }
 
-  const getQuestionsPerDay = () => {
-    if (subscription?.plan === 'elite') return 'Unlimited'
-    if (subscription?.plan === 'all_disciplines') return '200'
-    if (subscription?.plan === 'lite') return '5/month'
-    return '50'
-  }
+const getQuestionsPerDay = () => {
+  if (subscription?.plan === 'elite') return 'Unlimited'
+  if (subscription?.plan === 'pro') return '50'
+  if (subscription?.plan === 'lite') return '5'
+  if (subscription?.plan === 'all_disciplines') return '200' // legacy
+  return '50' // default (starter/legacy)
+}
 
   const handleDisciplineClick = (disciplineId: string) => {
     if (canAccessDiscipline(disciplineId)) {
