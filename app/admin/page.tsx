@@ -57,6 +57,7 @@ interface UserSubscription {
   full_name: string | null
   selected_discipline: string | null
   created_at: string
+  country?: string | null
 }
 
 interface FeedbackItem {
@@ -234,7 +235,6 @@ export default function AdminPage() {
     const { data } = await supabase.from('chat_logs').select('*').order('created_at', { ascending: false }).limit(100)
     if (data) {
       setChatLogs(data)
-      // Build last login map from chat logs
       const loginMap: Record<string, string> = {}
       data.forEach((log: ChatLog) => {
         if (!loginMap[log.user_email] || new Date(log.created_at) > new Date(loginMap[log.user_email])) {
@@ -284,14 +284,11 @@ export default function AdminPage() {
     setAnalyticsLoading(true)
     const { data: usageData } = await supabase.from('daily_usage').select('date, count').order('date', { ascending: false }).limit(14)
     if (usageData) setDailyUsage(usageData)
-
-    // Load token usage
     const { data: tokenData } = await supabase
       .from('chat_logs')
       .select('input_tokens, output_tokens, created_at')
       .not('input_tokens', 'is', null)
     if (tokenData) setTokenLogs(tokenData)
-
     setAnalyticsLoading(false)
   }
 
@@ -470,11 +467,9 @@ export default function AdminPage() {
     return created > thirtyDaysAgo && s.stripe_customer_id !== null
   }).length
 
-  // Token cost calculations
   const totalInputTokens = tokenLogs.reduce((sum, l) => sum + (l.input_tokens || 0), 0)
   const totalOutputTokens = tokenLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
-  const costUSD = (totalInputTokens * 0.0000008) + (totalOutputTokens * 0.000004)
-  const costRM = costUSD * 4.5
+  const costRM = ((totalInputTokens * 0.0000008) + (totalOutputTokens * 0.000004)) * 4.5
 
   const thisMonthStart = new Date()
   thisMonthStart.setDate(1)
@@ -484,7 +479,6 @@ export default function AdminPage() {
   const thisMonthOutputTokens = thisMonthLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
   const thisMonthCostRM = ((thisMonthInputTokens * 0.0000008) + (thisMonthOutputTokens * 0.000004)) * 4.5
 
-  // Top 10 most active users
   const userQuestionCounts = chatLogs.reduce((acc, log) => {
     acc[log.user_email] = (acc[log.user_email] || 0) + 1
     return acc
@@ -494,11 +488,21 @@ export default function AdminPage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
 
-  // Last 10 logins
   const last10Logins = [...chatLogs]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .filter((log, index, self) => self.findIndex(l => l.user_email === log.user_email) === index)
     .slice(0, 10)
+
+  const countryCounts = userSubscriptions
+    .filter(s => s.country)
+    .reduce((acc, s) => {
+      acc[s.country!] = (acc[s.country!] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+  const countryData = Object.entries(countryCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label, value }))
 
   if (!authenticated) {
     return (
@@ -970,6 +974,7 @@ export default function AdminPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPlanColor(sub.plan)}`}>{getPlanLabel(sub.plan)}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
                           {sub.selected_discipline && <span className="text-xs text-gray-400">{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>}
+                          {sub.country && <span className="text-xs text-gray-400">🌍 {sub.country}</span>}
                         </div>
                       </div>
                       <div className="text-right">
@@ -1020,7 +1025,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Subscription Breakdown */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Subscription Breakdown</h3>
                   <div className="grid grid-cols-3 gap-4">
@@ -1042,7 +1046,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* AI Token Cost */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">🤖 AI Token Cost</h3>
                   <div className="grid grid-cols-2 gap-4 mb-4">
@@ -1072,7 +1075,6 @@ export default function AdminPage() {
                   <p className="text-xs text-gray-400 mt-3 text-center">Haiku: $0.80/M input · $4.00/M output · USD×4.5 = RM</p>
                 </div>
 
-                {/* Questions per day */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Questions Asked — Last 7 Days</h3>
                   <SimpleBarChart data={last7Days} />
@@ -1085,7 +1087,6 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Top 10 Most Active Users */}
                 {top10Users.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">🏆 Top 10 Most Active Users</h3>
@@ -1101,7 +1102,14 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Last 10 Logins */}
+                {countryData.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-6">
+                    <h3 className="font-semibold text-gray-900 mb-4">🌍 Users by Country</h3>
+                    <SimpleBarChart data={countryData} />
+                    <p className="text-xs text-gray-400 mt-3 text-center">{userSubscriptions.filter(s => s.country).length} users with known location</p>
+                  </div>
+                )}
+
                 {last10Logins.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">🕐 Last 10 Active Users</h3>
@@ -1116,7 +1124,6 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Feedback */}
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">User Feedback</h3>
                   <div className="grid grid-cols-3 gap-4">
