@@ -35,6 +35,7 @@ interface AquaEvent {
   start_date: string
   end_date: string
   is_active: boolean
+  poster_url?: string
 }
 
 const DISCIPLINE_LABELS: Record<string, string> = {
@@ -86,115 +87,64 @@ export default function DashboardPage() {
     const getUser = async () => {
       await supabase.auth.getSession()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        window.location.href = '/login'
-        return
-      }
+      if (!user) { window.location.href = '/login'; return }
       setUser(user)
 
-      const { data: files } = await supabase
-        .from('rulebook_files')
-        .select('discipline')
+      const { data: files } = await supabase.from('rulebook_files').select('discipline')
+      if (files) setLiveDisciplines([...new Set(files.map((f: { discipline: string }) => f.discipline))])
 
-      if (files) {
-        const live = [...new Set(files.map((f: { discipline: string }) => f.discipline))]
-        setLiveDisciplines(live)
-      }
-
-      const { data: sub, error } = await supabase
-        .from('user_subscriptions')
-        .select('plan, selected_discipline, status, current_period_end, stripe_customer_id, full_name, country')
-        .eq('user_email', user.email)
-        .single()
+      const { data: sub, error } = await supabase.from('user_subscriptions').select('plan, selected_discipline, status, current_period_end, stripe_customer_id, full_name, country').eq('user_email', user.email).single()
 
       if (error || !sub) {
         const country = await detectCountry()
-        await supabase.from('user_subscriptions').insert({
-          user_email: user.email,
-          plan: 'lite',
-          status: 'active',
-          stripe_customer_id: null,
-          current_period_end: null,
-          selected_discipline: null,
-          full_name: null,
-          country
-        })
+        await supabase.from('user_subscriptions').insert({ user_email: user.email, plan: 'lite', status: 'active', stripe_customer_id: null, current_period_end: null, selected_discipline: null, full_name: null, country })
         window.location.href = '/onboarding'
         return
       }
 
       if (!sub.country) {
         const country = await detectCountry()
-        if (country) {
-          await supabase.from('user_subscriptions').update({ country }).eq('user_email', user.email)
-          sub.country = country
-        }
+        if (country) { await supabase.from('user_subscriptions').update({ country }).eq('user_email', user.email); sub.country = country }
       }
 
       if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id && sub.plan !== 'lite') {
-        const expiryDate = new Date()
-        expiryDate.setDate(expiryDate.getDate() + 14)
+        const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + 14)
         await supabase.from('user_subscriptions').update({ current_period_end: expiryDate.toISOString() }).eq('user_email', user.email)
         sub.current_period_end = expiryDate.toISOString()
       }
 
-      if (sub.full_name) {
-        setFullName(sub.full_name)
-      } else if (sub.status === 'active') {
-        window.location.href = '/onboarding'
-        return
-      }
+      if (sub.full_name) { setFullName(sub.full_name) }
+      else if (sub.status === 'active') { window.location.href = '/onboarding'; return }
 
-      if (sub.plan === 'lite' && !sub.selected_discipline && sub.full_name) {
-        window.location.href = '/choose-discipline'
-        return
-      }
+      if (sub.plan === 'lite' && !sub.selected_discipline && sub.full_name) { window.location.href = '/choose-discipline'; return }
 
       setSubscription(sub)
       setUserCountry(sub.country)
 
       const isElite = sub.plan === 'elite' || sub.plan === 'all_disciplines'
       let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
-      if (!isElite && sub.country) {
-        eventsQuery = eventsQuery.eq('country', sub.country)
-      }
+      if (!isElite && sub.country) eventsQuery = eventsQuery.eq('country', sub.country)
       const { data: eventsData } = await eventsQuery.order('start_date', { ascending: true })
       if (eventsData) setEvents(eventsData)
 
       setLoading(false)
 
       const isBeta = sub.stripe_customer_id === null && sub.plan !== 'lite' && sub.current_period_end !== null
-      if (isBeta) {
-        const hasSeenWelcome = localStorage.getItem('aquaref_beta_welcome_v1')
-        if (!hasSeenWelcome) setShowBetaWelcome(true)
-      }
+      if (isBeta && !localStorage.getItem('aquaref_beta_welcome_v1')) setShowBetaWelcome(true)
     }
     getUser()
   }, [])
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/'
-  }
+  const handleLogout = async () => { await supabase.auth.signOut(); window.location.href = '/' }
 
   const handleManageSubscription = async () => {
     if (!user?.email) return
     setPortalLoading(true)
     try {
-      const response = await fetch('/api/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail: user.email })
-      })
+      const response = await fetch('/api/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: user.email }) })
       const data = await response.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        alert('Unable to open billing portal. Please contact hello@aquaref.co')
-      }
-    } catch {
-      alert('Something went wrong. Please try again.')
-    }
+      if (data.url) { window.location.href = data.url } else { alert('Unable to open billing portal. Please contact hello@aquaref.co') }
+    } catch { alert('Something went wrong. Please try again.') }
     setPortalLoading(false)
   }
 
@@ -247,23 +197,12 @@ export default function DashboardPage() {
     return '50'
   }
 
-  const handleDisciplineClick = (disciplineId: string) => {
-    if (canAccessDiscipline(disciplineId)) window.location.href = `/chat/${disciplineId}`
-  }
-
-  const handleDismissBetaWelcome = () => {
-    localStorage.setItem('aquaref_beta_welcome_v1', 'seen')
-    setShowBetaWelcome(false)
-  }
-
+  const handleDisciplineClick = (disciplineId: string) => { if (canAccessDiscipline(disciplineId)) window.location.href = `/chat/${disciplineId}` }
+  const handleDismissBetaWelcome = () => { localStorage.setItem('aquaref_beta_welcome_v1', 'seen'); setShowBetaWelcome(false) }
   const isElite = subscription?.plan === 'elite' || subscription?.plan === 'all_disciplines'
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-400 text-sm">Loading your dashboard...</div>
-      </div>
-    )
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-gray-400 text-sm">Loading your dashboard...</div></div>
   }
 
   return (
@@ -272,9 +211,7 @@ export default function DashboardPage() {
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <a href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
-            </div>
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
             <span className="font-bold text-xl text-gray-900">AquaRef</span>
           </a>
           <div className="flex items-center gap-4">
@@ -299,14 +236,11 @@ export default function DashboardPage() {
             </div>
             <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
               <p>Dear {fullName || 'Beta Tester'},</p>
-              <p>Thank you so much for being part of the <strong>AquaRef Beta programme</strong>.</p>
-              <p>I would greatly appreciate it if you could test the AI for your respective discipline and share your honest feedback. Your insights as a Technical Official are invaluable.</p>
+              <p>Thank you for being part of the <strong>AquaRef Beta programme</strong>.</p>
+              <p>Please test the AI for your discipline and share honest feedback. Your insights as a Technical Official are invaluable.</p>
               <p><strong className="text-purple-700">Para Swimming 🏋️</strong> is now available, powered by <strong>World Para Swimming (WPS)</strong> under IPC.</p>
               <p>Share feedback using the <strong>👍</strong> or <strong>👎</strong> buttons after each answer.</p>
-              <div className="pt-2 border-t border-gray-100">
-                <p>Sincerely,</p>
-                <p className="font-semibold text-gray-900 mt-1">Adhwa</p>
-              </div>
+              <div className="pt-2 border-t border-gray-100"><p>Sincerely,</p><p className="font-semibold text-gray-900 mt-1">Adhwa</p></div>
             </div>
             <button onClick={handleDismissBetaWelcome} className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700">Got it, thanks! 🙏</button>
           </div>
@@ -421,40 +355,43 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Events Section - TOP */}
+        {/* Events Section - TOP with poster */}
         {events.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">🏆 Live Events</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {isElite ? 'All countries (ELITE)' : `Events in ${userCountry || 'your country'}`}
-                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{isElite ? 'All countries (ELITE)' : `Events in ${userCountry || 'your country'}`}</p>
               </div>
               {!isElite && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">🌍 ELITE: global events</span>}
             </div>
             <div className="grid md:grid-cols-2 gap-3">
               {events.map((event) => (
-                <div key={event.id} className="bg-white rounded-xl border border-green-100 p-4 hover:border-green-300 hover:shadow-sm transition-all cursor-pointer" onClick={() => { window.location.href = `/events/${event.slug}` }}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 mr-2">
-                      <h3 className="font-semibold text-gray-900 text-sm">{event.name}</h3>
-                      <p className="text-xs text-gray-400 mt-0.5">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
+                <div key={event.id} className="bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-sm transition-all cursor-pointer" onClick={() => { window.location.href = `/events/${event.slug}` }}>
+                  {event.poster_url && (
+                    <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
+                  )}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 mr-2">
+                        <h3 className="font-semibold text-gray-900 text-sm">{event.name}</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢 Live</span>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢 Live</span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
-                    {event.start_date && (
-                      <span className="text-xs text-gray-400">
-                        📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                        {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">{subscription?.plan === 'lite' ? '3 free questions' : 'Unlimited'}</span>
-                    <button className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">Open Event AI →</button>
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
+                      {event.start_date && (
+                        <span className="text-xs text-gray-400">
+                          📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                          {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">{subscription?.plan === 'lite' ? '3 free questions' : 'Unlimited'}</span>
+                      <button className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">Open Event AI →</button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -470,7 +407,6 @@ export default function DashboardPage() {
               const isLive = liveDisciplines.includes(d.id)
               const hasAccess = canAccessDiscipline(d.id)
               const isSelected = subscription?.selected_discipline === d.id
-
               return (
                 <div key={d.id} className={`bg-white rounded-xl border p-5 transition-all ${!isLive ? 'border-gray-100 opacity-50' : hasAccess ? `${d.isPara ? 'border-purple-200 hover:border-purple-400' : 'border-blue-200 hover:border-blue-400'} hover:shadow-sm cursor-pointer` : 'border-gray-200'}`}>
                   <div className="flex items-center justify-between mb-3">
@@ -502,12 +438,7 @@ export default function DashboardPage() {
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
           <h3 className="font-semibold text-blue-900 mb-2 text-sm">How AquaRef works</h3>
           <div className="grid md:grid-cols-2 gap-2">
-            {[
-              '✓ Ask any rules question in your language',
-              '✓ AI answers only from official World Aquatics Regulations',
-              '✓ Every answer includes the exact rule number',
-              '✓ Always verify with your Meet Referee for official decisions'
-            ].map((tip, i) => (
+            {['✓ Ask any rules question in your language', '✓ AI answers only from official World Aquatics Regulations', '✓ Every answer includes the exact rule number', '✓ Always verify with your Meet Referee for official decisions'].map((tip, i) => (
               <p key={i} className="text-xs text-blue-700">{tip}</p>
             ))}
           </div>
