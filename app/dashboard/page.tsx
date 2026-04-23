@@ -84,13 +84,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const getUser = async () => {
-  // Process hash token first (for magic link on mobile)
-await supabase.auth.getSession()
-const { data: { user } } = await supabase.auth.getUser()
-if (!user) {
-  window.location.href = '/login'
-  return
-}
+      await supabase.auth.getSession()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        window.location.href = '/login'
+        return
+      }
       setUser(user)
 
       const { data: files } = await supabase
@@ -127,10 +126,7 @@ if (!user) {
       if (!sub.country) {
         const country = await detectCountry()
         if (country) {
-          await supabase
-            .from('user_subscriptions')
-            .update({ country })
-            .eq('user_email', user.email)
+          await supabase.from('user_subscriptions').update({ country }).eq('user_email', user.email)
           sub.country = country
         }
       }
@@ -138,10 +134,7 @@ if (!user) {
       if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id && sub.plan !== 'lite') {
         const expiryDate = new Date()
         expiryDate.setDate(expiryDate.getDate() + 14)
-        await supabase
-          .from('user_subscriptions')
-          .update({ current_period_end: expiryDate.toISOString() })
-          .eq('user_email', user.email)
+        await supabase.from('user_subscriptions').update({ current_period_end: expiryDate.toISOString() }).eq('user_email', user.email)
         sub.current_period_end = expiryDate.toISOString()
       }
 
@@ -170,14 +163,10 @@ if (!user) {
 
       setLoading(false)
 
-      const isBeta = sub.stripe_customer_id === null &&
-        sub.plan !== 'lite' &&
-        sub.current_period_end !== null
+      const isBeta = sub.stripe_customer_id === null && sub.plan !== 'lite' && sub.current_period_end !== null
       if (isBeta) {
         const hasSeenWelcome = localStorage.getItem('aquaref_beta_welcome_v1')
-        if (!hasSeenWelcome) {
-          setShowBetaWelcome(true)
-        }
+        if (!hasSeenWelcome) setShowBetaWelcome(true)
       }
     }
     getUser()
@@ -220,30 +209,14 @@ if (!user) {
     if (!subscription) return false
     if (subscription.status !== 'active') return false
     if (subscription.plan === 'lite') return subscription.selected_discipline === disciplineId
-    if (subscription.plan === 'pro') {
-      if (isExpired()) return false
-      return subscription.selected_discipline === disciplineId
-    }
-    if (subscription.plan === 'elite') {
-      if (isExpired()) return false
-      return true
-    }
-    if (subscription.plan === 'all_disciplines') {
-      if (isExpired()) return false
-      return true
-    }
-    if (subscription.plan === 'starter') {
-      if (isExpired()) return false
-      return subscription.selected_discipline === disciplineId
-    }
+    if (subscription.plan === 'pro') { if (isExpired()) return false; return subscription.selected_discipline === disciplineId }
+    if (subscription.plan === 'elite') { if (isExpired()) return false; return true }
+    if (subscription.plan === 'all_disciplines') { if (isExpired()) return false; return true }
+    if (subscription.plan === 'starter') { if (isExpired()) return false; return subscription.selected_discipline === disciplineId }
     return false
   }
 
-  const isBetaTester = () => {
-    return subscription?.stripe_customer_id === null &&
-      subscription?.plan !== 'lite' &&
-      subscription?.current_period_end !== null
-  }
+  const isBetaTester = () => subscription?.stripe_customer_id === null && subscription?.plan !== 'lite' && subscription?.current_period_end !== null
 
   const getPlanName = () => {
     if (!subscription) return 'No Plan'
@@ -275,9 +248,7 @@ if (!user) {
   }
 
   const handleDisciplineClick = (disciplineId: string) => {
-    if (canAccessDiscipline(disciplineId)) {
-      window.location.href = `/chat/${disciplineId}`
-    }
+    if (canAccessDiscipline(disciplineId)) window.location.href = `/chat/${disciplineId}`
   }
 
   const handleDismissBetaWelcome = () => {
@@ -309,16 +280,10 @@ if (!user) {
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
             {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && !isExpired() && (
-              <button onClick={() => { window.location.href = '/choose-discipline' }} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                Switch Discipline
-              </button>
+              <button onClick={() => { window.location.href = '/choose-discipline' }} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Switch Discipline</button>
             )}
-            <button onClick={() => setShowPlanModal(true)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-              My Plan
-            </button>
-            <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">
-              Logout
-            </button>
+            <button onClick={() => setShowPlanModal(true)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">My Plan</button>
+            <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
           </div>
         </div>
       </div>
@@ -328,26 +293,22 @@ if (!user) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">A</span>
-              </div>
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
               <span className="font-bold text-lg text-gray-900">AquaRef</span>
               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-1">Beta</span>
             </div>
             <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
               <p>Dear {fullName || 'Beta Tester'},</p>
-              <p>Thank you so much for being part of the <strong>AquaRef Beta programme</strong>. Your support and feedback mean a lot to me as I work to make this tool truly useful for the aquatics community.</p>
-              <p>I would greatly appreciate it if you could test the AI for your respective discipline and share your honest feedback — whether the answers are accurate, helpful, and properly cited. Your insights as a Technical Official are invaluable.</p>
-              <p>I'm also excited to share that <strong className="text-purple-700">Para Swimming 🏋️</strong> is now available on AquaRef, powered by the official <strong>World Para Swimming (WPS)</strong> regulations under IPC. Feel free to explore it!</p>
-              <p>You can share your feedback directly in the chat using the <strong>👍</strong> or <strong>👎</strong> buttons after each answer.</p>
+              <p>Thank you so much for being part of the <strong>AquaRef Beta programme</strong>.</p>
+              <p>I would greatly appreciate it if you could test the AI for your respective discipline and share your honest feedback. Your insights as a Technical Official are invaluable.</p>
+              <p><strong className="text-purple-700">Para Swimming 🏋️</strong> is now available, powered by <strong>World Para Swimming (WPS)</strong> under IPC.</p>
+              <p>Share feedback using the <strong>👍</strong> or <strong>👎</strong> buttons after each answer.</p>
               <div className="pt-2 border-t border-gray-100">
                 <p>Sincerely,</p>
                 <p className="font-semibold text-gray-900 mt-1">Adhwa</p>
               </div>
             </div>
-            <button onClick={handleDismissBetaWelcome} className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 transition-colors">
-              Got it, thanks! 🙏
-            </button>
+            <button onClick={handleDismissBetaWelcome} className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700">Got it, thanks! 🙏</button>
           </div>
         </div>
       )}
@@ -366,46 +327,27 @@ if (!user) {
               <p className={`text-sm mt-1 ${subscription?.plan === 'elite' ? 'text-gray-400' : subscription?.plan === 'lite' ? 'text-green-700' : 'text-blue-700'}`}>{getPlanPrice()}</p>
             </div>
             <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Status</span>
-                <span className="font-medium text-green-600">Active</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Email</span>
-                <span className="text-gray-700">{user?.email}</span>
-              </div>
-              {subscription?.country && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Country</span>
-                  <span className="text-gray-700">{subscription.country}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Status</span><span className="font-medium text-green-600">Active</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Email</span><span className="text-gray-700 text-xs">{user?.email}</span></div>
+              {subscription?.country && <div className="flex justify-between text-sm"><span className="text-gray-500">Country</span><span className="text-gray-700">{subscription.country}</span></div>}
               {subscription?.current_period_end && subscription?.plan !== 'lite' && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{isBetaTester() ? 'Beta expires' : 'Renews on'}</span>
                   <span className="text-gray-700">{new Date(subscription.current_period_end).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </div>
               )}
-              {subscription?.plan === 'lite' && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Expiry</span>
-                  <span className="text-green-600 font-medium">Never — Free forever</span>
-                </div>
-              )}
+              {subscription?.plan === 'lite' && <div className="flex justify-between text-sm"><span className="text-gray-500">Expiry</span><span className="text-green-600 font-medium">Never — Free forever</span></div>}
               {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && subscription.selected_discipline && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Selected Discipline</span>
-                  <span className="text-gray-700 capitalize">{disciplines.find(d => d.id === subscription.selected_discipline)?.name}</span>
+                  <span className="text-gray-500">Discipline</span>
+                  <span className="text-gray-700">{disciplines.find(d => d.id === subscription.selected_discipline)?.name}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Questions</span>
-                <span className="text-gray-700">{getQuestionsPerDay()}</span>
-              </div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Questions</span><span className="text-gray-700">{getQuestionsPerDay()}</span></div>
             </div>
             <div className="space-y-2">
               {!isBetaTester() && subscription?.stripe_customer_id && (
-                <button onClick={handleManageSubscription} disabled={portalLoading} className="w-full py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50 transition-colors">
+                <button onClick={handleManageSubscription} disabled={portalLoading} className="w-full py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50">
                   {portalLoading ? 'Opening...' : '⚙️ Manage Subscription'}
                 </button>
               )}
@@ -422,167 +364,97 @@ if (!user) {
       )}
 
       {/* Main content */}
-      <div className="flex-1 max-w-6xl mx-auto w-full px-6 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back{fullName ? `, ${fullName}` : ''}! 👋</h1>
-          <p className="text-gray-500">Select a discipline to get instant AI-powered rules answers</p>
+      <div className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-gray-900 mb-1">Welcome back{fullName ? `, ${fullName}` : ''}! 👋</h1>
+          <p className="text-gray-500 text-sm">Select a discipline to get instant AI-powered rules answers</p>
         </div>
 
         {isExpired() && (
-          <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-red-900">Your access has expired</p>
-              <p className="text-xs text-red-600 mt-0.5">Subscribe to continue accessing AquaRef</p>
-            </div>
+          <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-red-900">Your access has expired</p><p className="text-xs text-red-600 mt-0.5">Subscribe to continue</p></div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">View Plans</button>
           </div>
         )}
 
         {isBetaTester() && !isExpired() && (
-          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-green-900">✅ Beta Access — All Disciplines</p>
-              <p className="text-xs text-green-600 mt-0.5">Access expires: {new Date(subscription!.current_period_end!).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-            </div>
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-green-900">✅ Beta Access — All Disciplines</p><p className="text-xs text-green-600 mt-0.5">Expires: {new Date(subscription!.current_period_end!).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Subscribe Now</button>
           </div>
         )}
 
         {subscription?.plan === 'lite' && (
-          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-green-900">🆓 AquaRef LITE — Free Forever</p>
-              <p className="text-xs text-green-600 mt-0.5">5 questions per month · 1 discipline · Upgrade anytime for more access</p>
-            </div>
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-green-900">🆓 AquaRef LITE — Free Forever</p><p className="text-xs text-green-600 mt-0.5">5 questions/month · 1 discipline</p></div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade</button>
           </div>
         )}
 
         {subscription?.plan === 'pro' && !isExpired() && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-blue-900">AquaRef PRO — {subscription.selected_discipline ? `${disciplines.find(d => d.id === subscription.selected_discipline)?.name} selected` : 'No discipline selected'}</p>
-              <p className="text-xs text-blue-600 mt-0.5">50 questions/day · Switch discipline once every 30 days</p>
-            </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-blue-900">AquaRef PRO</p><p className="text-xs text-blue-600 mt-0.5">50 questions/day · {subscription.selected_discipline ? disciplines.find(d => d.id === subscription.selected_discipline)?.name : 'No discipline'}</p></div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade to ELITE</button>
           </div>
         )}
 
-        {subscription?.plan === 'starter' && !isExpired() && !isBetaTester() && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-blue-900">Starter Plan — {subscription.selected_discipline ? `${disciplines.find(d => d.id === subscription.selected_discipline)?.name} selected` : 'No discipline selected'}</p>
-              <p className="text-xs text-blue-600 mt-0.5">You can switch your discipline once per month</p>
-            </div>
-            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade Plan</button>
-          </div>
-        )}
-
         {!subscription && (
-          <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-yellow-900">No active subscription</p>
-              <p className="text-xs text-yellow-600 mt-0.5">Subscribe to access the AI rules assistant</p>
-            </div>
+          <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-yellow-900">No active subscription</p></div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">View Plans</button>
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-4 mb-10">
-          <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{liveDisciplines.length}</div>
-            <div className="text-xs text-gray-400 mt-1">Disciplines available</div>
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="bg-white rounded-xl border border-gray-100 p-3 text-center">
+            <div className="text-lg font-bold text-blue-600">{liveDisciplines.length}</div>
+            <div className="text-xs text-gray-400 mt-0.5">Disciplines</div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{getQuestionsPerDay()}</div>
-            <div className="text-xs text-gray-400 mt-1">Questions {subscription?.plan === 'lite' ? 'per month' : 'per day'}</div>
+          <div className="bg-white rounded-xl border border-gray-100 p-3 text-center">
+            <div className="text-lg font-bold text-blue-600 truncate">{getQuestionsPerDay()}</div>
+            <div className="text-xs text-gray-400 mt-0.5">Questions/{subscription?.plan === 'lite' ? 'mo' : 'day'}</div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">90+</div>
-            <div className="text-xs text-gray-400 mt-1">Languages supported</div>
+          <div className="bg-white rounded-xl border border-gray-100 p-3 text-center">
+            <div className="text-lg font-bold text-blue-600">90+</div>
+            <div className="text-xs text-gray-400 mt-0.5">Languages</div>
           </div>
         </div>
 
-        {/* Disciplines */}
-        <div className="mb-10">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Choose a discipline</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {disciplines.map((d) => {
-              const isLive = liveDisciplines.includes(d.id)
-              const hasAccess = canAccessDiscipline(d.id)
-              const isSelected = subscription?.selected_discipline === d.id
-
-              return (
-                <div key={d.id} className={`bg-white rounded-xl border p-6 transition-all ${!isLive ? 'border-gray-100 opacity-50' : hasAccess ? `${d.isPara ? 'border-purple-200 hover:border-purple-400' : 'border-blue-200 hover:border-blue-400'} hover:shadow-sm cursor-pointer` : 'border-gray-200'}`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-3xl">{d.icon}</span>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${!isLive ? 'bg-gray-100 text-gray-400' : isSelected ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}` : hasAccess ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}` : 'bg-gray-100 text-gray-400'}`}>
-                      {!isLive ? 'Coming Soon' : isSelected ? '● Your Plan' : hasAccess ? '● Live' : '🔒 Locked'}
-                    </span>
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-1">{d.name}</h3>
-                  <p className={`text-xs mb-1 ${d.isPara ? 'text-purple-500 font-medium' : 'text-gray-400'}`}>{d.code}</p>
-                  {d.isPara && <p className="text-xs text-purple-400 mb-1">World Para Swimming (IPC)</p>}
-                  <p className="text-xs text-gray-400 mb-4 leading-relaxed">{d.desc}</p>
-                  {!isLive ? (
-                    <button disabled className="w-full bg-gray-50 text-gray-300 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-100">Coming Soon</button>
-                  ) : hasAccess ? (
-                    <button onClick={() => handleDisciplineClick(d.id)} className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors text-white ${d.isPara ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}>Ask Rules Question →</button>
-                  ) : (
-                    <button onClick={() => { window.location.href = subscription?.plan === 'lite' ? '/choose-discipline' : '/pricing' }} className="w-full bg-gray-100 text-gray-500 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-                      {subscription?.plan === 'lite' ? 'Select This Discipline' : isExpired() ? 'Renew Access' : 'Upgrade to Access'}
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <p className="text-xs text-gray-400 mt-4">* Para Swimming rules are governed by World Para Swimming (WPS) under the International Paralympic Committee (IPC), independent of World Aquatics.</p>
-        </div>
-
-        {/* Events Section */}
+        {/* Events Section - TOP */}
         {events.length > 0 && (
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-4">
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">🏆 Live Events</h2>
+                <h2 className="text-base font-semibold text-gray-900">🏆 Live Events</h2>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {isElite ? 'Showing events from all countries (ELITE access)' : `Showing events in ${userCountry || 'your country'}`}
+                  {isElite ? 'All countries (ELITE)' : `Events in ${userCountry || 'your country'}`}
                 </p>
               </div>
-              {!isElite && (
-                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                  🌍 ELITE: see all global events
-                </span>
-              )}
+              {!isElite && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">🌍 ELITE: global events</span>}
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-3">
               {events.map((event) => (
-                <div key={event.id} className="bg-white rounded-xl border border-green-100 p-5 hover:border-green-300 hover:shadow-sm transition-all cursor-pointer" onClick={() => { window.location.href = `/events/${event.slug}` }}>
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
+                <div key={event.id} className="bg-white rounded-xl border border-green-100 p-4 hover:border-green-300 hover:shadow-sm transition-all cursor-pointer" onClick={() => { window.location.href = `/events/${event.slug}` }}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 mr-2">
                       <h3 className="font-semibold text-gray-900 text-sm">{event.name}</h3>
                       <p className="text-xs text-gray-400 mt-0.5">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0 ml-2">🟢 Live</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢 Live</span>
                   </div>
-                  <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
                     {event.start_date && (
                       <span className="text-xs text-gray-400">
                         📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                        {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                        {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
                       </span>
                     )}
                   </div>
-                  {event.description && <p className="text-xs text-gray-400 mb-3 line-clamp-2">{event.description}</p>}
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">
-                      {subscription?.plan === 'lite' ? '3 free questions' : 'Unlimited questions'}
-                    </span>
-                    <button className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">
-                      Open Event AI →
-                    </button>
+                    <span className="text-xs text-gray-400">{subscription?.plan === 'lite' ? '3 free questions' : 'Unlimited'}</span>
+                    <button className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">Open Event AI →</button>
                   </div>
                 </div>
               ))}
@@ -590,28 +462,63 @@ if (!user) {
           </div>
         )}
 
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
-          <h3 className="font-semibold text-blue-900 mb-3">How AquaRef works</h3>
-          <div className="grid md:grid-cols-2 gap-3">
+        {/* Disciplines */}
+        <div className="mb-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-3">Choose a discipline</h2>
+          <div className="grid md:grid-cols-3 gap-4">
+            {disciplines.map((d) => {
+              const isLive = liveDisciplines.includes(d.id)
+              const hasAccess = canAccessDiscipline(d.id)
+              const isSelected = subscription?.selected_discipline === d.id
+
+              return (
+                <div key={d.id} className={`bg-white rounded-xl border p-5 transition-all ${!isLive ? 'border-gray-100 opacity-50' : hasAccess ? `${d.isPara ? 'border-purple-200 hover:border-purple-400' : 'border-blue-200 hover:border-blue-400'} hover:shadow-sm cursor-pointer` : 'border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-2xl">{d.icon}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${!isLive ? 'bg-gray-100 text-gray-400' : isSelected ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}` : hasAccess ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}` : 'bg-gray-100 text-gray-400'}`}>
+                      {!isLive ? 'Coming Soon' : isSelected ? '● Your Plan' : hasAccess ? '● Live' : '🔒 Locked'}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-1 text-sm">{d.name}</h3>
+                  <p className={`text-xs mb-1 ${d.isPara ? 'text-purple-500 font-medium' : 'text-gray-400'}`}>{d.code}</p>
+                  {d.isPara && <p className="text-xs text-purple-400 mb-1">World Para Swimming (IPC)</p>}
+                  <p className="text-xs text-gray-400 mb-3 leading-relaxed">{d.desc}</p>
+                  {!isLive ? (
+                    <button disabled className="w-full bg-gray-50 text-gray-300 py-2 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-100">Coming Soon</button>
+                  ) : hasAccess ? (
+                    <button onClick={() => handleDisciplineClick(d.id)} className={`w-full py-2 rounded-lg text-sm font-medium transition-colors text-white ${d.isPara ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}>Ask Rules Question →</button>
+                  ) : (
+                    <button onClick={() => { window.location.href = subscription?.plan === 'lite' ? '/choose-discipline' : '/pricing' }} className="w-full bg-gray-100 text-gray-500 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                      {subscription?.plan === 'lite' ? 'Select This Discipline' : isExpired() ? 'Renew Access' : 'Upgrade to Access'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-400 mt-3">* Para Swimming rules are governed by World Para Swimming (WPS) under IPC, independent of World Aquatics.</p>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <h3 className="font-semibold text-blue-900 mb-2 text-sm">How AquaRef works</h3>
+          <div className="grid md:grid-cols-2 gap-2">
             {[
               '✓ Ask any rules question in your language',
               '✓ AI answers only from official World Aquatics Regulations',
               '✓ Every answer includes the exact rule number',
               '✓ Always verify with your Meet Referee for official decisions'
             ].map((tip, i) => (
-              <p key={i} className="text-sm text-blue-700">{tip}</p>
+              <p key={i} className="text-xs text-blue-700">{tip}</p>
             ))}
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 bg-white px-6 py-6 mt-10">
+      <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center">
-              <span className="text-white font-bold text-xs">A</span>
-            </div>
+            <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center"><span className="text-white font-bold text-xs">A</span></div>
             <span className="font-bold text-gray-900 text-sm">AquaRef</span>
           </div>
           <p className="text-xs text-gray-400 text-center">For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.</p>
