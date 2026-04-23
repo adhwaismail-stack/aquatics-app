@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
-import Anthropic from '@anthropic-ai/sdk'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -36,15 +35,6 @@ function chunkText(text: string): string[] {
     }
   }
   return chunks
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return Buffer.from(binary, 'binary').toString('base64')
 }
 
 async function extractTextFromDOCX(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -105,56 +95,71 @@ async function extractSwimmersFromPDF(arrayBuffer: ArrayBuffer, eventName: strin
       return []
     }
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-    const base64PDF = arrayBufferToBase64(arrayBuffer)
+    // Convert ArrayBuffer to base64 safely in Node.js
+    const base64PDF = Buffer.from(arrayBuffer).toString('base64')
 
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: base64PDF }
-          } as any,
-          {
-            type: 'text',
-            text: `You are extracting swimmer data from a start list / heat sheet for "${eventName}".
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 4000,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: base64PDF
+              }
+            },
+            {
+              type: 'text',
+              text: `You are extracting swimmer entries from a start list / heat sheet for the "${eventName}" aquatics event.
 
-Go through EVERY page and EVERY event carefully. Extract EVERY single swimmer entry.
+Go through EVERY page and EVERY event. Extract EVERY swimmer entry you find.
 
 For each swimmer, output EXACTLY this format on its own line:
-[SWIMMER] Name: FULL_NAME | Event: EVENT_NO EVENT_NAME | Heat: HEAT_NO of TOTAL_HEATS | Lane: LANE_NO | Team: TEAM | Seed: SEED_TIME
+[SWIMMER] Name: FULL_NAME | Event: EVENT_NO EVENT_NAME | Heat: HEAT_NO of TOTAL | Lane: LANE_NO | Team: TEAM | Seed: SEED_TIME
+
+Example:
+[SWIMMER] Name: Noma Horiuchi | Event: 101 Women 100 LC Meter Freestyle | Heat: 7 of 12 | Lane: 4 | Team: SEL | Seed: 1:02.48
+[SWIMMER] Name: Noma Horiuchi | Event: 105 Women 100 LC Meter Backstroke | Heat: 6 of 8 | Lane: 5 | Team: SEL | Seed: 1:07.82
 
 Rules:
 - Include ALL swimmers from ALL events
-- Use the exact event number shown (e.g. 101, 102, 103...)
-- Use the exact swimmer name as shown
-- Do not skip any swimmer or any event
-- Each swimmer entry must be on its own separate line
-- If a swimmer appears in multiple events, output a separate line for each event
+- Each swimmer entry on its own line
+- If swimmer is in multiple events, output one line per event
+- Do not skip any swimmer
 
-Example output:
-[SWIMMER] Name: Noma Horiuchi | Event: 101 Women 100 LC Meter Freestyle | Heat: 7 of 12 | Lane: 4 | Team: SEL | Seed: 1:02.48
-[SWIMMER] Name: Noma Horiuchi | Event: 105 Women 100 LC Meter Backstroke | Heat: 6 of 8 | Lane: 5 | Team: SEL | Seed: 1:07.82
-[SWIMMER] Name: Ahmad Razif | Event: 102 Men 100 LC Meter Freestyle | Heat: 3 of 8 | Lane: 4 | Team: WP | Seed: 52.34
-
-If no swimmer data found, reply only: NO_SWIMMER_DATA`
-          }
-        ]
-      }]
+If no swimmer data: NO_SWIMMER_DATA`
+            }
+          ]
+        }]
+      })
     })
 
-    const content = response.content[0]
-    if (content.type !== 'text') return []
-    const text = content.text.trim()
-    if (text.includes('NO_SWIMMER_DATA')) return []
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Vision API error:', response.status, errorText)
+      return []
+    }
+
+    const data = await response.json()
+    const text = data.content?.[0]?.text?.trim() || ''
+
+    if (!text || text.includes('NO_SWIMMER_DATA')) return []
 
     const swimmers = text
       .split('\n')
-      .map(v => v.trim())
-      .filter(v => v.startsWith('[SWIMMER]') && v.length > 20)
+      .map((v: string) => v.trim())
+      .filter((v: string) => v.startsWith('[SWIMMER]') && v.length > 20)
 
     console.log(`Vision RAG extracted ${swimmers.length} swimmer entries`)
     return swimmers
@@ -221,6 +226,7 @@ export async function POST(request: NextRequest) {
 
     const textChunks = chunkText(text)
     let visualChunks: string[] = []
+
     if (isPdf) {
       visualChunks = await extractSwimmersFromPDF(arrayBuffer, eventName)
     }
