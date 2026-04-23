@@ -85,10 +85,10 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Extract potential swimmer name from question for targeted search
+    // Extract words for keyword search
     const words = englishQuestion.split(' ').filter((w: string) => w.length > 2)
-    
-    // Keyword search — search ALL words including names
+
+    // Keyword search
     let keywordChunks: { content: string }[] = []
     for (const word of words.slice(0, 10)) {
       const { data } = await supabase
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    // Also search for full name combinations (first + last name)
+    // Search for full name combinations
     if (words.length >= 2) {
       for (let i = 0; i < words.length - 1; i++) {
         const namePair = `${words[i]} ${words[i + 1]}`
@@ -141,26 +141,17 @@ Your knowledge comes ONLY from the event documents uploaded for this event — s
 
 YOUR APPROACH:
 1. Answer based strictly on the event documents provided
-2. IMPORTANT: When asked about a swimmer, search ALL provided chunks thoroughly for EVERY occurrence of that swimmer's name — they may appear in multiple events across different chunks
-3. Always include ALL events found for a swimmer — never stop at just one or two
-4. Always reply in the same language the user writes in
+2. When asked about a swimmer, search ALL provided content thoroughly for EVERY occurrence of that swimmer's name — list ALL events found
+3. Always reply in the same language the user writes in
+4. Present information in a clean, professional format
 5. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
 
-ANSWER FORMAT:
-
-For swimmer/heat queries, use this EXACT table format:
-
-**[Swimmer Name]** is entered in the following events:
-
-| Event | Event Name | Heat | Lane | Team | Seed Time |
-|-------|-----------|------|------|------|-----------|
-| #101 | Women 100 LC Meter Freestyle | Heat 7 of 12 | 4 | SEL | 1:02.48 |
-| #105 | Women 100 LC Meter Backstroke | Heat 6 of 8 | 5 | SEL | 1:07.82 |
-| #107 | Women 50 LC Meter Butterfly | Heat 9 of 10 | 8 | SEL | 30.37 |
-
-For schedule questions, use a clean table with columns: Time, Event, Description.
-For results questions, use a clean table with columns: Place, Name, Team, Time.
-For general questions, use clear paragraphs with bold headers.
+FORMATTING RULES:
+- For swimmer event/heat queries: use a markdown table with columns: Event No. | Event Name | Heat | Lane | Team | Seed Time
+- For schedule queries: use a markdown table with columns: Time | Event No. | Event Name | Session
+- For results queries: use a markdown table with columns: Place | Name | Team | Time | Points
+- For general text answers: use bold headers, bullet points and clear paragraphs
+- Always use proper markdown table syntax with | separators and header dividers like |---|---|
 
 NON-EVENT QUESTIONS:
 For questions unrelated to this event, respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
