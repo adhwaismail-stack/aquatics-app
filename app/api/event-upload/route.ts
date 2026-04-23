@@ -12,17 +12,62 @@ const supabase = createClient(
 
 function cleanText(text: string): string {
   return text
-    .replace(/\f/g, '\n\n')
+    .replace(/\f/g, '\n')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .replace(/\.{4,}/g, ' ')
     .replace(/_{4,}/g, ' ')
     .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
 
-function chunkText(text: string): string[] {
+// Smart chunker that preserves event + heat + swimmer context
+function smartChunkStartList(text: string): string[] {
+  const lines = cleanText(text).split('\n').map(l => l.trim()).filter(l => l.length > 0)
+  const chunks: string[] = []
+
+  let currentEvent = ''
+  let currentHeat = ''
+  let heatSwimmers: string[] = []
+
+  const isEventHeader = (line: string) => /^Event\s+\d+/i.test(line)
+  const isHeatHeader = (line: string) => /^Heat\s+\d+/i.test(line) || /\(#\d+/i.test(line)
+  const isSwimmerLine = (line: string) => {
+    // Lane number followed by name pattern
+    return /^\d+\s+[A-Z][a-zA-Z]/.test(line) && line.length > 10
+  }
+
+  const flushHeat = () => {
+    if (currentEvent && heatSwimmers.length > 0) {
+      const chunk = `${currentEvent}\n${currentHeat}\n${heatSwimmers.join('\n')}`
+      chunks.push(chunk)
+    }
+    heatSwimmers = []
+  }
+
+  for (const line of lines) {
+    if (isEventHeader(line)) {
+      flushHeat()
+      currentEvent = line
+      currentHeat = ''
+    } else if (isHeatHeader(line)) {
+      flushHeat()
+      currentHeat = line
+    } else if (isSwimmerLine(line) && currentEvent) {
+      heatSwimmers.push(line)
+    }
+  }
+  flushHeat()
+
+  // If smart chunking produced few results, fall back to regular chunking
+  if (chunks.length < 5) {
+    return regularChunkText(text)
+  }
+
+  return chunks
+}
+
+function regularChunkText(text: string): string[] {
   const cleaned = cleanText(text)
   const chunks: string[] = []
   const chunkSize = 600
@@ -30,11 +75,16 @@ function chunkText(text: string): string[] {
 
   for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
     const chunk = cleaned.slice(i, i + chunkSize).trim()
-    if (chunk.length > 50) {
-      chunks.push(chunk)
-    }
+    if (chunk.length > 50) chunks.push(chunk)
   }
   return chunks
+}
+
+function chunkText(text: string, isStartList: boolean = false): string[] {
+  if (isStartList) {
+    return smartChunkStartList(text)
+  }
+  return regularChunkText(text)
 }
 
 async function extractTextFromDOCX(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -87,89 +137,6 @@ async function extractTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string> {
   }
 }
 
-async function extractSwimmersFromPDF(arrayBuffer: ArrayBuffer, eventName: string): Promise<string[]> {
-  try {
-    const fileSizeMB = arrayBuffer.byteLength / (1024 * 1024)
-    if (fileSizeMB > 20) {
-      console.log(`PDF too large for vision (${fileSizeMB.toFixed(1)}MB), skipping`)
-      return []
-    }
-
-    // Convert ArrayBuffer to base64 safely in Node.js
-    const base64PDF = Buffer.from(arrayBuffer).toString('base64')
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 4000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64PDF
-              }
-            },
-            {
-              type: 'text',
-              text: `You are extracting swimmer entries from a start list / heat sheet for the "${eventName}" aquatics event.
-
-Go through EVERY page and EVERY event. Extract EVERY swimmer entry you find.
-
-For each swimmer, output EXACTLY this format on its own line:
-[SWIMMER] Name: FULL_NAME | Event: EVENT_NO EVENT_NAME | Heat: HEAT_NO of TOTAL | Lane: LANE_NO | Team: TEAM | Seed: SEED_TIME
-
-Example:
-[SWIMMER] Name: Noma Horiuchi | Event: 101 Women 100 LC Meter Freestyle | Heat: 7 of 12 | Lane: 4 | Team: SEL | Seed: 1:02.48
-[SWIMMER] Name: Noma Horiuchi | Event: 105 Women 100 LC Meter Backstroke | Heat: 6 of 8 | Lane: 5 | Team: SEL | Seed: 1:07.82
-
-Rules:
-- Include ALL swimmers from ALL events
-- Each swimmer entry on its own line
-- If swimmer is in multiple events, output one line per event
-- Do not skip any swimmer
-
-If no swimmer data: NO_SWIMMER_DATA`
-            }
-          ]
-        }]
-      })
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Vision API error:', response.status, errorText)
-      return []
-    }
-
-    const data = await response.json()
-    const text = data.content?.[0]?.text?.trim() || ''
-
-    if (!text || text.includes('NO_SWIMMER_DATA')) return []
-
-    const swimmers = text
-      .split('\n')
-      .map((v: string) => v.trim())
-      .filter((v: string) => v.startsWith('[SWIMMER]') && v.length > 20)
-
-    console.log(`Vision RAG extracted ${swimmers.length} swimmer entries`)
-    return swimmers
-
-  } catch (err) {
-    console.error('Vision extraction failed:', err)
-    return []
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
@@ -216,22 +183,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not extract text from file.' }, { status: 400 })
     }
 
-    const { data: eventData } = await supabase
-      .from('events')
-      .select('name')
-      .eq('id', eventId)
-      .single()
+    // Detect if this is a start list / heat sheet
+    const isStartList = /Event\s+\d+/i.test(text) && /Heat\s+\d+/i.test(text)
 
-    const eventName = eventData?.name || 'Aquatics Event'
-
-    const textChunks = chunkText(text)
-    let visualChunks: string[] = []
-
-    if (isPdf) {
-      visualChunks = await extractSwimmersFromPDF(arrayBuffer, eventName)
-    }
-
-    const chunks = [...textChunks, ...visualChunks]
+    const chunks = chunkText(text, isStartList)
 
     if (chunks.length === 0) {
       return NextResponse.json({ error: 'Could not extract any content from file.' }, { status: 400 })
@@ -272,8 +227,9 @@ export async function POST(request: NextRequest) {
       success: true,
       message: `Successfully processed ${chunks.length} chunks`,
       chunks: chunks.length,
-      textChunks: textChunks.length,
-      visualChunks: visualChunks.length
+      textChunks: chunks.length,
+      visualChunks: 0,
+      smartChunked: isStartList
     })
 
   } catch (error: unknown) {
