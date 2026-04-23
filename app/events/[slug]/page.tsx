@@ -184,13 +184,8 @@ export default function EventChatPage() {
               <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-xs text-gray-400">
                   {countryToFlag(event?.country || '')} {event?.country} · 📍 {event?.location} · 🏊 {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}
+                  {event?.start_date && ` · 📅 ${new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}${event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`}
                 </p>
-                {event?.start_date && (
-                  <p className="text-xs text-gray-400">
-                    · 📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                    {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
-                  </p>
-                )}
               </div>
             </div>
           </div>
@@ -231,20 +226,21 @@ export default function EventChatPage() {
                 </div>
               ) : (
                 <div className="max-w-3xl w-full">
-                  <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
+                  <div className="bg-white border border-gray-100 px-6 py-5 rounded-2xl rounded-bl-sm shadow-sm">
                     <div className="text-gray-700 text-sm">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h1>,
-                          h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-4 mb-2">{children}</h2>,
-                          h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
+                          h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-4 mb-3 pb-1 border-b border-gray-100">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-5 mb-2">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-sm font-bold text-green-700 mt-5 mb-3 pb-1 border-b border-green-100">{children}</h3>,
                           p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-green-700">{children}</strong>,
-                          ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
-                          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                          ul: ({ children }) => <ul className="space-y-2 mb-4 text-gray-700 ml-1">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal list-inside space-y-2 mb-4 text-gray-700">{children}</ol>,
+                          li: ({ children }) => <li className="leading-relaxed flex items-start gap-2"><span className="text-green-500 mt-0.5 flex-shrink-0">•</span><span>{children}</span></li>,
                           blockquote: ({ children }) => <blockquote className="border-l-4 border-green-200 pl-4 italic text-gray-600 my-3">{children}</blockquote>,
+                          hr: () => <hr className="my-5 border-gray-100" />,
                           table: ({ children }) => (
                             <div className="overflow-x-auto mb-4 rounded-lg border border-gray-200">
                               <table className="min-w-full text-sm">{children}</table>
