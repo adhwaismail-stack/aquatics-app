@@ -117,14 +117,9 @@ const DISCIPLINES = [
 ]
 
 const DISCIPLINE_LABELS: Record<string, string> = {
-  swimming: 'Swimming',
-  waterpolo: 'Water Polo',
-  artistic: 'Artistic Swimming',
-  diving: 'Diving',
-  highdiving: 'High Diving',
-  masters: 'Masters',
-  openwater: 'Open Water',
-  paraswimming: 'Para Swimming',
+  swimming: 'Swimming', waterpolo: 'Water Polo', artistic: 'Artistic Swimming',
+  diving: 'Diving', highdiving: 'High Diving', masters: 'Masters',
+  openwater: 'Open Water', paraswimming: 'Para Swimming',
 }
 
 const COUNTRIES = [
@@ -243,6 +238,7 @@ export default function AdminPage() {
   const [extendDays, setExtendDays] = useState('14')
   const [tokenLogs, setTokenLogs] = useState<TokenLog[]>([])
   const [lastLogins, setLastLogins] = useState<Record<string, string>>({})
+  const [recentActiveUsers, setRecentActiveUsers] = useState<{ email: string, created_at: string }[]>([])
   const [events, setEvents] = useState<AquaEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventTab, setEventTab] = useState('all-events')
@@ -370,6 +366,39 @@ export default function AdminPage() {
       .select('input_tokens, output_tokens, created_at')
       .not('input_tokens', 'is', null)
     if (tokenData) setTokenLogs(tokenData)
+
+    // Load recent active users from both chat_logs AND event_usage
+    const { data: chatActive } = await supabase
+      .from('chat_logs')
+      .select('user_email, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    const { data: eventActive } = await supabase
+      .from('event_usage')
+      .select('user_email, updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(50)
+
+    // Merge and deduplicate
+    const allActivity: Record<string, string> = {}
+    chatActive?.forEach((l: any) => {
+      if (!allActivity[l.user_email] || new Date(l.created_at) > new Date(allActivity[l.user_email])) {
+        allActivity[l.user_email] = l.created_at
+      }
+    })
+    eventActive?.forEach((l: any) => {
+      if (!allActivity[l.user_email] || new Date(l.updated_at) > new Date(allActivity[l.user_email])) {
+        allActivity[l.user_email] = l.updated_at
+      }
+    })
+
+    const sorted = Object.entries(allActivity)
+      .sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
+      .slice(0, 10)
+      .map(([email, created_at]) => ({ email, created_at }))
+
+    setRecentActiveUsers(sorted)
     setAnalyticsLoading(false)
   }
 
@@ -386,7 +415,6 @@ export default function AdminPage() {
       .select('source_file, chunk_index')
       .eq('event_id', eventId)
       .order('chunk_index', { ascending: false })
-
     if (data) {
       const fileMap: Record<string, number> = {}
       data.forEach((chunk: { source_file: string }) => {
@@ -401,16 +429,10 @@ export default function AdminPage() {
     if (!confirm(`Delete "${fileName}"? This will remove all its chunks from the AI.`)) return
     setDeletingEventFile(fileName)
     try {
-      await supabase
-        .from('event_chunks')
-        .delete()
-        .eq('event_id', eventId)
-        .eq('source_file', fileName)
+      await supabase.from('event_chunks').delete().eq('event_id', eventId).eq('source_file', fileName)
       await loadEventFiles(eventId)
       alert(`✅ "${fileName}" deleted successfully.`)
-    } catch {
-      alert('Failed to delete file.')
-    }
+    } catch { alert('Failed to delete file.') }
     setDeletingEventFile(null)
   }
 
@@ -464,9 +486,7 @@ export default function AdminPage() {
         body: JSON.stringify({ fileId: file.id, discipline: file.discipline, originalName: file.original_name, fileName: file.file_name })
       })
       await loadAllFiles()
-    } catch {
-      alert('Failed to delete file.')
-    }
+    } catch { alert('Failed to delete file.') }
     setDeletingFile(null)
   }
 
@@ -500,16 +520,12 @@ export default function AdminPage() {
   }
 
   const handleCreateEvent = async () => {
-    if (!newEvent.name || !newEvent.slug) {
-      alert('Event name and URL slug are required!')
-      return
-    }
+    if (!newEvent.name || !newEvent.slug) { alert('Event name and URL slug are required!'); return }
     const slug = newEvent.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
     setCreatingEvent(true)
     const { error } = await supabase.from('events').insert({ ...newEvent, slug, is_active: false })
-    if (error) {
-      alert('Error creating event: ' + error.message)
-    } else {
+    if (error) { alert('Error creating event: ' + error.message) }
+    else {
       alert('✅ Event created! You can now upload documents and activate it.')
       setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', country: 'Malaysia', location: '', start_date: '', end_date: '' })
       loadEvents()
@@ -572,10 +588,7 @@ export default function AdminPage() {
       await supabase.from('user_subscriptions').insert({ user_email: betaEmail.trim().toLowerCase(), plan: 'elite', status: 'active', current_period_end: expiryDate.toISOString(), stripe_customer_id: null })
     }
     alert(`✅ Beta access granted to ${betaEmail} for ${betaDays} days`)
-    setBetaEmail('')
-    setBetaDays('14')
-    setGrantingBeta(false)
-    loadBetaUsers()
+    setBetaEmail(''); setBetaDays('14'); setGrantingBeta(false); loadBetaUsers()
   }
 
   const handleExtendBeta = async (email: string) => {
@@ -587,12 +600,11 @@ export default function AdminPage() {
     newExpiry.setDate(newExpiry.getDate() + days)
     await supabase.from('user_subscriptions').update({ current_period_end: newExpiry.toISOString(), status: 'active' }).eq('user_email', email)
     alert(`✅ Extended by ${days} days. New expiry: ${newExpiry.toLocaleDateString()}`)
-    setExtendEmail(null)
-    loadBetaUsers()
+    setExtendEmail(null); loadBetaUsers()
   }
 
   const handleRevokeBeta = async (email: string) => {
-    if (!confirm(`Revoke beta access for ${email}? They will lose access immediately.`)) return
+    if (!confirm(`Revoke beta access for ${email}?`)) return
     await supabase.from('user_subscriptions').update({ status: 'cancelled', current_period_end: new Date().toISOString() }).eq('user_email', email)
     alert(`✅ Beta access revoked for ${email}`)
     loadBetaUsers()
@@ -627,60 +639,32 @@ export default function AdminPage() {
   const proSubs = userSubscriptions.filter(s => (s.plan === 'pro' || s.plan === 'starter') && s.status === 'active' && s.stripe_customer_id)
   const eliteSubs = userSubscriptions.filter(s => (s.plan === 'elite' || s.plan === 'all_disciplines') && s.status === 'active' && s.stripe_customer_id)
   const estimatedMRR = (proSubs.length * 14.99) + (eliteSubs.length * 39.99)
-
   const totalLikes = feedback.filter(f => f.feedback === 'like').length
   const totalDislikes = feedback.filter(f => f.feedback === 'dislike').length
   const satisfactionRate = feedback.length > 0 ? Math.round((totalLikes / feedback.length) * 100) : 0
-
-  const disciplineUsage = DISCIPLINES.map(d => ({
-    label: d.name,
-    value: chatLogs.filter(l => l.discipline === d.discipline).length
-  })).filter(d => d.value > 0).sort((a, b) => b.value - a.value)
-
+  const disciplineUsage = DISCIPLINES.map(d => ({ label: d.name, value: chatLogs.filter(l => l.discipline === d.discipline).length })).filter(d => d.value > 0).sort((a, b) => b.value - a.value)
   const last7Days = [...Array(7)].map((_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
+    const d = new Date(); d.setDate(d.getDate() - i)
     const dateStr = d.toISOString().split('T')[0]
     const usage = dailyUsage.find(u => u.date === dateStr)
     return { label: d.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric' }), value: usage?.count || 0 }
   }).reverse()
-
   const newSubsLast30Days = userSubscriptions.filter(s => {
     const created = new Date(s.created_at)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     return created > thirtyDaysAgo && s.stripe_customer_id !== null
   }).length
-
   const totalInputTokens = tokenLogs.reduce((sum, l) => sum + (l.input_tokens || 0), 0)
   const totalOutputTokens = tokenLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
   const costRM = ((totalInputTokens * 0.000001) + (totalOutputTokens * 0.000005)) * 4.5
-
-  const thisMonthStart = new Date()
-  thisMonthStart.setDate(1)
-  thisMonthStart.setHours(0, 0, 0, 0)
+  const thisMonthStart = new Date(); thisMonthStart.setDate(1); thisMonthStart.setHours(0, 0, 0, 0)
   const thisMonthLogs = tokenLogs.filter(l => new Date(l.created_at) >= thisMonthStart)
   const thisMonthInputTokens = thisMonthLogs.reduce((sum, l) => sum + (l.input_tokens || 0), 0)
   const thisMonthOutputTokens = thisMonthLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
   const thisMonthCostRM = ((thisMonthInputTokens * 0.000001) + (thisMonthOutputTokens * 0.000005)) * 4.5
-
-  const userQuestionCounts = chatLogs.reduce((acc, log) => {
-    acc[log.user_email] = (acc[log.user_email] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
+  const userQuestionCounts = chatLogs.reduce((acc, log) => { acc[log.user_email] = (acc[log.user_email] || 0) + 1; return acc }, {} as Record<string, number>)
   const top10Users = Object.entries(userQuestionCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
-
-  const last10Logins = [...chatLogs]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .filter((log, index, self) => self.findIndex(l => l.user_email === log.user_email) === index)
-    .slice(0, 10)
-
-  const countryCounts = userSubscriptions.filter(s => s.country).reduce((acc, s) => {
-    acc[s.country!] = (acc[s.country!] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
+  const countryCounts = userSubscriptions.filter(s => s.country).reduce((acc, s) => { acc[s.country!] = (acc[s.country!] || 0) + 1; return acc }, {} as Record<string, number>)
   const countryData = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label: `${countryToFlag(label)} ${label}`, value }))
 
   if (!authenticated) {
@@ -689,9 +673,7 @@ export default function AdminPage() {
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">A</span>
-              </div>
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
               <span className="font-bold text-xl text-gray-900">AquaRef Admin</span>
             </div>
             <p className="text-gray-500 text-sm">Admin access only</p>
@@ -714,9 +696,7 @@ export default function AdminPage() {
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
-            </div>
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
             <span className="font-bold text-xl text-gray-900">AquaRef Admin</span>
           </div>
           <button onClick={() => setAuthenticated(false)} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
@@ -843,9 +823,7 @@ export default function AdminPage() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <h3 className="font-medium text-gray-900">{event.name}</h3>
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                {event.is_active ? '🟢 Active' : '⚫ Inactive'}
-                              </span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{event.is_active ? '🟢 Active' : '⚫ Inactive'}</span>
                             </div>
                             <p className="text-xs text-gray-400 mb-2">aquaref.co/events/{event.slug}</p>
                             <div className="flex items-center gap-3 flex-wrap">
@@ -932,7 +910,11 @@ export default function AdminPage() {
             {eventTab === 'upload-docs' && (
               <div className="bg-white rounded-xl border border-gray-100 p-6">
                 <h2 className="font-semibold text-gray-900 mb-2">Upload Event Documents</h2>
-                <p className="text-sm text-gray-400 mb-6">Upload start lists, heat sheets, schedules, technical packages.</p>
+                <p className="text-sm text-gray-400 mb-2">Upload start lists, heat sheets, schedules, technical packages.</p>
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-6">
+                  <p className="text-xs text-blue-700 font-medium mb-1">💡 Recommendation for Start Lists</p>
+                  <p className="text-xs text-blue-600">For best results with swimmer lookups, request the start list in <strong>XLSX format</strong> from HY-TEK Meet Manager (File → Export → Excel). XLSX gives 100% swimmer coverage vs ~80% for PDF.</p>
+                </div>
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Select Event</label>
                   <select value={selectedEvent?.id || ''} onChange={(e) => {
@@ -950,7 +932,6 @@ export default function AdminPage() {
                       <p className="text-sm font-medium text-green-800">{selectedEvent.name}</p>
                       <p className="text-xs text-green-600">aquaref.co/events/{selectedEvent.slug}</p>
                     </div>
-
                     {eventFiles[selectedEvent.id]?.length > 0 && (
                       <div className="mb-4">
                         <p className="text-xs font-medium text-gray-700 mb-2">Uploaded documents:</p>
@@ -964,11 +945,7 @@ export default function AdminPage() {
                                   <p className="text-xs text-gray-400">{file.chunks} chunks</p>
                                 </div>
                               </div>
-                              <button
-                                onClick={() => handleDeleteEventFile(selectedEvent.id, file.name)}
-                                disabled={deletingEventFile === file.name}
-                                className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50"
-                              >
+                              <button onClick={() => handleDeleteEventFile(selectedEvent.id, file.name)} disabled={deletingEventFile === file.name} className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50">
                                 {deletingEventFile === file.name ? 'Deleting...' : 'Delete'}
                               </button>
                             </div>
@@ -976,9 +953,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                     )}
-
                     {eventUploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {eventUploadProgress}</div>}
-
                     <label className="cursor-pointer block">
                       <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${eventUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
                         {eventUploading ? 'Processing...' : '+ Upload Document (PDF, DOCX, XLSX, PPTX, TXT)'}
@@ -1039,16 +1014,13 @@ export default function AdminPage() {
                 const count = tab === 'all' ? chatLogs.length : chatLogs.filter(l => l.discipline === tab).length
                 return (
                   <button key={tab} onClick={() => setLogDisciplineFilter(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${logDisciplineFilter === tab ? tab === 'paraswimming' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab === 'paraswimming' ? 'Para Swimming' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+                    {tab === 'all' ? 'All' : DISCIPLINE_LABELS[tab] || tab} ({count})
                   </button>
                 )
               })}
             </div>
             {logsLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredLogs.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <p className="text-4xl mb-4">💬</p>
-                <p className="font-medium text-gray-500">No conversations found</p>
-              </div>
+              <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">💬</p><p className="font-medium text-gray-500">No conversations found</p></div>
             ) : (
               <div className="space-y-4">
                 <p className="text-xs text-gray-400">Showing {filteredLogs.length} result{filteredLogs.length !== 1 ? 's' : ''}</p>
@@ -1112,21 +1084,8 @@ export default function AdminPage() {
             <div className="mb-4">
               <input type="text" value={correctionKeyword} onChange={(e) => setCorrectionKeyword(e.target.value)} placeholder="Search by question or correction..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400" />
             </div>
-            <div className="flex gap-2 mb-6 flex-wrap">
-              {['all', 'swimming', 'waterpolo', 'artistic', 'diving', 'highdiving', 'masters', 'openwater', 'paraswimming'].map((tab) => {
-                const count = tab === 'all' ? corrections.length : corrections.filter(c => c.discipline === tab).length
-                return (
-                  <button key={tab} onClick={() => setCorrectionDiscipline(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${correctionDiscipline === tab ? tab === 'paraswimming' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    {tab === 'all' ? 'All' : tab === 'waterpolo' ? 'Water Polo' : tab === 'highdiving' ? 'High Diving' : tab === 'openwater' ? 'Open Water' : tab === 'paraswimming' ? 'Para Swimming' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
-                  </button>
-                )
-              })}
-            </div>
             {filteredCorrections.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <p className="text-4xl mb-4">✏️</p>
-                <p className="font-medium text-gray-500">No corrections found</p>
-              </div>
+              <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">✏️</p><p className="font-medium text-gray-500">No corrections found</p></div>
             ) : (
               <div className="space-y-4">
                 {filteredCorrections.map((c) => (
@@ -1158,24 +1117,12 @@ export default function AdminPage() {
               <button onClick={loadFeedback} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-green-50 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">👍 {totalLikes}</div>
-                <div className="text-xs text-gray-400 mt-1">Helpful</div>
-              </div>
-              <div className="bg-red-50 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-red-500">👎 {totalDislikes}</div>
-                <div className="text-xs text-gray-400 mt-1">Not Helpful</div>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">{satisfactionRate}%</div>
-                <div className="text-xs text-gray-400 mt-1">Satisfaction Rate</div>
-              </div>
+              <div className="bg-green-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-green-600">👍 {totalLikes}</div><div className="text-xs text-gray-400 mt-1">Helpful</div></div>
+              <div className="bg-red-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-red-500">👎 {totalDislikes}</div><div className="text-xs text-gray-400 mt-1">Not Helpful</div></div>
+              <div className="bg-blue-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-blue-600">{satisfactionRate}%</div><div className="text-xs text-gray-400 mt-1">Satisfaction Rate</div></div>
             </div>
             {feedbackLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredFeedback.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <p className="text-4xl mb-4">💬</p>
-                <p className="font-medium text-gray-500">No feedback found</p>
-              </div>
+              <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">💬</p><p className="font-medium text-gray-500">No feedback found</p></div>
             ) : (
               <div className="space-y-4">
                 {filteredFeedback.map((f) => (
@@ -1201,7 +1148,7 @@ export default function AdminPage() {
         {activeTab === 'beta users' && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <h2 className="font-semibold text-gray-900 mb-2">Grant Beta Access</h2>
+              <h2 className="font-semibold text-gray-900 mb-4">Grant Beta Access</h2>
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-48">
                   <label className="block text-xs text-gray-400 mb-1">Email address</label>
@@ -1210,11 +1157,7 @@ export default function AdminPage() {
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Duration</label>
                   <select value={betaDays} onChange={(e) => setBetaDays(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
-                    <option value="7">7 days</option>
-                    <option value="14">14 days</option>
-                    <option value="30">30 days</option>
-                    <option value="60">60 days</option>
-                    <option value="90">90 days</option>
+                    <option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option>
                   </select>
                 </div>
                 <div className="flex items-end">
@@ -1230,10 +1173,7 @@ export default function AdminPage() {
                 <button onClick={loadBetaUsers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
               </div>
               {betaLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : betaUsers.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <p className="text-4xl mb-4">🧪</p>
-                  <p className="font-medium text-gray-500">No active beta users</p>
-                </div>
+                <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">🧪</p><p className="font-medium text-gray-500">No active beta users</p></div>
               ) : (
                 <div className="space-y-4">
                   {betaUsers.map((u) => {
@@ -1253,10 +1193,7 @@ export default function AdminPage() {
                             {extendEmail === u.user_email ? (
                               <div className="flex items-center gap-2">
                                 <select value={extendDays} onChange={(e) => setExtendDays(e.target.value)} className="px-2 py-1 border border-gray-200 rounded-lg text-xs text-gray-900 bg-white">
-                                  <option value="7">+7 days</option>
-                                  <option value="14">+14 days</option>
-                                  <option value="30">+30 days</option>
-                                  <option value="60">+60 days</option>
+                                  <option value="7">+7 days</option><option value="14">+14 days</option><option value="30">+30 days</option><option value="60">+60 days</option>
                                 </select>
                                 <button onClick={() => handleExtendBeta(u.user_email)} className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Confirm</button>
                                 <button onClick={() => setExtendEmail(null)} className="px-3 py-1 border border-gray-200 text-gray-500 rounded-lg text-xs hover:bg-gray-50">Cancel</button>
@@ -1286,29 +1223,14 @@ export default function AdminPage() {
               <button onClick={loadSubscribers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
             {subscribersLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : userSubscriptions.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <p className="text-4xl mb-4">👥</p>
-                <p className="font-medium text-gray-500">No users yet</p>
-              </div>
+              <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">👥</p><p className="font-medium text-gray-500">No users yet</p></div>
             ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-4 gap-3 mb-6">
-                  <div className="bg-green-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-green-600">{liteSubs.length}</div>
-                    <div className="text-xs text-gray-400 mt-1">LITE</div>
-                  </div>
-                  <div className="bg-blue-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-blue-600">{proSubs.length}</div>
-                    <div className="text-xs text-gray-400 mt-1">PRO</div>
-                  </div>
-                  <div className="bg-yellow-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-yellow-600">{eliteSubs.length}</div>
-                    <div className="text-xs text-gray-400 mt-1">ELITE</div>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-gray-600">{userSubscriptions.filter(s => s.status === 'cancelled').length}</div>
-                    <div className="text-xs text-gray-400 mt-1">Cancelled</div>
-                  </div>
+                  <div className="bg-green-50 rounded-xl p-3 text-center"><div className="text-xl font-bold text-green-600">{liteSubs.length}</div><div className="text-xs text-gray-400 mt-1">LITE</div></div>
+                  <div className="bg-blue-50 rounded-xl p-3 text-center"><div className="text-xl font-bold text-blue-600">{proSubs.length}</div><div className="text-xs text-gray-400 mt-1">PRO</div></div>
+                  <div className="bg-yellow-50 rounded-xl p-3 text-center"><div className="text-xl font-bold text-yellow-600">{eliteSubs.length}</div><div className="text-xs text-gray-400 mt-1">ELITE</div></div>
+                  <div className="bg-gray-50 rounded-xl p-3 text-center"><div className="text-xl font-bold text-gray-600">{userSubscriptions.filter(s => s.status === 'cancelled').length}</div><div className="text-xs text-gray-400 mt-1">Cancelled</div></div>
                 </div>
                 {userSubscriptions.map((sub) => (
                   <div key={sub.id} className="border border-gray-100 rounded-xl p-4">
@@ -1318,8 +1240,8 @@ export default function AdminPage() {
                         <p className="text-xs text-gray-400">{sub.user_email}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPlanColor(sub.plan)}`}>{getPlanLabel(sub.plan)}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : sub.status === 'past_due' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
-                          {sub.selected_discipline && <span className={`text-xs ${sub.selected_discipline === 'paraswimming' ? 'text-purple-500' : 'text-gray-400'}`}>{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>}
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${sub.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
+                          {sub.selected_discipline && <span className="text-xs text-gray-400">{DISCIPLINE_LABELS[sub.selected_discipline] || sub.selected_discipline}</span>}
                           {sub.country && <span className="text-xs text-gray-400">{countryToFlag(sub.country)} {sub.country}</span>}
                         </div>
                       </div>
@@ -1341,34 +1263,16 @@ export default function AdminPage() {
             {analyticsLoading ? <div className="text-center py-8 text-gray-400">Loading analytics...</div> : (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">RM {estimatedMRR.toFixed(2)}</div>
-                    <div className="text-xs text-gray-400 mt-1">Est. Monthly Revenue</div>
-                  </div>
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">{newSubsLast30Days}</div>
-                    <div className="text-xs text-gray-400 mt-1">New Paid (30 days)</div>
-                  </div>
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-600">{satisfactionRate}%</div>
-                    <div className="text-xs text-gray-400 mt-1">Satisfaction Rate</div>
-                  </div>
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-                    <div className="text-2xl font-bold text-orange-600">{chatLogs.length}</div>
-                    <div className="text-xs text-gray-400 mt-1">Total Questions</div>
-                  </div>
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center"><div className="text-2xl font-bold text-green-600">RM {estimatedMRR.toFixed(2)}</div><div className="text-xs text-gray-400 mt-1">Est. Monthly Revenue</div></div>
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center"><div className="text-2xl font-bold text-blue-600">{newSubsLast30Days}</div><div className="text-xs text-gray-400 mt-1">New Paid (30 days)</div></div>
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center"><div className="text-2xl font-bold text-purple-600">{satisfactionRate}%</div><div className="text-xs text-gray-400 mt-1">Satisfaction Rate</div></div>
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 text-center"><div className="text-2xl font-bold text-orange-600">{chatLogs.length}</div><div className="text-xs text-gray-400 mt-1">Total Questions</div></div>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">🤖 AI Token Cost</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-purple-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">This Month</p>
-                      <p className="text-2xl font-bold text-purple-700">RM {thisMonthCostRM.toFixed(4)}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">All Time</p>
-                      <p className="text-2xl font-bold text-gray-700">RM {costRM.toFixed(4)}</p>
-                    </div>
+                    <div className="bg-purple-50 rounded-xl p-4"><p className="text-xs text-gray-400 mb-1">This Month</p><p className="text-2xl font-bold text-purple-700">RM {thisMonthCostRM.toFixed(4)}</p></div>
+                    <div className="bg-gray-50 rounded-xl p-4"><p className="text-xs text-gray-400 mb-1">All Time</p><p className="text-2xl font-bold text-gray-700">RM {costRM.toFixed(4)}</p></div>
                   </div>
                   <p className="text-xs text-gray-400 mt-3 text-center">Haiku 4.5: $1.00/M input · $5.00/M output</p>
                 </div>
@@ -1400,6 +1304,20 @@ export default function AdminPage() {
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">🌍 Users by Country</h3>
                     <SimpleBarChart data={countryData} />
+                  </div>
+                )}
+                {recentActiveUsers.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-6">
+                    <h3 className="font-semibold text-gray-900 mb-4">🕐 Last 10 Active Users</h3>
+                    <p className="text-xs text-gray-400 mb-3">Includes both rules chat and event AI activity</p>
+                    <div className="space-y-2">
+                      {recentActiveUsers.map((user) => (
+                        <div key={user.email} className="flex items-center justify-between">
+                          <span className="text-sm text-gray-700 truncate flex-1">{user.email}</span>
+                          <span className="text-xs text-gray-400">{new Date(user.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </>
