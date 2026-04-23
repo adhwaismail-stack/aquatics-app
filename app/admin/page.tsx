@@ -91,6 +91,20 @@ interface TokenLog {
   created_at: string
 }
 
+interface AquaEvent {
+  id: string
+  name: string
+  slug: string
+  description: string
+  discipline: string
+  country: string
+  location: string
+  start_date: string
+  end_date: string
+  is_active: boolean
+  created_at: string
+}
+
 const DISCIPLINES = [
   { name: 'Swimming', code: 'SW', discipline: 'swimming' },
   { name: 'Water Polo', code: 'WP', discipline: 'waterpolo' },
@@ -112,6 +126,16 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   openwater: 'Open Water',
   paraswimming: 'Para Swimming',
 }
+
+const COUNTRIES = [
+  'Malaysia', 'Singapore', 'Indonesia', 'Thailand', 'Philippines', 'Vietnam',
+  'Brunei', 'Myanmar', 'Cambodia', 'Laos', 'Australia', 'New Zealand',
+  'United Kingdom', 'United States', 'Canada', 'Japan', 'China', 'South Korea',
+  'India', 'Germany', 'France', 'Netherlands', 'Spain', 'Italy',
+  'United Arab Emirates', 'Saudi Arabia', 'Qatar', 'Bahrain', 'Kuwait',
+  'Egypt', 'South Africa', 'Nigeria', 'Kenya', 'Hong Kong', 'Taiwan',
+  'Pakistan', 'Bangladesh', 'Sri Lanka',
+]
 
 const countryToFlag = (countryName: string): string => {
   const countries: Record<string, string> = {
@@ -219,6 +243,20 @@ export default function AdminPage() {
   const [extendDays, setExtendDays] = useState('14')
   const [tokenLogs, setTokenLogs] = useState<TokenLog[]>([])
   const [lastLogins, setLastLogins] = useState<Record<string, string>>({})
+
+  // Events state
+  const [events, setEvents] = useState<AquaEvent[]>([])
+  const [eventsLoading, setEventsLoading] = useState(false)
+  const [eventTab, setEventTab] = useState('all-events')
+  const [newEvent, setNewEvent] = useState({
+    name: '', slug: '', description: '', discipline: 'swimming',
+    country: 'Malaysia', location: '', start_date: '', end_date: ''
+  })
+  const [creatingEvent, setCreatingEvent] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<AquaEvent | null>(null)
+  const [eventUploading, setEventUploading] = useState(false)
+  const [eventUploadProgress, setEventUploadProgress] = useState('')
+  const [eventFiles, setEventFiles] = useState<Record<string, { name: string, chunks: number }[]>>({})
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -336,6 +374,30 @@ export default function AdminPage() {
     setAnalyticsLoading(false)
   }
 
+  const loadEvents = async () => {
+    setEventsLoading(true)
+    const { data } = await supabase.from('events').select('*').order('created_at', { ascending: false })
+    if (data) setEvents(data)
+    setEventsLoading(false)
+  }
+
+  const loadEventFiles = async (eventId: string) => {
+    const { data } = await supabase
+      .from('event_chunks')
+      .select('source_file, chunk_index')
+      .eq('event_id', eventId)
+      .order('chunk_index', { ascending: false })
+
+    if (data) {
+      const fileMap: Record<string, number> = {}
+      data.forEach((chunk: { source_file: string }) => {
+        fileMap[chunk.source_file] = (fileMap[chunk.source_file] || 0) + 1
+      })
+      const files = Object.entries(fileMap).map(([name, chunks]) => ({ name, chunks }))
+      setEventFiles(prev => ({ ...prev, [eventId]: files }))
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'chat logs') loadChatLogs()
     if (activeTab === 'corrections') loadCorrections()
@@ -343,6 +405,7 @@ export default function AdminPage() {
     if (activeTab === 'feedback') loadFeedback()
     if (activeTab === 'beta users') loadBetaUsers()
     if (activeTab === 'analytics') { loadAnalytics(); loadFeedback(); loadSubscribers(); loadChatLogs() }
+    if (activeTab === 'events') loadEvents()
   }, [activeTab])
 
   const handleSavePrompt = async () => {
@@ -417,6 +480,71 @@ export default function AdminPage() {
       setUploadProgress('')
     }
     setUploading(null)
+    e.target.value = ''
+  }
+
+  const handleCreateEvent = async () => {
+    if (!newEvent.name || !newEvent.slug) {
+      alert('Event name and URL slug are required!')
+      return
+    }
+    const slug = newEvent.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
+    setCreatingEvent(true)
+    const { error } = await supabase.from('events').insert({
+      ...newEvent,
+      slug,
+      is_active: false
+    })
+    if (error) {
+      alert('Error creating event: ' + error.message)
+    } else {
+      alert('✅ Event created! You can now upload documents and activate it.')
+      setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', country: 'Malaysia', location: '', start_date: '', end_date: '' })
+      loadEvents()
+      setEventTab('all-events')
+    }
+    setCreatingEvent(false)
+  }
+
+  const handleToggleEvent = async (event: AquaEvent) => {
+    await supabase.from('events').update({ is_active: !event.is_active }).eq('id', event.id)
+    loadEvents()
+  }
+
+  const handleDeleteEvent = async (event: AquaEvent) => {
+    if (!confirm(`Delete "${event.name}"? This will also delete all uploaded documents.`)) return
+    await supabase.from('events').delete().eq('id', event.id)
+    loadEvents()
+  }
+
+  const handleEventUpload = async (e: React.ChangeEvent<HTMLInputElement>, event: AquaEvent) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setEventUploading(true)
+    setEventUploadProgress('Uploading file...')
+    try {
+      const fileName = `${event.id}/${Date.now()}_${file.name}`
+      const { data: signedData, error: signedError } = await supabase.storage.from('events').createSignedUploadUrl(fileName)
+      if (signedError || !signedData) throw new Error(`Could not create upload URL: ${signedError?.message}`)
+      const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+      if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+      setEventUploadProgress('Processing document...')
+      const response = await fetch('/api/event-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, eventId: event.id, originalName: file.name })
+      })
+      const data = await response.json()
+      if (data.success) {
+        setEventUploadProgress('')
+        alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}`)
+        loadEventFiles(event.id)
+      } else throw new Error(data.error)
+    } catch (err) {
+      alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      setEventUploadProgress('')
+    }
+    setEventUploading(false)
     e.target.value = ''
   }
 
@@ -595,7 +723,7 @@ export default function AdminPage() {
             { label: 'Total users', value: userSubscriptions.length.toString() },
             { label: 'Paid subscribers', value: (proSubs.length + eliteSubs.length).toString() },
             { label: 'Questions today', value: chatLogs.filter(l => l.created_at?.startsWith(new Date().toISOString().split('T')[0])).length.toString() },
-            { label: 'Corrections saved', value: corrections.length.toString() },
+            { label: 'Active events', value: events.filter(e => e.is_active).length.toString() },
           ].map((s, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 text-center">
               <div className="text-2xl font-bold text-blue-600">{s.value}</div>
@@ -605,8 +733,8 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['rulebooks', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+          {['rulebooks', 'events', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
           ))}
@@ -633,8 +761,6 @@ export default function AdminPage() {
                         {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} uploaded` : 'No files'}
                       </span>
                     </div>
-
-                    {/* Files list */}
                     {files.length > 0 && (
                       <div className="mb-3 space-y-2">
                         {files.map((file) => (
@@ -653,44 +779,211 @@ export default function AdminPage() {
                         ))}
                       </div>
                     )}
-
-                    {/* Upload button */}
                     <label className="cursor-pointer block mb-4">
                       <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${uploading === d.discipline ? 'border-gray-200 text-gray-400' : isPara ? 'border-purple-200 text-purple-600 hover:bg-purple-50' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}>
                         {uploading === d.discipline ? 'Processing...' : files.length > 0 ? '+ Add another document' : 'Upload PDF, DOCX, XLSX, PPTX or TXT'}
                       </div>
                       <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={uploading !== null} onChange={(e) => handleUpload(e, d.discipline)} />
                     </label>
-
-                    {/* Discipline-specific prompt */}
                     <div className={`border-t pt-4 ${isPara ? 'border-purple-100' : 'border-gray-100'}`}>
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <p className={`text-xs font-medium ${isPara ? 'text-purple-700' : 'text-gray-700'}`}>
-                            {d.name} — Specific Prompt Instructions
-                          </p>
+                          <p className={`text-xs font-medium ${isPara ? 'text-purple-700' : 'text-gray-700'}`}>{d.name} — Specific Prompt Instructions</p>
                           <p className="text-xs text-gray-400">Added on top of the base prompt for {d.name} chats only</p>
                         </div>
-                        <button
-                          onClick={() => handleSaveDisciplinePrompt(d.discipline)}
-                          disabled={savingDisciplinePrompt === d.discipline}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${savedDisciplinePrompt === d.discipline ? 'bg-green-100 text-green-700' : isPara ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                        >
+                        <button onClick={() => handleSaveDisciplinePrompt(d.discipline)} disabled={savingDisciplinePrompt === d.discipline} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${savedDisciplinePrompt === d.discipline ? 'bg-green-100 text-green-700' : isPara ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
                           {savingDisciplinePrompt === d.discipline ? 'Saving...' : savedDisciplinePrompt === d.discipline ? 'Saved! ✓' : 'Save'}
                         </button>
                       </div>
-                      <textarea
-                        value={disciplinePrompts[d.discipline] || ''}
-                        onChange={(e) => setDisciplinePrompts(prev => ({ ...prev, [d.discipline]: e.target.value }))}
-                        rows={4}
-                        placeholder={`Add ${d.name}-specific instructions here. E.g. special rule clarifications, known edge cases, TC decisions specific to ${d.name}...`}
-                        className={`w-full px-3 py-2 border rounded-lg text-xs font-mono focus:outline-none focus:ring-2 text-gray-700 placeholder-gray-400 resize-y ${isPara ? 'border-purple-200 focus:ring-purple-500' : 'border-gray-200 focus:ring-blue-500'}`}
-                      />
+                      <textarea value={disciplinePrompts[d.discipline] || ''} onChange={(e) => setDisciplinePrompts(prev => ({ ...prev, [d.discipline]: e.target.value }))} rows={4} placeholder={`Add ${d.name}-specific instructions here...`} className={`w-full px-3 py-2 border rounded-lg text-xs font-mono focus:outline-none focus:ring-2 text-gray-700 placeholder-gray-400 resize-y ${isPara ? 'border-purple-200 focus:ring-purple-500' : 'border-gray-200 focus:ring-blue-500'}`} />
                     </div>
                   </div>
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {/* Events tab */}
+        {activeTab === 'events' && (
+          <div className="space-y-4">
+            <div className="flex gap-2 mb-4">
+              {['all-events', 'create-event', 'upload-docs'].map((tab) => (
+                <button key={tab} onClick={() => setEventTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${eventTab === tab ? 'bg-green-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+                  {tab === 'all-events' ? '📋 All Events' : tab === 'create-event' ? '➕ Create Event' : '📄 Upload Docs'}
+                </button>
+              ))}
+            </div>
+
+            {/* All Events */}
+            {eventTab === 'all-events' && (
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="font-semibold text-gray-900">All Events</h2>
+                    <p className="text-sm text-gray-400 mt-1">{events.length} event{events.length !== 1 ? 's' : ''} total · {events.filter(e => e.is_active).length} active</p>
+                  </div>
+                  <button onClick={loadEvents} className="text-sm text-green-600 hover:text-green-700">Refresh</button>
+                </div>
+                {eventsLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : events.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <p className="text-4xl mb-4">🏊</p>
+                    <p className="font-medium text-gray-500">No events yet</p>
+                    <p className="text-sm mt-1">Click "Create Event" to add your first event</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {events.map((event) => (
+                      <div key={event.id} className={`border rounded-xl p-4 ${event.is_active ? 'border-green-200 bg-green-50' : 'border-gray-100'}`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium text-gray-900">{event.name}</h3>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {event.is_active ? '🟢 Active' : '⚫ Inactive'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 mb-2">aquaref.co/events/{event.slug}</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-xs text-gray-500">{countryToFlag(event.country)} {event.country}</span>
+                              <span className="text-xs text-gray-500">📍 {event.location}</span>
+                              <span className="text-xs text-gray-500">🏊 {DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
+                              {event.start_date && <span className="text-xs text-gray-500">📅 {new Date(event.start_date).toLocaleDateString()} — {event.end_date ? new Date(event.end_date).toLocaleDateString() : ''}</span>}
+                            </div>
+                            {event.description && <p className="text-xs text-gray-400 mt-2">{event.description}</p>}
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <button onClick={() => { setSelectedEvent(event); setEventTab('upload-docs'); loadEventFiles(event.id) }} className="px-3 py-1 border border-blue-200 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50">📄 Docs</button>
+                            <button onClick={() => handleToggleEvent(event)} className={`px-3 py-1 rounded-lg text-xs font-medium ${event.is_active ? 'border border-orange-200 text-orange-600 hover:bg-orange-50' : 'border border-green-200 text-green-600 hover:bg-green-50'}`}>
+                              {event.is_active ? 'Deactivate' : 'Activate'}
+                            </button>
+                            <button onClick={() => handleDeleteEvent(event)} className="px-3 py-1 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50">Delete</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Create Event */}
+            {eventTab === 'create-event' && (
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <h2 className="font-semibold text-gray-900 mb-2">Create New Event</h2>
+                <p className="text-sm text-gray-400 mb-6">Fill in the event details. You can upload documents after creating the event.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
+                    <input type="text" value={newEvent.name} onChange={(e) => {
+                      const name = e.target.value
+                      const slug = name.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-')
+                      setNewEvent(prev => ({ ...prev, name, slug }))
+                    }} placeholder="e.g. National Age Group Championships 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">URL Slug * <span className="text-xs text-gray-400">(auto-generated, can edit)</span></label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400">aquaref.co/events/</span>
+                      <input type="text" value={newEvent.slug} onChange={(e) => setNewEvent(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} placeholder="national-age-group-2026" className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea value={newEvent.description} onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))} rows={2} placeholder="Brief description of the event..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Discipline</label>
+                      <select value={newEvent.discipline} onChange={(e) => setNewEvent(prev => ({ ...prev, discipline: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 bg-white">
+                        {DISCIPLINES.map(d => <option key={d.discipline} value={d.discipline}>{d.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                      <select value={newEvent.country} onChange={(e) => setNewEvent(prev => ({ ...prev, country: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 bg-white">
+                        {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                    <input type="text" value={newEvent.location} onChange={(e) => setNewEvent(prev => ({ ...prev, location: e.target.value }))} placeholder="e.g. Bukit Jalil Aquatic Centre, Kuala Lumpur" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                      <input type="date" value={newEvent.start_date} onChange={(e) => setNewEvent(prev => ({ ...prev, start_date: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                      <input type="date" value={newEvent.end_date} onChange={(e) => setNewEvent(prev => ({ ...prev, end_date: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                    </div>
+                  </div>
+                  <button onClick={handleCreateEvent} disabled={creatingEvent || !newEvent.name || !newEvent.slug} className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50">
+                    {creatingEvent ? 'Creating...' : '✅ Create Event'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Upload Docs */}
+            {eventTab === 'upload-docs' && (
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <h2 className="font-semibold text-gray-900 mb-2">Upload Event Documents</h2>
+                <p className="text-sm text-gray-400 mb-6">Select an event and upload its documents — start lists, heat sheets, schedules, technical packages.</p>
+
+                {/* Event selector */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Event</label>
+                  <select value={selectedEvent?.id || ''} onChange={(e) => {
+                    const event = events.find(ev => ev.id === e.target.value)
+                    if (event) { setSelectedEvent(event); loadEventFiles(event.id) }
+                  }} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 bg-white">
+                    <option value="">-- Select an event --</option>
+                    {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name} ({ev.country})</option>)}
+                  </select>
+                </div>
+
+                {selectedEvent && (
+                  <div>
+                    <div className="p-3 bg-green-50 border border-green-100 rounded-lg mb-4">
+                      <p className="text-sm font-medium text-green-800">{selectedEvent.name}</p>
+                      <p className="text-xs text-green-600">aquaref.co/events/{selectedEvent.slug}</p>
+                    </div>
+
+                    {/* Existing files */}
+                    {eventFiles[selectedEvent.id]?.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-xs font-medium text-gray-700 mb-2">Uploaded documents:</p>
+                        <div className="space-y-2">
+                          {eventFiles[selectedEvent.id].map((file, i) => (
+                            <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-600">📄</span>
+                                <div>
+                                  <p className="text-sm text-gray-700 font-medium">{file.name}</p>
+                                  <p className="text-xs text-gray-400">{file.chunks} chunks</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {eventUploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {eventUploadProgress}</div>}
+
+                    <label className="cursor-pointer block">
+                      <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${eventUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
+                        {eventUploading ? 'Processing...' : '+ Upload Document (PDF, DOCX, XLSX, PPTX, TXT)'}
+                      </div>
+                      <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={eventUploading} onChange={(e) => handleEventUpload(e, selectedEvent)} />
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1134,18 +1427,6 @@ export default function AdminPage() {
                       <p className="text-xs text-gray-400 mt-1">{(totalInputTokens + totalOutputTokens).toLocaleString()} tokens used</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-400 mb-1">Input Tokens (all time)</p>
-                      <p className="text-lg font-bold text-blue-700">{totalInputTokens.toLocaleString()}</p>
-                      <p className="text-xs text-gray-400">RM {(totalInputTokens * 0.000001 * 4.5).toFixed(4)}</p>
-                    </div>
-                    <div className="bg-orange-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-400 mb-1">Output Tokens (all time)</p>
-                      <p className="text-lg font-bold text-orange-700">{totalOutputTokens.toLocaleString()}</p>
-                      <p className="text-xs text-gray-400">RM {(totalOutputTokens * 0.000005 * 4.5).toFixed(4)}</p>
-                    </div>
-                  </div>
                   <p className="text-xs text-gray-400 mt-3 text-center">Haiku 4.5: $1.00/M input · $5.00/M output · USD×4.5 = RM</p>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
@@ -1176,7 +1457,6 @@ export default function AdminPage() {
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">🌍 Users by Country</h3>
                     <SimpleBarChart data={countryData} />
-                    <p className="text-xs text-gray-400 mt-3 text-center">{userSubscriptions.filter(s => s.country).length} users with known location</p>
                   </div>
                 )}
                 {last10Logins.length > 0 && (
@@ -1208,14 +1488,6 @@ export default function AdminPage() {
                       <p className="text-xs text-gray-400 mt-1">Satisfaction</p>
                     </div>
                   </div>
-                  {feedback.length > 0 && (
-                    <div className="mt-4">
-                      <div className="w-full bg-gray-100 rounded-full h-3">
-                        <div className="bg-green-500 h-3 rounded-full" style={{ width: `${satisfactionRate}%` }} />
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1 text-center">{feedback.length} total ratings</p>
-                    </div>
-                  )}
                 </div>
               </>
             )}
