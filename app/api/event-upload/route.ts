@@ -38,6 +38,15 @@ function chunkText(text: string): string[] {
   return chunks
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return Buffer.from(binary, 'binary').toString('base64')
+}
+
 async function extractTextFromDOCX(arrayBuffer: ArrayBuffer): Promise<string> {
   try {
     const mammoth = await import('mammoth')
@@ -97,11 +106,11 @@ async function extractSwimmersFromPDF(arrayBuffer: ArrayBuffer, eventName: strin
     }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-    const base64PDF = Buffer.from(arrayBuffer).toString('base64')
+    const base64PDF = arrayBufferToBase64(arrayBuffer)
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4000,
+      max_tokens: 4000,
       messages: [{
         role: 'user',
         content: [
