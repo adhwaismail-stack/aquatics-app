@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Vector search — increased to 15 for better coverage
+    // Vector search
     const { data: vectorChunks } = await supabase.rpc(
       'match_event_chunks',
       {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Keyword search — increased limit per keyword
+    // Keyword search
     const keywords = englishQuestion.toLowerCase()
       .split(' ')
       .filter((w: string) => w.length > 3)
@@ -119,12 +119,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Increased to 25 chunks for better data coverage
     const context = allChunks.slice(0, 25)
       .map((c: { content: string }) => c.content)
       .join('\n\n---\n\n')
 
-    // Improved system prompt for cleaner presentation
     const systemPrompt = `You are an AI assistant for the "${eventName}" aquatics event. You help officials, coaches, swimmers and parents find information about this specific event.
 
 Your knowledge comes ONLY from the event documents uploaded for this event — such as start lists, heat sheets, schedules, technical packages, and official notices.
@@ -135,23 +133,20 @@ YOUR APPROACH:
 3. If a swimmer appears in multiple events, list ALL of them clearly
 4. If information is not in the documents, say so honestly
 5. Always reply in the same language the user writes in
+6. Use clear headings, bullet points and bold text to make answers easy to read
+7. Never use tables — use bullet points and bold labels instead
+8. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
 
-ANSWER FORMAT — always present swimmer information like this:
-**[Swimmer Name]**
-| Detail | Info |
-|--------|------|
-| Event | [Event number & name] |
-| Heat | [Heat number] |
-| Lane | [Lane number] |
-| Team | [Team name] |
-| Seed Time | [Time] |
+ANSWER FORMAT FOR SWIMMER QUERIES:
+**[Swimmer Name]** is entered in the following events:
 
-If the swimmer is in multiple events, show a separate table for each event.
+**Event [number] — [Event Name]**
+- **Heat:** [Heat number of total]
+- **Lane:** [Lane number]
+- **Team:** [Team name]
+- **Seed Time:** [Time]
 
-For schedule questions, present as a clean numbered list.
-For general questions, use clear paragraphs with bold headers.
-
-Always end with: "For official decisions, always refer to the Meet Referee or Event Director."
+Repeat for each event the swimmer is in.
 
 NON-EVENT QUESTIONS:
 For questions unrelated to this event, respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
@@ -186,7 +181,6 @@ For questions unrelated to this event, respond with: "I can only answer question
       }
     }
 
-    // Calculate remaining for LITE
     const newCount = (meetPass?.question_count || 0) + 1
     const remainingQuestions = plan === 'lite' ? Math.max(0, 3 - newCount) : null
 
