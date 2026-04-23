@@ -50,68 +50,6 @@ const countryToFlag = (countryName: string): string => {
   return countries[countryName] || '🌍'
 }
 
-function EventMarkdown({ content }: { content: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-2">
-            <table className="min-w-full border-collapse text-sm">
-              {children}
-            </table>
-          </div>
-        ),
-        thead: ({ children }) => (
-          <thead className="bg-green-50">{children}</thead>
-        ),
-        tbody: ({ children }) => (
-          <tbody className="divide-y divide-gray-100">{children}</tbody>
-        ),
-        tr: ({ children }) => (
-          <tr className="hover:bg-gray-50">{children}</tr>
-        ),
-        th: ({ children }) => (
-          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 border border-gray-200">
-            {children}
-          </th>
-        ),
-        td: ({ children }) => (
-          <td className="px-3 py-2 text-sm text-gray-700 border border-gray-200">
-            {children}
-          </td>
-        ),
-        strong: ({ children }) => (
-          <strong className="font-semibold text-gray-900">{children}</strong>
-        ),
-        p: ({ children }) => (
-          <p className="text-sm text-gray-700 mb-2 leading-relaxed">{children}</p>
-        ),
-        ul: ({ children }) => (
-          <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 mb-2">{children}</ul>
-        ),
-        ol: ({ children }) => (
-          <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700 mb-2">{children}</ol>
-        ),
-        li: ({ children }) => (
-          <li className="text-sm text-gray-700">{children}</li>
-        ),
-        h1: ({ children }) => (
-          <h1 className="text-base font-bold text-gray-900 mb-2">{children}</h1>
-        ),
-        h2: ({ children }) => (
-          <h2 className="text-sm font-bold text-gray-900 mb-2 mt-3">{children}</h2>
-        ),
-        h3: ({ children }) => (
-          <h3 className="text-sm font-semibold text-gray-800 mb-1 mt-2">{children}</h3>
-        ),
-      }}
-    >
-      {content}
-    </ReactMarkdown>
-  )
-}
-
 export default function EventChatPage() {
   const params = useParams()
   const router = useRouter()
@@ -189,7 +127,7 @@ export default function EventChatPage() {
         return
       }
       if (data.error) {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
+        setMessages(prev => [...prev, { role: 'assistant', content: '❌ Sorry, something went wrong. Please try again.' }])
         return
       }
       setMessages(prev => [...prev, { role: 'assistant', content: data.answer }])
@@ -198,7 +136,7 @@ export default function EventChatPage() {
         if (data.remainingQuestions === 0) setLimitReached(true)
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
+      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Something went wrong. Please try again.' }])
     } finally {
       setSending(false)
     }
@@ -208,7 +146,7 @@ export default function EventChatPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 text-sm">Loading event...</p>
         </div>
       </div>
@@ -232,64 +170,113 @@ export default function EventChatPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600">← Back</button>
+            <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600 text-sm">← Back</button>
+            <div className="w-px h-4 bg-gray-200"></div>
             <div>
-              <h1 className="font-semibold text-gray-900 text-sm">{event?.name}</h1>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">{countryToFlag(event?.country || '')} {event?.country}</span>
-                <span className="text-xs text-gray-300">·</span>
-                <span className="text-xs text-gray-400">📍 {event?.location}</span>
-                <span className="text-xs text-gray-300">·</span>
-                <span className="text-xs text-gray-400">🏊 {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {event?.start_date && (
-              <span className="text-xs text-gray-400">
-                {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
-              </span>
-            )}
-            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">🟢 Live</span>
-          </div>
-        </div>
-      </div>
-
-      {userPlan === 'lite' && remainingQuestions !== null && (
-        <div className={`px-4 py-2 text-center text-xs ${remainingQuestions === 0 ? 'bg-red-50 text-red-600' : remainingQuestions === 1 ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
-          {remainingQuestions === 0 ? '⚠️ You\'ve used all 3 free questions for this event. ' : `💬 ${remainingQuestions} free question${remainingQuestions !== 1 ? 's' : ''} remaining. `}
-          {remainingQuestions !== null && remainingQuestions <= 1 && <a href="/pricing" className="underline font-medium">Upgrade now</a>}
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-3xl mx-auto space-y-4">
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'assistant' && (
-                <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold mr-2 mt-1 flex-shrink-0">E</div>
-              )}
-              <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-100 text-gray-800'}`}>
-                {msg.role === 'assistant' ? (
-                  <EventMarkdown content={msg.content} />
-                ) : (
-                  <p className="text-sm">{msg.content}</p>
+              <h1 className="font-semibold text-gray-900 flex items-center gap-2">
+                🏆 {event?.name}
+                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">🟢 Live</span>
+              </h1>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-gray-400">
+                  {countryToFlag(event?.country || '')} {event?.country} · 📍 {event?.location} · 🏊 {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}
+                </p>
+                {event?.start_date && (
+                  <p className="text-xs text-gray-400">
+                    · 📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                    {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                  </p>
                 )}
               </div>
             </div>
+          </div>
+          {userPlan === 'lite' && remainingQuestions !== null && (
+            <div className="text-right">
+              <div className="text-xs text-gray-400">This event</div>
+              <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 3 left</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* LITE limit banner */}
+      {userPlan === 'lite' && remainingQuestions !== null && remainingQuestions <= 1 && (
+        <div className={`px-6 py-2 border-b text-center text-xs ${remainingQuestions === 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}>
+          {remainingQuestions === 0
+            ? <>⚠️ You've used all 3 free questions for this event. <a href="/pricing" className="underline font-medium">Upgrade now</a></>
+            : <>⚠️ Last free question for this event. <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for unlimited access.</>
+          }
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'assistant' && (
+                <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center mr-3 flex-shrink-0 mt-1">
+                  <span className="text-white text-xs font-bold">E</span>
+                </div>
+              )}
+              {msg.role === 'user' ? (
+                <div style={{ backgroundColor: '#15803d', borderRadius: '16px 16px 4px 16px', padding: '12px 20px', maxWidth: '75%' }}>
+                  <p style={{ color: '#ffffff', fontSize: '14px', fontWeight: '600', margin: 0, lineHeight: '1.5' }}>
+                    {msg.content}
+                  </p>
+                </div>
+              ) : (
+                <div className="max-w-3xl w-full">
+                  <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
+                    <div className="text-gray-700 text-sm">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-4 mb-2">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
+                          p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold text-green-700">{children}</strong>,
+                          ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
+                          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                          blockquote: ({ children }) => <blockquote className="border-l-4 border-green-200 pl-4 italic text-gray-600 my-3">{children}</blockquote>,
+                          table: ({ children }) => (
+                            <div className="overflow-x-auto mb-4 rounded-lg border border-gray-200">
+                              <table className="min-w-full text-sm">{children}</table>
+                            </div>
+                          ),
+                          thead: ({ children }) => <thead className="bg-green-50">{children}</thead>,
+                          tbody: ({ children }) => <tbody className="divide-y divide-gray-100 bg-white">{children}</tbody>,
+                          tr: ({ children }) => <tr className="hover:bg-gray-50 transition-colors">{children}</tr>,
+                          th: ({ children }) => <th className="px-4 py-2.5 text-left text-xs font-semibold text-green-700 border-b border-gray-200">{children}</th>,
+                          td: ({ children }) => <td className="px-4 py-2.5 text-gray-700 text-xs">{children}</td>,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
+
           {sending && (
             <div className="flex justify-start">
-              <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold mr-2 mt-1">E</div>
-              <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center mr-3 flex-shrink-0">
+                <span className="text-white text-xs font-bold">E</span>
+              </div>
+              <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
+                <div className="flex gap-1 items-center">
+                  <div className="w-2 h-2 rounded-full animate-bounce bg-green-400"></div>
+                  <div className="w-2 h-2 rounded-full animate-bounce bg-green-400" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-2 h-2 rounded-full animate-bounce bg-green-400" style={{ animationDelay: '0.4s' }}></div>
+                  <span className="text-xs text-gray-400 ml-2">Searching event documents...</span>
                 </div>
               </div>
             </div>
@@ -298,8 +285,9 @@ export default function EventChatPage() {
         </div>
       </div>
 
-      <div className="bg-white border-t border-gray-100 px-4 py-4">
-        <div className="max-w-3xl mx-auto">
+      {/* Input */}
+      <div className="bg-white border-t border-gray-100 px-6 py-4 flex-shrink-0">
+        <div className="max-w-4xl mx-auto">
           {limitReached ? (
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-3">Upgrade to continue asking questions about this event</p>
@@ -319,12 +307,15 @@ export default function EventChatPage() {
               <button
                 onClick={handleSend}
                 disabled={sending || !input.trim()}
-                className="px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                className="px-6 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
                 Send
               </button>
             </div>
           )}
+          <p className="text-xs text-gray-400 mt-2 text-center">
+            Answers based on uploaded event documents only · Always verify with the Meet Referee or Event Director.
+          </p>
         </div>
       </div>
     </div>
