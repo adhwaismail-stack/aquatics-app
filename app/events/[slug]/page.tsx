@@ -84,7 +84,6 @@ export default function EventChatPage() {
   const [remainingQuestions, setRemainingQuestions] = useState<number | null>(null)
   const [limitReached, setLimitReached] = useState(false)
   const [notices, setNotices] = useState<EventNotice[]>([])
-  const [posterModalOpen, setPosterModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -104,14 +103,6 @@ export default function EventChatPage() {
     }, 30000)
     return () => clearInterval(interval)
   }, [event?.id])
-
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPosterModalOpen(false)
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [])
 
   const loadNotices = async (eventId: string) => {
     const { data } = await supabase
@@ -233,58 +224,8 @@ export default function EventChatPage() {
         }
       `}</style>
 
-      {/* Poster full-size modal */}
-      {posterModalOpen && event?.poster_url && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setPosterModalOpen(false)}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); setPosterModalOpen(false) }}
-            className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur text-white rounded-full flex items-center justify-center text-xl transition-colors"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-          <img
-            src={event.poster_url}
-            alt={event.name}
-            className="max-w-full max-h-full object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <p className="absolute bottom-4 text-white/70 text-xs text-center w-full">
-            Tap anywhere to close
-          </p>
-        </div>
-      )}
-
       {/* Header */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
-        {/* Slim cinematic poster banner - tap to view full */}
-        {event?.poster_url && (
-          <div
-            className="w-full relative cursor-pointer group overflow-hidden"
-            onClick={() => setPosterModalOpen(true)}
-            style={{ height: '90px' }}
-          >
-            <img
-              src={event.poster_url}
-              alt={event.name}
-              className="w-full h-full object-cover transition-transform group-hover:scale-105"
-              style={{ objectPosition: 'center 40%' }}
-            />
-            {/* Subtle dark gradient overlay for legibility */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/40"></div>
-            {/* View poster button - always visible */}
-            <button
-              onClick={(e) => { e.stopPropagation(); setPosterModalOpen(true) }}
-              className="absolute top-1/2 right-4 -translate-y-1/2 bg-white/90 hover:bg-white backdrop-blur text-gray-800 text-xs font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 transition-all"
-            >
-              <span>🖼️</span>
-              <span>View poster</span>
-            </button>
-          </div>
-        )}
         <div className="px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
