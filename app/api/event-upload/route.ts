@@ -26,12 +26,12 @@ function cleanText(text: string): string {
 function chunkText(text: string): string[] {
   const cleaned = cleanText(text)
   const chunks: string[] = []
-  const chunkSize = 1500
-  const overlap = 300
+  const chunkSize = 600
+  const overlap = 150
 
   for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
     const chunk = cleaned.slice(i, i + chunkSize).trim()
-    if (chunk.length > 100) {
+    if (chunk.length > 50) {
       chunks.push(chunk)
     }
   }
@@ -111,12 +111,14 @@ async function extractVisualDescriptions(arrayBuffer: ArrayBuffer, eventName: st
           } as any,
           {
             type: 'text',
-            text: `You are analyzing a document for the "${eventName}" aquatics event. Find ALL visual elements such as tables, schedules, heat sheets, start lists, diagrams, pool layouts, and figures.
+            text: `You are analyzing a start list / heat sheet document for the "${eventName}" aquatics event.
 
-For each visual element found, write a detailed text description in this exact format:
-[VISUAL: Description title] Detailed description of what it shows, including all names, times, lanes, heat numbers, and data visible.
+Extract ALL swimmer entries from this document. For each swimmer found, output in this exact format:
+[SWIMMER] Name: [full name] | Event: [event number and name] | Heat: [heat number] | Lane: [lane number] | Team: [team/club] | Seed Time: [seed time]
 
-If no visual elements exist, reply only with: NO_VISUAL_CONTENT`
+Extract every single swimmer entry you can find. Be thorough — go through every page and every event.
+
+If no swimmer data exists, reply only with: NO_SWIMMER_DATA`
           }
         ]
       }]
@@ -125,12 +127,12 @@ If no visual elements exist, reply only with: NO_VISUAL_CONTENT`
     const content = response.content[0]
     if (content.type !== 'text') return []
     const text = content.text.trim()
-    if (text.includes('NO_VISUAL_CONTENT')) return []
+    if (text.includes('NO_SWIMMER_DATA')) return []
 
     return text
-      .split(/(?=\[VISUAL:)/)
+      .split('\n')
       .map(v => v.trim())
-      .filter(v => v.startsWith('[VISUAL:') && v.length > 50)
+      .filter(v => v.startsWith('[SWIMMER]') && v.length > 20)
 
   } catch (err) {
     console.error('Vision extraction failed:', err)
@@ -184,7 +186,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not extract text from file.' }, { status: 400 })
     }
 
-    // Get event name for visual extraction context
     const { data: eventData } = await supabase
       .from('events')
       .select('name')
@@ -205,7 +206,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not extract any content from file.' }, { status: 400 })
     }
 
-    // Delete existing chunks for this file
     await supabase
       .from('event_chunks')
       .delete()
