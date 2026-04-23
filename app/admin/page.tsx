@@ -106,6 +106,28 @@ interface AquaEvent {
   poster_url?: string
 }
 
+interface EventNotice {
+  id: string
+  event_id: string
+  category: string
+  message: string
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+const NOTICE_CATEGORIES = [
+  { value: 'current_event', label: 'Current Event', color: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+  { value: 'call_room', label: 'Call Room', color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+  { value: 'announcement', label: 'Announcement', color: 'bg-purple-100 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+  { value: 'venue', label: 'Venue', color: 'bg-green-100 text-green-700 border-green-200', dot: 'bg-green-500' },
+  { value: 'schedule', label: 'Schedule', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500' },
+]
+
+const getNoticeCategory = (value: string) =>
+  NOTICE_CATEGORIES.find(c => c.value === value) || NOTICE_CATEGORIES[0]
+
 const DISCIPLINES = [
   { name: 'Swimming', code: 'SW', discipline: 'swimming' },
   { name: 'Water Polo', code: 'WP', discipline: 'waterpolo' },
@@ -260,6 +282,13 @@ export default function AdminPage() {
   const [savedEventPrompt, setSavedEventPrompt] = useState(false)
   const [posterUploading, setPosterUploading] = useState(false)
 
+  // Live Notices state
+  const [eventNotices, setEventNotices] = useState<EventNotice[]>([])
+  const [noticeCategory, setNoticeCategory] = useState('announcement')
+  const [noticeMessage, setNoticeMessage] = useState('')
+  const [pushingNotice, setPushingNotice] = useState(false)
+  const [clearingNotice, setClearingNotice] = useState<string | null>(null)
+
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
       setAuthenticated(true)
@@ -390,6 +419,56 @@ export default function AdminPage() {
     }
   }
 
+  const loadEventNotices = async (eventId: string) => {
+    const { data } = await supabase
+      .from('event_notices')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+    if (data) setEventNotices(data)
+  }
+
+  const handlePushNotice = async () => {
+    if (!selectedEvent || !noticeMessage.trim()) return
+    const activeCount = eventNotices.length
+    if (activeCount >= 5) {
+      alert('⚠️ Maximum 5 active notices per event. Please clear an existing notice first.')
+      return
+    }
+    setPushingNotice(true)
+    const { error } = await supabase.from('event_notices').insert({
+      event_id: selectedEvent.id,
+      category: noticeCategory,
+      message: noticeMessage.trim(),
+      is_active: true,
+      created_by: 'super_admin'
+    })
+    if (error) {
+      alert('Error pushing notice: ' + error.message)
+    } else {
+      setNoticeMessage('')
+      setNoticeCategory('announcement')
+      await loadEventNotices(selectedEvent.id)
+    }
+    setPushingNotice(false)
+  }
+
+  const handleClearNotice = async (noticeId: string) => {
+    if (!confirm('Clear this notice? (It will be hidden from users but kept for audit history.)')) return
+    setClearingNotice(noticeId)
+    const { error } = await supabase
+      .from('event_notices')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', noticeId)
+    if (error) {
+      alert('Error clearing notice: ' + error.message)
+    } else if (selectedEvent) {
+      await loadEventNotices(selectedEvent.id)
+    }
+    setClearingNotice(null)
+  }
+
   const handleDeleteEventFile = async (eventId: string, fileName: string) => {
     if (!confirm(`Delete "${fileName}"?`)) return
     setDeletingEventFile(fileName)
@@ -434,6 +513,7 @@ export default function AdminPage() {
     setSelectedEvent(event)
     setEventPrompts(prev => ({ ...prev, [event.id]: event.description || '' }))
     loadEventFiles(event.id)
+    loadEventNotices(event.id)
   }
 
   useEffect(() => {
@@ -929,6 +1009,105 @@ export default function AdminPage() {
                 </div>
                 <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={eventUploading} onChange={(e) => handleEventUpload(e, selectedEvent)} />
               </label>
+            </div>
+
+            {/* Live Notices */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-medium text-gray-900 text-sm">📢 Live Notices</h3>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${eventNotices.length >= 5 ? 'bg-red-100 text-red-700' : eventNotices.length >= 3 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                  {eventNotices.length} / 5 active
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">Push real-time notices that appear as a scrolling ticker on the event chat page. Users see updates instantly.</p>
+
+              {/* Push Notice Form */}
+              <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-4">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Category</label>
+                    <div className="flex flex-wrap gap-2">
+                      {NOTICE_CATEGORIES.map(cat => (
+                        <button
+                          key={cat.value}
+                          onClick={() => setNoticeCategory(cat.value)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                            noticeCategory === cat.value
+                              ? `${cat.color} ring-2 ring-offset-1 ring-gray-300`
+                              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${cat.dot}`}></span>
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-medium text-gray-700">Message</label>
+                      <span className={`text-xs ${noticeMessage.length > 450 ? 'text-orange-600' : 'text-gray-400'}`}>
+                        {noticeMessage.length} / 500
+                      </span>
+                    </div>
+                    <textarea
+                      value={noticeMessage}
+                      onChange={(e) => setNoticeMessage(e.target.value.slice(0, 500))}
+                      rows={2}
+                      placeholder="e.g. Session 3 delayed 30 minutes due to lightning. Heats will resume at 15:00."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 placeholder-gray-400 resize-y"
+                    />
+                  </div>
+                  <button
+                    onClick={handlePushNotice}
+                    disabled={pushingNotice || !noticeMessage.trim() || eventNotices.length >= 5}
+                    className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pushingNotice
+                      ? 'Pushing...'
+                      : eventNotices.length >= 5
+                        ? '⚠️ Max 5 active notices — clear one first'
+                        : '📢 Push Notice'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Notices List */}
+              {eventNotices.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+                  <p className="text-2xl mb-2">📭</p>
+                  <p className="text-xs">No active notices. Push one above to show it live.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-500 mb-2">Currently live:</p>
+                  {eventNotices.map((notice) => {
+                    const cat = getNoticeCategory(notice.category)
+                    return (
+                      <div key={notice.id} className={`border rounded-lg p-3 ${cat.color}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`inline-block w-2 h-2 rounded-full ${cat.dot}`}></span>
+                              <span className="text-xs font-semibold uppercase tracking-wide">{cat.label}</span>
+                              <span className="text-xs opacity-60">·</span>
+                              <span className="text-xs opacity-60">{new Date(notice.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <p className="text-sm text-gray-800 break-words">{notice.message}</p>
+                          </div>
+                          <button
+                            onClick={() => handleClearNotice(notice.id)}
+                            disabled={clearingNotice === notice.id}
+                            className="text-xs px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium flex-shrink-0 disabled:opacity-50"
+                          >
+                            {clearingNotice === notice.id ? 'Clearing...' : 'Clear'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
