@@ -70,17 +70,19 @@ export async function POST(request: NextRequest) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
+    // Vector search - increased to 30
     const { data: vectorChunks } = await supabase.rpc(
       'match_event_chunks',
       {
         query_embedding: queryEmbedding,
         match_event_id: eventId,
-        match_count: 20
+        match_count: 30
       }
     )
 
     const words = englishQuestion.split(' ').filter((w: string) => w.length > 2)
 
+    // Keyword search per word - increased limit
     let keywordChunks: { content: string }[] = []
     for (const word of words.slice(0, 10)) {
       const { data } = await supabase
@@ -88,10 +90,11 @@ export async function POST(request: NextRequest) {
         .select('content')
         .eq('event_id', eventId)
         .ilike('content', `%${word}%`)
-        .limit(8)
+        .limit(15)
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
+    // Full name pair search - increased limit
     if (words.length >= 2) {
       for (let i = 0; i < words.length - 1; i++) {
         const namePair = `${words[i]} ${words[i + 1]}`
@@ -100,9 +103,21 @@ export async function POST(request: NextRequest) {
           .select('content')
           .eq('event_id', eventId)
           .ilike('content', `%${namePair}%`)
-          .limit(10)
+          .limit(15)
         if (data) keywordChunks = [...keywordChunks, ...data]
       }
+    }
+
+    // Also search for just the last name alone for better coverage
+    if (words.length >= 2) {
+      const lastName = words[words.length - 1]
+      const { data } = await supabase
+        .from('event_chunks')
+        .select('content')
+        .eq('event_id', eventId)
+        .ilike('content', `%${lastName}%`)
+        .limit(20)
+      if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
     const seen = new Set()
@@ -121,7 +136,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const context = allChunks.slice(0, 30)
+    // Increased context to 50 chunks
+    const context = allChunks.slice(0, 50)
       .map((c: { content: string }) => c.content)
       .join('\n\n---\n\n')
 
@@ -139,12 +155,6 @@ ANSWER FORMAT FOR SWIMMER/HEAT QUERIES:
 Use this EXACT format — no tables, no deviations:
 
 **[Swimmer Full Name]** — [X] event(s) found:
-
-🏊 **Event [number] — [Full Event Name]**
-- Heat: [heat number] of [total heats]
-- Lane: [lane number]
-- Team: [team name]
-- Seed Time: [seed time]
 
 🏊 **Event [number] — [Full Event Name]**
 - Heat: [heat number] of [total heats]
