@@ -104,68 +104,87 @@ async function extractTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string> {
   } catch (err) { console.error('PPTX extraction failed:', err); return '' }
 }
 
-async function extractSwimmersViaVision(base64PDF: string, eventName: string): Promise<string[]> {
+// Extract swimmers page by page for complete coverage
+async function extractSwimmersPageByPage(uint8Array: Uint8Array, eventName: string): Promise<string[]> {
   try {
-    console.log('Vision RAG: sending PDF to Claude...')
+    const { getDocumentProxy } = await import('unpdf')
+    const pdf = await getDocumentProxy(uint8Array)
+    const totalPages = pdf.numPages
+    console.log(`Vision RAG: processing ${totalPages} pages...`)
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 8000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: base64PDF }
-            },
-            {
-              type: 'text',
-              text: `This is a swimming start list for "${eventName}". Extract every swimmer entry.
+    const allSwimmers: string[] = []
 
-For each swimmer write exactly one line like this:
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      try {
+        // Extract text for this single page
+        const page = await pdf.getPage(pageNum)
+        const textContent = await page.getTextContent()
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ')
+
+        if (!pageText.trim()) continue
+
+        // Ask Claude to extract swimmers from this page's text
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY!,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 4000,
+            messages: [{
+              role: 'user',
+              content: `Extract ALL swimmer entries from this swimming start list page for "${eventName}".
+
+Page text:
+${pageText}
+
+For each swimmer output EXACTLY this format on its own line:
 [SWIMMER] Name: FULL_NAME | Event: EVENT_NO EVENT_NAME | Heat: HEAT_NO of TOTAL | Lane: LANE_NO | Team: TEAM | Seed: SEED_TIME
 
-Example:
-[SWIMMER] Name: Noma Horiuchi | Event: 101 Women 100 Freestyle | Heat: 7 of 12 | Lane: 4 | Team: SEL | Seed: 1:04.85
-[SWIMMER] Name: Ahmad Razif | Event: 102 Men 100 Freestyle | Heat: 3 of 8 | Lane: 4 | Team: WP | Seed: 52.34
+Rules:
+- Extract every swimmer you can find
+- Use the event number and name shown on this page
+- If a heat continues from a previous page, use the event/heat context from this page
+- Output ONLY [SWIMMER] lines, nothing else
+- If no swimmers found, output: NO_SWIMMERS`
+            }]
+          })
+        })
 
-List every swimmer from every event on every page. Start now:`
-            }
-          ]
-        }]
-      })
-    })
+        if (!res.ok) {
+          console.error(`Vision RAG page ${pageNum} HTTP error:`, res.status)
+          continue
+        }
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error(`Vision RAG HTTP error ${res.status}:`, err)
-      return []
+        const data = await res.json()
+        const text = data?.content?.[0]?.text?.trim() || ''
+
+        if (!text || text.includes('NO_SWIMMERS')) continue
+
+        const pageSwimmers = text
+          .split('\n')
+          .map((v: string) => v.trim())
+          .filter((v: string) => v.startsWith('[SWIMMER]') && v.length > 20)
+
+        console.log(`Page ${pageNum}: extracted ${pageSwimmers.length} swimmers`)
+        allSwimmers.push(...pageSwimmers)
+
+      } catch (pageErr) {
+        console.error(`Error processing page ${pageNum}:`, pageErr)
+        continue
+      }
     }
 
-    const data = await res.json()
-    console.log('Vision RAG response type:', data?.content?.[0]?.type)
-    const text = data?.content?.[0]?.text?.trim() || ''
-    console.log('Vision RAG first 200 chars:', text.substring(0, 200))
-
-    if (!text || text.includes('NO_SWIMMER_DATA')) return []
-
-    const swimmers = text
-      .split('\n')
-      .map((v: string) => v.trim())
-      .filter((v: string) => v.startsWith('[SWIMMER]') && v.length > 20)
-
-    console.log(`Vision RAG extracted ${swimmers.length} swimmer entries`)
-    return swimmers
+    console.log(`Total Vision RAG swimmers extracted: ${allSwimmers.length}`)
+    return allSwimmers
 
   } catch (err) {
-    console.error('Vision RAG failed:', err)
+    console.error('Page-by-page extraction failed:', err)
     return []
   }
 }
@@ -187,10 +206,8 @@ export async function POST(request: NextRequest) {
       throw new Error(`Failed to download file: ${downloadError?.message}`)
     }
 
-    // Convert to base64 BEFORE any extraction to prevent buffer detach
     const arrayBuffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
-    const base64ForVision = Buffer.from(uint8Array).toString('base64')
 
     const isDocx = originalName.endsWith('.docx')
     const isXlsx = originalName.endsWith('.xlsx')
@@ -233,9 +250,39 @@ export async function POST(request: NextRequest) {
     const isStartList = /Event\s+\d+/i.test(text) && /Heat\s+\d+/i.test(text)
     const textChunks = chunkText(text, isStartList)
 
+    // Process page by page for complete swimmer coverage
     let visualChunks: string[] = []
-    if (isPdf) {
-      visualChunks = await extractSwimmersViaVision(base64ForVision, eventName)
+    if (isPdf && isStartList) {
+      visualChunks = await extractSwimmersPageByPage(uint8Array, eventName)
+    } else if (isPdf) {
+      // For non-start-list PDFs, use whole-document vision
+      const base64PDF = Buffer.from(uint8Array).toString('base64')
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY!,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64PDF } },
+              { type: 'text', text: `Extract key information from this event document for "${eventName}". Summarize schedules, officials, venues, and important notices as clear bullet points. If no useful info: NO_CONTENT` }
+            ]
+          }]
+        })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const content = data?.content?.[0]?.text?.trim() || ''
+        if (content && !content.includes('NO_CONTENT')) {
+          visualChunks = [content]
+        }
+      }
     }
 
     const allChunks = [...textChunks, ...visualChunks]
