@@ -113,8 +113,7 @@ async function extractSwimmersViaVision(base64PDF: string, eventName: string): P
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'pdfs-2024-09-25'
+        'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -128,13 +127,16 @@ async function extractSwimmersViaVision(base64PDF: string, eventName: string): P
             },
             {
               type: 'text',
-              text: `Extract ALL swimmer entries from this start list for "${eventName}".
+              text: `This is a swimming start list for "${eventName}". Extract every swimmer entry.
 
-For EVERY swimmer output this exact format on its own line:
+For each swimmer write exactly one line like this:
 [SWIMMER] Name: FULL_NAME | Event: EVENT_NO EVENT_NAME | Heat: HEAT_NO of TOTAL | Lane: LANE_NO | Team: TEAM | Seed: SEED_TIME
 
-Go through every page and every event. Include ALL swimmers.
-If no swimmer data: NO_SWIMMER_DATA`
+Example:
+[SWIMMER] Name: Noma Horiuchi | Event: 101 Women 100 Freestyle | Heat: 7 of 12 | Lane: 4 | Team: SEL | Seed: 1:04.85
+[SWIMMER] Name: Ahmad Razif | Event: 102 Men 100 Freestyle | Heat: 3 of 8 | Lane: 4 | Team: WP | Seed: 52.34
+
+List every swimmer from every event on every page. Start now:`
             }
           ]
         }]
@@ -148,7 +150,10 @@ If no swimmer data: NO_SWIMMER_DATA`
     }
 
     const data = await res.json()
+    console.log('Vision RAG response type:', data?.content?.[0]?.type)
     const text = data?.content?.[0]?.text?.trim() || ''
+    console.log('Vision RAG first 200 chars:', text.substring(0, 200))
+
     if (!text || text.includes('NO_SWIMMER_DATA')) return []
 
     const swimmers = text
@@ -182,7 +187,7 @@ export async function POST(request: NextRequest) {
       throw new Error(`Failed to download file: ${downloadError?.message}`)
     }
 
-    // Convert to everything we need BEFORE any extraction
+    // Convert to base64 BEFORE any extraction to prevent buffer detach
     const arrayBuffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
     const base64ForVision = Buffer.from(uint8Array).toString('base64')
@@ -228,7 +233,6 @@ export async function POST(request: NextRequest) {
     const isStartList = /Event\s+\d+/i.test(text) && /Heat\s+\d+/i.test(text)
     const textChunks = chunkText(text, isStartList)
 
-    // Vision RAG using pre-converted base64
     let visualChunks: string[] = []
     if (isPdf) {
       visualChunks = await extractSwimmersViaVision(base64ForVision, eventName)
