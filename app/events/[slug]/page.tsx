@@ -30,6 +30,15 @@ interface Message {
   content: string
 }
 
+interface EventNotice {
+  id: string
+  event_id: string
+  category: string
+  message: string
+  is_active: boolean
+  created_at: string
+}
+
 const DISCIPLINE_LABELS: Record<string, string> = {
   swimming: 'Swimming',
   waterpolo: 'Water Polo',
@@ -39,6 +48,14 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   masters: 'Masters',
   openwater: 'Open Water',
   paraswimming: 'Para Swimming',
+}
+
+const NOTICE_STYLES: Record<string, { dot: string, label: string }> = {
+  current_event: { dot: 'bg-blue-500', label: 'Current Event' },
+  call_room: { dot: 'bg-orange-500', label: 'Call Room' },
+  announcement: { dot: 'bg-purple-500', label: 'Announcement' },
+  venue: { dot: 'bg-green-500', label: 'Venue' },
+  schedule: { dot: 'bg-yellow-500', label: 'Schedule' },
 }
 
 const countryToFlag = (countryName: string): string => {
@@ -66,6 +83,7 @@ export default function EventChatPage() {
   const [userPlan, setUserPlan] = useState('lite')
   const [remainingQuestions, setRemainingQuestions] = useState<number | null>(null)
   const [limitReached, setLimitReached] = useState(false)
+  const [notices, setNotices] = useState<EventNotice[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -76,6 +94,26 @@ export default function EventChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Load notices + auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!event?.id) return
+    loadNotices(event.id)
+    const interval = setInterval(() => {
+      loadNotices(event.id)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [event?.id])
+
+  const loadNotices = async (eventId: string) => {
+    const { data } = await supabase
+      .from('event_notices')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+    if (data) setNotices(data)
+  }
 
   const loadUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -171,18 +209,34 @@ export default function EventChatPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Ticker animation styles */}
+      <style jsx>{`
+        @keyframes ticker-scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .ticker-track {
+          display: inline-flex;
+          animation: ticker-scroll 60s linear infinite;
+          white-space: nowrap;
+        }
+        .ticker-wrapper:hover .ticker-track {
+          animation-play-state: paused;
+        }
+      `}</style>
+
       {/* Header */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
         {/* Poster banner */}
-{event?.poster_url && (
-  <div className="w-full">
-    <img
-      src={event.poster_url}
-      alt={event.name}
-      className="w-full object-contain"
-    />
-  </div>
-)}
+        {event?.poster_url && (
+          <div className="w-full">
+            <img
+              src={event.poster_url}
+              alt={event.name}
+              className="w-full object-contain"
+            />
+          </div>
+        )}
         <div className="px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -204,18 +258,51 @@ export default function EventChatPage() {
             {userPlan === 'lite' && remainingQuestions !== null && (
               <div className="text-right">
                 <div className="text-xs text-gray-400">This event</div>
-                <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 3 left</div>
+                <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 5 left</div>
               </div>
             )}
           </div>
         </div>
       </div>
 
+      {/* 📢 Live Notices Ticker - only shows when notices exist */}
+      {notices.length > 0 && (
+        <div className="ticker-wrapper bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 border-b border-gray-200 overflow-hidden flex-shrink-0">
+          <div className="flex items-center">
+            <div className="flex-shrink-0 px-4 py-2 bg-white/80 border-r border-gray-200">
+              <span className="text-xs font-bold text-gray-700 flex items-center gap-1">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+                LIVE
+              </span>
+            </div>
+            <div className="flex-1 overflow-hidden py-2">
+              <div className="ticker-track">
+                {/* Render notices twice for seamless looping */}
+                {[...notices, ...notices].map((notice, idx) => {
+                  const style = NOTICE_STYLES[notice.category] || NOTICE_STYLES.announcement
+                  return (
+                    <span key={`${notice.id}-${idx}`} className="inline-flex items-center gap-2 px-6 text-sm text-gray-800">
+                      <span className={`inline-block w-2 h-2 rounded-full ${style.dot} flex-shrink-0`}></span>
+                      <span className="font-semibold text-gray-700 text-xs uppercase tracking-wide">{style.label}:</span>
+                      <span>{notice.message}</span>
+                      <span className="text-gray-300 mx-4">•</span>
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LITE limit banner */}
       {userPlan === 'lite' && remainingQuestions !== null && remainingQuestions <= 1 && (
         <div className={`px-6 py-2 border-b text-center text-xs ${remainingQuestions === 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}>
           {remainingQuestions === 0
-            ? <>⚠️ You've used all 3 free questions for this event. <a href="/pricing" className="underline font-medium">Upgrade now</a></>
+            ? <>⚠️ You've used all 5 free questions for this event. <a href="/pricing" className="underline font-medium">Upgrade now</a></>
             : <>⚠️ Last free question for this event. <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for unlimited access.</>
           }
         </div>
