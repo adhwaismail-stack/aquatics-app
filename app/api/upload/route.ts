@@ -123,6 +123,47 @@ function smartChunk(text: string): string[] {
   return chunks.filter(c => c.trim().length > 100)
 }
 
+async function extractTextFromDOCX(arrayBuffer: ArrayBuffer): Promise<string> {
+  try {
+    const mammoth = await import('mammoth')
+    const result = await mammoth.extractRawText({ buffer: Buffer.from(arrayBuffer) })
+    return result.value || ''
+  } catch (err) {
+    console.error('DOCX extraction failed:', err)
+    return ''
+  }
+}
+
+async function extractTextFromXLSX(arrayBuffer: ArrayBuffer): Promise<string> {
+  try {
+    const XLSX = await import('xlsx')
+    const workbook = XLSX.read(Buffer.from(arrayBuffer), { type: 'buffer' })
+    const textParts: string[] = []
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName]
+      const csv = XLSX.utils.sheet_to_csv(sheet)
+      if (csv.trim().length > 0) {
+        textParts.push(`[Sheet: ${sheetName}]\n${csv}`)
+      }
+    }
+    return textParts.join('\n\n')
+  } catch (err) {
+    console.error('XLSX extraction failed:', err)
+    return ''
+  }
+}
+
+async function extractTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string> {
+  try {
+    const officeParser = await import('officeparser')
+    const text = await officeParser.parseOfficeAsync(Buffer.from(arrayBuffer))
+    return text || ''
+  } catch (err) {
+    console.error('PPTX extraction failed:', err)
+    return ''
+  }
+}
+
 async function extractVisualDescriptions(arrayBuffer: ArrayBuffer, discipline: string): Promise<string[]> {
   try {
     const fileSizeBytes = arrayBuffer.byteLength
@@ -221,10 +262,28 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
 
+    // Detect file type
+    const isDocx = originalName.endsWith('.docx')
+    const isXlsx = originalName.endsWith('.xlsx')
+    const isPptx = originalName.endsWith('.pptx')
+    const isTxt = originalName.endsWith('.txt')
+    const isPdf = originalName.endsWith('.pdf')
+
     let text = ''
-    if (originalName.endsWith('.txt')) {
+
+    if (isTxt) {
       text = Buffer.from(arrayBuffer).toString('utf-8')
+    } else if (isDocx) {
+      console.log('Extracting text from DOCX...')
+      text = await extractTextFromDOCX(arrayBuffer)
+    } else if (isXlsx) {
+      console.log('Extracting text from XLSX...')
+      text = await extractTextFromXLSX(arrayBuffer)
+    } else if (isPptx) {
+      console.log('Extracting text from PPTX...')
+      text = await extractTextFromPPTX(arrayBuffer)
     } else {
+      // Default: PDF
       const { extractText } = await import('unpdf')
       const { text: extractedText } = await extractText(uint8Array, { mergePages: true })
       text = extractedText
@@ -249,9 +308,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Extract visual descriptions if PDF
+    // Extract visual descriptions only for PDFs
     let visualChunks: string[] = []
-    if (!originalName.endsWith('.txt')) {
+    if (isPdf) {
       visualChunks = await extractVisualDescriptions(arrayBuffer, discipline)
     }
 
