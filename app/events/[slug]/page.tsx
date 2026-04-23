@@ -50,6 +50,68 @@ const countryToFlag = (countryName: string): string => {
   return countries[countryName] || '🌍'
 }
 
+function EventMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className="min-w-full border-collapse text-sm">
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="bg-green-50">{children}</thead>
+        ),
+        tbody: ({ children }) => (
+          <tbody className="divide-y divide-gray-100">{children}</tbody>
+        ),
+        tr: ({ children }) => (
+          <tr className="hover:bg-gray-50">{children}</tr>
+        ),
+        th: ({ children }) => (
+          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 border border-gray-200">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="px-3 py-2 text-sm text-gray-700 border border-gray-200">
+            {children}
+          </td>
+        ),
+        strong: ({ children }) => (
+          <strong className="font-semibold text-gray-900">{children}</strong>
+        ),
+        p: ({ children }) => (
+          <p className="text-sm text-gray-700 mb-2 leading-relaxed">{children}</p>
+        ),
+        ul: ({ children }) => (
+          <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 mb-2">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700 mb-2">{children}</ol>
+        ),
+        li: ({ children }) => (
+          <li className="text-sm text-gray-700">{children}</li>
+        ),
+        h1: ({ children }) => (
+          <h1 className="text-base font-bold text-gray-900 mb-2">{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="text-sm font-bold text-gray-900 mb-2 mt-3">{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-sm font-semibold text-gray-800 mb-1 mt-2">{children}</h3>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
+}
+
 export default function EventChatPage() {
   const params = useParams()
   const router = useRouter()
@@ -211,11 +273,9 @@ export default function EventChatPage() {
               {msg.role === 'assistant' && (
                 <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold mr-2 mt-1 flex-shrink-0">E</div>
               )}
-              <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-100 text-gray-800'}`}>
+              <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-100 text-gray-800'}`}>
                 {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm max-w-none text-gray-800">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                  </div>
+                  <EventMarkdown content={msg.content} />
                 ) : (
                   <p className="text-sm">{msg.content}</p>
                 )}
