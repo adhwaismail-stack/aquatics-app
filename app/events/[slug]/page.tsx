@@ -22,6 +22,7 @@ interface AquaEvent {
   start_date: string
   end_date: string
   is_active: boolean
+  poster_url?: string
 }
 
 interface Message {
@@ -171,30 +172,43 @@ export default function EventChatPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600 text-sm">← Back</button>
-            <div className="w-px h-4 bg-gray-200"></div>
-            <div>
-              <h1 className="font-semibold text-gray-900 flex items-center gap-2">
-                🏆 {event?.name}
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">🟢 Live</span>
-              </h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-xs text-gray-400">
-                  {countryToFlag(event?.country || '')} {event?.country} · 📍 {event?.location} · 🏊 {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}
-                  {event?.start_date && ` · 📅 ${new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}${event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`}
-                </p>
+      <div className="bg-white border-b border-gray-100 flex-shrink-0">
+        {/* Poster banner */}
+        {event?.poster_url && (
+          <div className="w-full max-h-48 overflow-hidden">
+            <img
+              src={event.poster_url}
+              alt={event.name}
+              className="w-full object-cover object-center"
+              style={{ maxHeight: '192px' }}
+            />
+          </div>
+        )}
+        <div className="px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600 text-sm">← Back</button>
+              <div className="w-px h-4 bg-gray-200"></div>
+              <div>
+                <h1 className="font-semibold text-gray-900 flex items-center gap-2">
+                  🏆 {event?.name}
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">🟢 Live</span>
+                </h1>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-gray-400">
+                    {countryToFlag(event?.country || '')} {event?.country} · 📍 {event?.location} · 🏊 {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}
+                    {event?.start_date && ` · 📅 ${new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}${event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`}
+                  </p>
+                </div>
               </div>
             </div>
+            {userPlan === 'lite' && remainingQuestions !== null && (
+              <div className="text-right">
+                <div className="text-xs text-gray-400">This event</div>
+                <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 3 left</div>
+              </div>
+            )}
           </div>
-          {userPlan === 'lite' && remainingQuestions !== null && (
-            <div className="text-right">
-              <div className="text-xs text-gray-400">This event</div>
-              <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 3 left</div>
-            </div>
-          )}
         </div>
       </div>
 
