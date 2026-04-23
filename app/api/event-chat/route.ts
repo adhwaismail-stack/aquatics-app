@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const plan = userSub?.plan || 'lite'
 
-    // Check Meet Pass access
+    // Check event usage
     const { data: meetPass } = await supabase
       .from('event_usage')
       .select('question_count')
@@ -75,21 +75,21 @@ export async function POST(request: NextRequest) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Vector search in event chunks
+    // Vector search — increased to 15 for better coverage
     const { data: vectorChunks } = await supabase.rpc(
       'match_event_chunks',
       {
         query_embedding: queryEmbedding,
         match_event_id: eventId,
-        match_count: 10
+        match_count: 15
       }
     )
 
-    // Keyword search
+    // Keyword search — increased limit per keyword
     const keywords = englishQuestion.toLowerCase()
       .split(' ')
       .filter((w: string) => w.length > 3)
-      .slice(0, 5)
+      .slice(0, 8)
 
     let keywordChunks: { content: string }[] = []
     for (const keyword of keywords) {
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
         .select('content')
         .eq('event_id', eventId)
         .ilike('content', `%${keyword}%`)
-        .limit(3)
+        .limit(5)
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
@@ -119,21 +119,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const context = allChunks.slice(0, 15)
+    // Increased to 25 chunks for better data coverage
+    const context = allChunks.slice(0, 25)
       .map((c: { content: string }) => c.content)
       .join('\n\n---\n\n')
 
-    // Build system prompt
+    // Improved system prompt for cleaner presentation
     const systemPrompt = `You are an AI assistant for the "${eventName}" aquatics event. You help officials, coaches, swimmers and parents find information about this specific event.
 
 Your knowledge comes ONLY from the event documents uploaded for this event — such as start lists, heat sheets, schedules, technical packages, and official notices.
 
 YOUR APPROACH:
 1. Answer questions based strictly on the event documents provided
-2. Be specific — cite heat numbers, lane numbers, times, names when available
-3. If information is not in the documents, say so honestly
-4. Always reply in the same language the user writes in
-5. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
+2. Be specific — always include event number, heat number, lane number, seed time and team when available
+3. If a swimmer appears in multiple events, list ALL of them clearly
+4. If information is not in the documents, say so honestly
+5. Always reply in the same language the user writes in
+
+ANSWER FORMAT — always present swimmer information like this:
+**[Swimmer Name]**
+| Detail | Info |
+|--------|------|
+| Event | [Event number & name] |
+| Heat | [Heat number] |
+| Lane | [Lane number] |
+| Team | [Team name] |
+| Seed Time | [Time] |
+
+If the swimmer is in multiple events, show a separate table for each event.
+
+For schedule questions, present as a clean numbered list.
+For general questions, use clear paragraphs with bold headers.
+
+Always end with: "For official decisions, always refer to the Meet Referee or Event Director."
 
 NON-EVENT QUESTIONS:
 For questions unrelated to this event, respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
@@ -141,7 +159,7 @@ For questions unrelated to this event, respond with: "I can only answer question
     // Ask Claude
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
+      max_tokens: 2000,
       system: systemPrompt,
       messages: [{
         role: 'user',
