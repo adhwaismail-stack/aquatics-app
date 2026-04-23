@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 
 const ADMIN_PASSWORD = 'aquaref-admin-2026'
 
@@ -289,6 +290,19 @@ export default function AdminPage() {
   const [pushingNotice, setPushingNotice] = useState(false)
   const [clearingNotice, setClearingNotice] = useState<string | null>(null)
 
+  // Edit Event Details state
+  const [editingDetails, setEditingDetails] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: '', slug: '', discipline: '', country: '', location: '', start_date: '', end_date: ''
+  })
+  const [savingDetails, setSavingDetails] = useState(false)
+  const [slugWarningShown, setSlugWarningShown] = useState(false)
+
+  // QR Code refs
+  const qrPngRef = useRef<HTMLCanvasElement>(null)
+  const qrSvgRef = useRef<SVGSVGElement>(null)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
       setAuthenticated(true)
@@ -514,6 +528,119 @@ export default function AdminPage() {
     setEventPrompts(prev => ({ ...prev, [event.id]: event.description || '' }))
     loadEventFiles(event.id)
     loadEventNotices(event.id)
+    setEditingDetails(false)
+  }
+
+  // Edit event details handlers
+  const handleStartEdit = () => {
+    if (!selectedEvent) return
+    setEditForm({
+      name: selectedEvent.name,
+      slug: selectedEvent.slug,
+      discipline: selectedEvent.discipline,
+      country: selectedEvent.country,
+      location: selectedEvent.location,
+      start_date: selectedEvent.start_date || '',
+      end_date: selectedEvent.end_date || '',
+    })
+    setSlugWarningShown(false)
+    setEditingDetails(true)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingDetails(false)
+    setSlugWarningShown(false)
+  }
+
+  const handleSaveDetails = async () => {
+    if (!selectedEvent) return
+    if (!editForm.name.trim() || !editForm.slug.trim()) {
+      alert('Event name and URL slug are required.')
+      return
+    }
+
+    // If slug was changed, warn first
+    if (editForm.slug !== selectedEvent.slug && !slugWarningShown) {
+      const confirmed = confirm(
+        '⚠️ WARNING: Changing the URL slug will break any existing links, QR codes, or flyers using the current URL. Users with the old link will get a 404 error.\n\nOld URL: aquaref.co/events/' + selectedEvent.slug + '\nNew URL: aquaref.co/events/' + editForm.slug + '\n\nAre you sure?'
+      )
+      if (!confirmed) return
+      setSlugWarningShown(true)
+    }
+
+    const cleanSlug = editForm.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
+
+    setSavingDetails(true)
+    const { error } = await supabase
+      .from('events')
+      .update({
+        name: editForm.name.trim(),
+        slug: cleanSlug,
+        discipline: editForm.discipline,
+        country: editForm.country,
+        location: editForm.location.trim(),
+        start_date: editForm.start_date || null,
+        end_date: editForm.end_date || null,
+      })
+      .eq('id', selectedEvent.id)
+
+    if (error) {
+      alert('Error saving: ' + error.message)
+    } else {
+      setSelectedEvent({
+        ...selectedEvent,
+        name: editForm.name.trim(),
+        slug: cleanSlug,
+        discipline: editForm.discipline,
+        country: editForm.country,
+        location: editForm.location.trim(),
+        start_date: editForm.start_date,
+        end_date: editForm.end_date,
+      })
+      await loadEvents()
+      setEditingDetails(false)
+      setSlugWarningShown(false)
+    }
+    setSavingDetails(false)
+  }
+
+  // QR Code handlers
+  const getEventUrl = (event: AquaEvent) => {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'https://aquaref.co'
+    return `${base}/events/${event.slug}?ref=qr`
+  }
+
+  const handleCopyUrl = async () => {
+    if (!selectedEvent) return
+    await navigator.clipboard.writeText(getEventUrl(selectedEvent))
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
+  }
+
+  const handleDownloadQRPNG = () => {
+    if (!selectedEvent) return
+    const canvas = qrPngRef.current
+    if (!canvas) return
+    const url = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `aquaref-qr-${selectedEvent.slug}.png`
+    link.click()
+  }
+
+  const handleDownloadQRSVG = () => {
+    if (!selectedEvent) return
+    const svg = qrSvgRef.current
+    if (!svg) return
+    const serializer = new XMLSerializer()
+    const source = serializer.serializeToString(svg)
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `aquaref-qr-${selectedEvent.slug}.svg`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   useEffect(() => {
@@ -946,14 +1073,144 @@ export default function AdminPage() {
               </label>
             </div>
 
-            {/* Event Details */}
+            {/* Event Details - EDITABLE */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h3 className="font-medium text-gray-900 mb-3 text-sm">📋 Event Details</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div><p className="text-gray-400">Country</p><p className="font-medium text-gray-700">{countryToFlag(selectedEvent.country)} {selectedEvent.country}</p></div>
-                <div><p className="text-gray-400">Location</p><p className="font-medium text-gray-700">📍 {selectedEvent.location}</p></div>
-                <div><p className="text-gray-400">Discipline</p><p className="font-medium text-gray-700">🏊 {DISCIPLINE_LABELS[selectedEvent.discipline] || selectedEvent.discipline}</p></div>
-                <div><p className="text-gray-400">Dates</p><p className="font-medium text-gray-700">📅 {selectedEvent.start_date ? new Date(selectedEvent.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '—'}{selectedEvent.end_date ? ` — ${new Date(selectedEvent.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p></div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium text-gray-900 text-sm">📋 Event Details</h3>
+                {!editingDetails ? (
+                  <button onClick={handleStartEdit} className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium">✏️ Edit</button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={handleCancelEdit} disabled={savingDetails} className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">Cancel</button>
+                    <button onClick={handleSaveDetails} disabled={savingDetails} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">{savingDetails ? 'Saving...' : '💾 Save Changes'}</button>
+                  </div>
+                )}
+              </div>
+
+              {!editingDetails ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                  <div><p className="text-gray-400">Country</p><p className="font-medium text-gray-700">{countryToFlag(selectedEvent.country)} {selectedEvent.country}</p></div>
+                  <div><p className="text-gray-400">Location</p><p className="font-medium text-gray-700">📍 {selectedEvent.location}</p></div>
+                  <div><p className="text-gray-400">Discipline</p><p className="font-medium text-gray-700">🏊 {DISCIPLINE_LABELS[selectedEvent.discipline] || selectedEvent.discipline}</p></div>
+                  <div><p className="text-gray-400">Dates</p><p className="font-medium text-gray-700">📅 {selectedEvent.start_date ? new Date(selectedEvent.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '—'}{selectedEvent.end_date ? ` — ${new Date(selectedEvent.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p></div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Event Name *</label>
+                    <input type="text" value={editForm.name} onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">URL Slug <span className="text-orange-600">⚠️ Changing breaks existing links/QR codes</span></label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">aquaref.co/events/</span>
+                      <input type="text" value={editForm.slug} onChange={(e) => setEditForm(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-orange-50" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Discipline</label>
+                      <select value={editForm.discipline} onChange={(e) => setEditForm(prev => ({ ...prev, discipline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
+                        {DISCIPLINES.map(d => <option key={d.discipline} value={d.discipline}>{d.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Country</label>
+                      <select value={editForm.country} onChange={(e) => setEditForm(prev => ({ ...prev, country: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
+                        {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
+                    <input type="text" value={editForm.location} onChange={(e) => setEditForm(prev => ({ ...prev, location: e.target.value }))} placeholder="e.g. Bukit Jalil Aquatic Centre" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+                      <input type="date" value={editForm.start_date} onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+                      <input type="date" value={editForm.end_date} onChange={(e) => setEditForm(prev => ({ ...prev, end_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Share This Event — QR + URL */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <h3 className="font-medium text-gray-900 mb-1 text-sm">📤 Share This Event</h3>
+              <p className="text-xs text-gray-400 mb-4">Print this QR code at the pool deck, registration booth, or meet flyers. Every scan is tracked (<code className="bg-gray-100 px-1 rounded">?ref=qr</code>).</p>
+
+              <div className="flex flex-col md:flex-row gap-5 items-start">
+                {/* QR Code */}
+                <div className="flex-shrink-0 bg-white border-2 border-gray-100 rounded-xl p-4">
+                  <QRCodeSVG
+                    ref={qrSvgRef}
+                    value={getEventUrl(selectedEvent)}
+                    size={180}
+                    level="H"
+                    includeMargin={false}
+                  />
+                  {/* Hidden canvas for PNG download */}
+                  <div style={{ display: 'none' }}>
+                    <QRCodeCanvas
+                      ref={qrPngRef}
+                      value={getEventUrl(selectedEvent)}
+                      size={512}
+                      level="H"
+                      includeMargin={true}
+                    />
+                  </div>
+                </div>
+
+                {/* URL + Download buttons */}
+                <div className="flex-1 space-y-4 w-full">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">🔗 Event URL</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={getEventUrl(selectedEvent)}
+                        readOnly
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-700 font-mono"
+                      />
+                      <button
+                        onClick={handleCopyUrl}
+                        className={`text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap ${copiedUrl ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                      >
+                        {copiedUrl ? '✓ Copied!' : '📋 Copy'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">📥 Download QR Code</label>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={handleDownloadQRPNG}
+                        className="text-xs px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                      >
+                        📥 PNG (for web)
+                      </button>
+                      <button
+                        onClick={handleDownloadQRSVG}
+                        className="text-xs px-4 py-2 border border-green-200 text-green-600 rounded-lg hover:bg-green-50 font-medium"
+                      >
+                        📥 SVG (for print)
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">💡 PNG = web/social. SVG = scales to any size without pixelation (best for large banners/posters).</p>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                    <p className="text-xs text-blue-700">
+                      <strong>💡 Tip:</strong> When users scan this QR, they'll be tagged with <code className="bg-white px-1 rounded">?ref=qr</code> — you can later track conversion rates from QR-driven traffic.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
