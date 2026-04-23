@@ -175,8 +175,13 @@ export async function POST(request: NextRequest) {
       text = await extractTextFromPPTX(arrayBuffer)
     } else {
       const { extractText } = await import('unpdf')
-      const { text: extractedText } = await extractText(uint8Array, { mergePages: true })
-      text = extractedText
+const { text: extractedText, totalPages } = await extractText(uint8Array, { mergePages: false })
+// extractedText is array of pages when mergePages is false
+if (Array.isArray(extractedText)) {
+  text = (extractedText as string[]).join('\n\n')
+} else {
+  text = extractedText as string
+}
     }
 
     if (!text || text.trim().length === 0) {
