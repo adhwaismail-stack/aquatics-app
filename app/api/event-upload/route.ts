@@ -88,7 +88,7 @@ async function extractTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string> {
   }
 }
 
-async function extractVisualDescriptions(arrayBuffer: ArrayBuffer, eventName: string): Promise<string[]> {
+async function extractSwimmersFromPDF(arrayBuffer: ArrayBuffer, eventName: string): Promise<string[]> {
   try {
     const fileSizeMB = arrayBuffer.byteLength / (1024 * 1024)
     if (fileSizeMB > 20) {
@@ -101,7 +101,7 @@ async function extractVisualDescriptions(arrayBuffer: ArrayBuffer, eventName: st
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{
         role: 'user',
         content: [
@@ -111,14 +111,27 @@ async function extractVisualDescriptions(arrayBuffer: ArrayBuffer, eventName: st
           } as any,
           {
             type: 'text',
-            text: `You are analyzing a start list / heat sheet document for the "${eventName}" aquatics event.
+            text: `You are extracting swimmer data from a start list / heat sheet for "${eventName}".
 
-Extract ALL swimmer entries from this document. For each swimmer found, output in this exact format:
-[SWIMMER] Name: [full name] | Event: [event number and name] | Heat: [heat number] | Lane: [lane number] | Team: [team/club] | Seed Time: [seed time]
+Go through EVERY page and EVERY event carefully. Extract EVERY single swimmer entry.
 
-Extract every single swimmer entry you can find. Be thorough — go through every page and every event.
+For each swimmer, output EXACTLY this format on its own line:
+[SWIMMER] Name: FULL_NAME | Event: EVENT_NO EVENT_NAME | Heat: HEAT_NO of TOTAL_HEATS | Lane: LANE_NO | Team: TEAM | Seed: SEED_TIME
 
-If no swimmer data exists, reply only with: NO_SWIMMER_DATA`
+Rules:
+- Include ALL swimmers from ALL events
+- Use the exact event number shown (e.g. 101, 102, 103...)
+- Use the exact swimmer name as shown
+- Do not skip any swimmer or any event
+- Each swimmer entry must be on its own separate line
+- If a swimmer appears in multiple events, output a separate line for each event
+
+Example output:
+[SWIMMER] Name: Noma Horiuchi | Event: 101 Women 100 LC Meter Freestyle | Heat: 7 of 12 | Lane: 4 | Team: SEL | Seed: 1:02.48
+[SWIMMER] Name: Noma Horiuchi | Event: 105 Women 100 LC Meter Backstroke | Heat: 6 of 8 | Lane: 5 | Team: SEL | Seed: 1:07.82
+[SWIMMER] Name: Ahmad Razif | Event: 102 Men 100 LC Meter Freestyle | Heat: 3 of 8 | Lane: 4 | Team: WP | Seed: 52.34
+
+If no swimmer data found, reply only: NO_SWIMMER_DATA`
           }
         ]
       }]
@@ -129,10 +142,13 @@ If no swimmer data exists, reply only with: NO_SWIMMER_DATA`
     const text = content.text.trim()
     if (text.includes('NO_SWIMMER_DATA')) return []
 
-    return text
+    const swimmers = text
       .split('\n')
       .map(v => v.trim())
       .filter(v => v.startsWith('[SWIMMER]') && v.length > 20)
+
+    console.log(`Vision RAG extracted ${swimmers.length} swimmer entries`)
+    return swimmers
 
   } catch (err) {
     console.error('Vision extraction failed:', err)
@@ -197,7 +213,7 @@ export async function POST(request: NextRequest) {
     const textChunks = chunkText(text)
     let visualChunks: string[] = []
     if (isPdf) {
-      visualChunks = await extractVisualDescriptions(arrayBuffer, eventName)
+      visualChunks = await extractSwimmersFromPDF(arrayBuffer, eventName)
     }
 
     const chunks = [...textChunks, ...visualChunks]
