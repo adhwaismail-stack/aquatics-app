@@ -84,6 +84,7 @@ export default function EventChatPage() {
   const [remainingQuestions, setRemainingQuestions] = useState<number | null>(null)
   const [limitReached, setLimitReached] = useState(false)
   const [notices, setNotices] = useState<EventNotice[]>([])
+  const [posterModalOpen, setPosterModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -104,6 +105,15 @@ export default function EventChatPage() {
     }, 30000)
     return () => clearInterval(interval)
   }, [event?.id])
+
+  // Close poster modal on Escape key
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPosterModalOpen(false)
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [])
 
   const loadNotices = async (eventId: string) => {
     const { data } = await supabase
@@ -225,16 +235,51 @@ export default function EventChatPage() {
         }
       `}</style>
 
+      {/* Poster full-size modal */}
+      {posterModalOpen && event?.poster_url && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setPosterModalOpen(false)}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setPosterModalOpen(false) }}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur text-white rounded-full flex items-center justify-center text-xl transition-colors"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+          <img
+            src={event.poster_url}
+            alt={event.name}
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <p className="absolute bottom-4 text-white/70 text-xs text-center w-full">
+            Tap anywhere to close
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
-        {/* Poster banner */}
+        {/* Compact poster banner - tap to expand */}
         {event?.poster_url && (
-          <div className="w-full">
+          <div
+            className="w-full bg-gray-100 overflow-hidden cursor-pointer group relative"
+            onClick={() => setPosterModalOpen(true)}
+            style={{ maxHeight: '160px' }}
+          >
             <img
               src={event.poster_url}
               alt={event.name}
-              className="w-full object-contain"
+              className="w-full h-full object-contain mx-auto transition-transform group-hover:scale-[1.02]"
+              style={{ maxHeight: '160px' }}
             />
+            {/* Hover hint */}
+            <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+              <span>🔍</span>
+              <span>Tap to enlarge</span>
+            </div>
           </div>
         )}
         <div className="px-6 py-4">
@@ -280,7 +325,6 @@ export default function EventChatPage() {
             </div>
             <div className="flex-1 overflow-hidden py-2">
               <div className="ticker-track">
-                {/* Render notices twice for seamless looping */}
                 {[...notices, ...notices].map((notice, idx) => {
                   const style = NOTICE_STYLES[notice.category] || NOTICE_STYLES.announcement
                   return (
