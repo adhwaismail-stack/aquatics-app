@@ -81,25 +81,37 @@ export async function POST(request: NextRequest) {
       {
         query_embedding: queryEmbedding,
         match_event_id: eventId,
-        match_count: 15
+        match_count: 20
       }
     )
 
-    // Keyword search
-    const keywords = englishQuestion.toLowerCase()
-      .split(' ')
-      .filter((w: string) => w.length > 3)
-      .slice(0, 8)
-
+    // Extract potential swimmer name from question for targeted search
+    const words = englishQuestion.split(' ').filter((w: string) => w.length > 2)
+    
+    // Keyword search — search ALL words including names
     let keywordChunks: { content: string }[] = []
-    for (const keyword of keywords) {
+    for (const word of words.slice(0, 10)) {
       const { data } = await supabase
         .from('event_chunks')
         .select('content')
         .eq('event_id', eventId)
-        .ilike('content', `%${keyword}%`)
-        .limit(5)
+        .ilike('content', `%${word}%`)
+        .limit(8)
       if (data) keywordChunks = [...keywordChunks, ...data]
+    }
+
+    // Also search for full name combinations (first + last name)
+    if (words.length >= 2) {
+      for (let i = 0; i < words.length - 1; i++) {
+        const namePair = `${words[i]} ${words[i + 1]}`
+        const { data } = await supabase
+          .from('event_chunks')
+          .select('content')
+          .eq('event_id', eventId)
+          .ilike('content', `%${namePair}%`)
+          .limit(10)
+        if (data) keywordChunks = [...keywordChunks, ...data]
+      }
     }
 
     // Combine and deduplicate
@@ -119,7 +131,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const context = allChunks.slice(0, 25)
+    const context = allChunks.slice(0, 30)
       .map((c: { content: string }) => c.content)
       .join('\n\n---\n\n')
 
@@ -128,35 +140,27 @@ export async function POST(request: NextRequest) {
 Your knowledge comes ONLY from the event documents uploaded for this event — such as start lists, heat sheets, schedules, technical packages, and official notices.
 
 YOUR APPROACH:
-1. Answer questions based strictly on the event documents provided
-2. Be specific — always include event number, heat number, lane number, seed time and team when available
-3. If a swimmer appears in multiple events, list ALL of them clearly
-4. If information is not in the documents, say so honestly
-5. Always reply in the same language the user writes in
-6. Use clear headings, bullet points and bold text to make answers easy to read
-7. Never use tables — use bullet points and bold labels instead
-8. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
+1. Answer based strictly on the event documents provided
+2. IMPORTANT: When asked about a swimmer, search ALL provided chunks thoroughly for EVERY occurrence of that swimmer's name — they may appear in multiple events across different chunks
+3. Always include ALL events found for a swimmer — never stop at just one or two
+4. Always reply in the same language the user writes in
+5. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
 
-ANSWER FORMAT FOR SWIMMER QUERIES:
+ANSWER FORMAT:
+
+For swimmer/heat queries, use this EXACT table format:
+
 **[Swimmer Name]** is entered in the following events:
 
----
+| Event | Event Name | Heat | Lane | Team | Seed Time |
+|-------|-----------|------|------|------|-----------|
+| #101 | Women 100 LC Meter Freestyle | Heat 7 of 12 | 4 | SEL | 1:02.48 |
+| #105 | Women 100 LC Meter Backstroke | Heat 6 of 8 | 5 | SEL | 1:07.82 |
+| #107 | Women 50 LC Meter Butterfly | Heat 9 of 10 | 8 | SEL | 30.37 |
 
-### Event [number] — [Event Name]
-- **Heat:** [Heat number] of [total heats]
-- **Lane:** [Lane number]
-- **Team:** [Team name]
-- **Seed Time:** [Time]
-
----
-
-### Event [number] — [Event Name]
-- **Heat:** [Heat number] of [total heats]
-- **Lane:** [Lane number]
-- **Team:** [Team name]
-- **Seed Time:** [Time]
-
-Repeat the above block for each event. Always use --- dividers between events.
+For schedule questions, use a clean table with columns: Time, Event, Description.
+For results questions, use a clean table with columns: Place, Name, Team, Time.
+For general questions, use clear paragraphs with bold headers.
 
 NON-EVENT QUESTIONS:
 For questions unrelated to this event, respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
