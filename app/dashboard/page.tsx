@@ -82,6 +82,7 @@ export default function DashboardPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [events, setEvents] = useState<AquaEvent[]>([])
   const [userCountry, setUserCountry] = useState<string | null>(null)
+  const [noticeCounts, setNoticeCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
     const getUser = async () => {
@@ -125,7 +126,11 @@ export default function DashboardPage() {
       let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
       if (!isElite && sub.country) eventsQuery = eventsQuery.eq('country', sub.country)
       const { data: eventsData } = await eventsQuery.order('start_date', { ascending: true })
-      if (eventsData) setEvents(eventsData)
+      if (eventsData) {
+        setEvents(eventsData)
+        // Load notice counts for visible events
+        await loadNoticeCounts(eventsData.map(e => e.id))
+      }
 
       setLoading(false)
 
@@ -134,6 +139,31 @@ export default function DashboardPage() {
     }
     getUser()
   }, [])
+
+  // Refresh notice counts every 60 seconds so badges update without reload
+  useEffect(() => {
+    if (events.length === 0) return
+    const interval = setInterval(() => {
+      loadNoticeCounts(events.map(e => e.id))
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [events])
+
+  const loadNoticeCounts = async (eventIds: string[]) => {
+    if (eventIds.length === 0) return
+    const { data } = await supabase
+      .from('event_notices')
+      .select('event_id')
+      .in('event_id', eventIds)
+      .eq('is_active', true)
+    if (data) {
+      const counts: Record<string, number> = {}
+      data.forEach((n: { event_id: string }) => {
+        counts[n.event_id] = (counts[n.event_id] || 0) + 1
+      })
+      setNoticeCounts(counts)
+    }
+  }
 
   const handleLogout = async () => { await supabase.auth.signOut(); window.location.href = '/' }
 
@@ -195,6 +225,13 @@ export default function DashboardPage() {
     if (subscription?.plan === 'lite') return '5'
     if (subscription?.plan === 'all_disciplines') return '200'
     return '50'
+  }
+
+  const getEventQuestionLabel = () => {
+    if (subscription?.plan === 'elite' || subscription?.plan === 'all_disciplines') return 'Unlimited'
+    if (subscription?.plan === 'pro') return '50/day'
+    if (subscription?.plan === 'lite') return '5 free questions'
+    return '5 free questions'
   }
 
   const handleDisciplineClick = (disciplineId: string) => { if (canAccessDiscipline(disciplineId)) window.location.href = `/chat/${disciplineId}` }
@@ -355,7 +392,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Events Section - TOP with poster */}
+        {/* Events Section - TOP with poster and live notice badge */}
         {events.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
@@ -366,35 +403,53 @@ export default function DashboardPage() {
               {!isElite && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">🌍 ELITE: global events</span>}
             </div>
             <div className="grid md:grid-cols-2 gap-3">
-              {events.map((event) => (
-                <div key={event.id} className="bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-sm transition-all cursor-pointer" onClick={() => { window.location.href = `/events/${event.slug}` }}>
-                  {event.poster_url && (
-                    <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
-                  )}
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1 mr-2">
-                        <h3 className="font-semibold text-gray-900 text-sm">{event.name}</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
+              {events.map((event) => {
+                const noticeCount = noticeCounts[event.id] || 0
+                return (
+                  <div key={event.id} className="bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-sm transition-all cursor-pointer relative" onClick={() => { window.location.href = `/events/${event.slug}` }}>
+                    {/* 🔴 Live Notice Badge */}
+                    {noticeCount > 0 && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <div className="relative flex items-center gap-1.5 bg-red-500 text-white px-2.5 py-1 rounded-full shadow-lg">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                          </span>
+                          <span className="text-xs font-bold">
+                            {noticeCount} <span className="hidden sm:inline">live update{noticeCount > 1 ? 's' : ''}</span>
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢 Live</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
-                      {event.start_date && (
-                        <span className="text-xs text-gray-400">
-                          📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                          {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">{subscription?.plan === 'lite' ? '3 free questions' : 'Unlimited'}</span>
-                      <button className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">Open Event AI →</button>
+                    )}
+
+                    {event.poster_url && (
+                      <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
+                    )}
+                    <div className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 mr-2">
+                          <h3 className="font-semibold text-gray-900 text-sm">{event.name}</h3>
+                          <p className="text-xs text-gray-400 mt-0.5">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢 Live</span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
+                        {event.start_date && (
+                          <span className="text-xs text-gray-400">
+                            📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                            {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">{getEventQuestionLabel()}</span>
+                        <button className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">Open Event AI →</button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
