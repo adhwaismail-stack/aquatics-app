@@ -156,8 +156,17 @@ async function extractTextFromXLSX(arrayBuffer: ArrayBuffer): Promise<string> {
 async function extractTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string> {
   try {
     const officeParser = await import('officeparser')
-    const text = await officeParser.parseOfficeAsync(Buffer.from(arrayBuffer))
-    return text || ''
+    const os = await import('os')
+    const fs = await import('fs')
+    const path = await import('path')
+    const tempPath = path.join(os.tmpdir(), `temp_${Date.now()}.pptx`)
+    fs.writeFileSync(tempPath, Buffer.from(arrayBuffer))
+    try {
+      const text = await (officeParser as any).parseOfficeAsync(tempPath)
+      return text || ''
+    } finally {
+      fs.unlinkSync(tempPath)
+    }
   } catch (err) {
     console.error('PPTX extraction failed:', err)
     return ''
@@ -262,7 +271,6 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await fileData.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
 
-    // Detect file type
     const isDocx = originalName.endsWith('.docx')
     const isXlsx = originalName.endsWith('.xlsx')
     const isPptx = originalName.endsWith('.pptx')
@@ -283,7 +291,6 @@ export async function POST(request: NextRequest) {
       console.log('Extracting text from PPTX...')
       text = await extractTextFromPPTX(arrayBuffer)
     } else {
-      // Default: PDF
       const { extractText } = await import('unpdf')
       const { text: extractedText } = await extractText(uint8Array, { mergePages: true })
       text = extractedText
@@ -308,7 +315,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Extract visual descriptions only for PDFs
     let visualChunks: string[] = []
     if (isPdf) {
       visualChunks = await extractVisualDescriptions(arrayBuffer, discipline)
