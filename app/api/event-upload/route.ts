@@ -215,8 +215,10 @@ export async function POST(request: NextRequest) {
       throw new Error(`Failed to download file: ${downloadError?.message}`)
     }
 
-    const arrayBuffer = await fileData.arrayBuffer()
-    const uint8Array = new Uint8Array(arrayBuffer)
+  const arrayBuffer = await fileData.arrayBuffer()
+// Copy buffer before it gets consumed by text extraction
+const arrayBufferCopy = arrayBuffer.slice(0)
+const uint8Array = new Uint8Array(arrayBuffer)
 
     const isDocx = originalName.endsWith('.docx')
     const isXlsx = originalName.endsWith('.xlsx')
@@ -262,9 +264,9 @@ export async function POST(request: NextRequest) {
 
     // Always try Vision RAG for PDFs
     let visualChunks: string[] = []
-    if (isPdf) {
-      visualChunks = await extractSwimmersViaVision(arrayBuffer, eventName)
-    }
+  if (isPdf) {
+  visualChunks = await extractSwimmersViaVision(arrayBufferCopy, eventName)
+}
 
     // Combine — deduplicate visual chunks that overlap with text chunks
     const allChunks = [...textChunks, ...visualChunks]
