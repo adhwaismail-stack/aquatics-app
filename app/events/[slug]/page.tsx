@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useParams, useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -84,11 +85,19 @@ export default function EventChatPage() {
   const [remainingQuestions, setRemainingQuestions] = useState<number | null>(null)
   const [limitReached, setLimitReached] = useState(false)
   const [notices, setNotices] = useState<EventNotice[]>([])
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [nativeShareSupported, setNativeShareSupported] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const shareQrCanvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     loadEvent()
     loadUser()
+    // Check if browser supports native share
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      setNativeShareSupported(true)
+    }
   }, [slug])
 
   useEffect(() => {
@@ -103,6 +112,15 @@ export default function EventChatPage() {
     }, 30000)
     return () => clearInterval(interval)
   }, [event?.id])
+
+  // Close share modal on Escape
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShareModalOpen(false)
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [])
 
   const loadNotices = async (eventId: string) => {
     const { data } = await supabase
@@ -180,6 +198,42 @@ export default function EventChatPage() {
     }
   }
 
+  const getShareUrl = () => {
+    if (!event) return ''
+    const base = typeof window !== 'undefined' ? window.location.origin : 'https://aquaref.co'
+    return `${base}/events/${event.slug}?ref=user_share`
+  }
+
+  const handleCopyUrl = async () => {
+    await navigator.clipboard.writeText(getShareUrl())
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
+  }
+
+  const handleDownloadQR = () => {
+    if (!event) return
+    const canvas = shareQrCanvasRef.current
+    if (!canvas) return
+    const url = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `aquaref-${event.slug}.png`
+    link.click()
+  }
+
+  const handleNativeShare = async () => {
+    if (!event || !navigator.share) return
+    try {
+      await navigator.share({
+        title: event.name,
+        text: `Check out the AquaRef AI for ${event.name} — ask anything about this event!`,
+        url: getShareUrl(),
+      })
+    } catch {
+      // User cancelled share — do nothing
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -224,32 +278,137 @@ export default function EventChatPage() {
         }
       `}</style>
 
+      {/* Share Event Modal */}
+      {shareModalOpen && event && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4"
+          onClick={() => setShareModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg text-gray-900">Share this event</h3>
+              <button
+                onClick={() => setShareModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 mb-4">
+              Share <span className="font-medium text-gray-700">{event.name}</span> with coaches, teammates, or parents.
+            </p>
+
+            {/* QR Code */}
+            <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 mb-4 flex items-center justify-center">
+              <div className="bg-white p-3 rounded-lg shadow-sm">
+                <QRCodeSVG
+                  value={getShareUrl()}
+                  size={160}
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+              {/* Hidden canvas for PNG download */}
+              <div style={{ display: 'none' }}>
+                <QRCodeCanvas
+                  ref={shareQrCanvasRef}
+                  value={getShareUrl()}
+                  size={512}
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+            </div>
+
+            {/* URL */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Event link</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={getShareUrl()}
+                  readOnly
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-700 font-mono truncate"
+                />
+                <button
+                  onClick={handleCopyUrl}
+                  className={`text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${copiedUrl ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                >
+                  {copiedUrl ? '✓ Copied' : '📋 Copy'}
+                </button>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-2">
+              {nativeShareSupported && (
+                <button
+                  onClick={handleNativeShare}
+                  className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 flex items-center justify-center gap-2"
+                >
+                  <span>📲</span>
+                  <span>Share to WhatsApp, Messages, Mail…</span>
+                </button>
+              )}
+              <button
+                onClick={handleDownloadQR}
+                className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
+              >
+                <span>📥</span>
+                <span>Download QR code</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center mt-4">
+              💡 Scans work for anyone with an AquaRef account.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
         <div className="px-6 py-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600 text-sm">← Back</button>
-              <div className="w-px h-4 bg-gray-200"></div>
-              <div>
-                <h1 className="font-semibold text-gray-900 flex items-center gap-2">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600 text-sm flex-shrink-0">← Back</button>
+              <div className="w-px h-4 bg-gray-200 flex-shrink-0"></div>
+              <div className="min-w-0">
+                <h1 className="font-semibold text-gray-900 flex items-center gap-2 truncate">
                   🏆 {event?.name}
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">🟢 Live</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium flex-shrink-0">🟢 Live</span>
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 truncate">
                     {countryToFlag(event?.country || '')} {event?.country} · 📍 {event?.location} · 🏊 {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}
                     {event?.start_date && ` · 📅 ${new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}${event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`}
                   </p>
                 </div>
               </div>
             </div>
-            {userPlan === 'lite' && remainingQuestions !== null && (
-              <div className="text-right">
-                <div className="text-xs text-gray-400">This event</div>
-                <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 5 left</div>
-              </div>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Share button */}
+              <button
+                onClick={() => setShareModalOpen(true)}
+                className="text-xs px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-green-300 font-medium flex items-center gap-1.5 transition-colors"
+                title="Share this event"
+              >
+                <span>📤</span>
+                <span className="hidden sm:inline">Share</span>
+              </button>
+              {userPlan === 'lite' && remainingQuestions !== null && (
+                <div className="text-right">
+                  <div className="text-xs text-gray-400">This event</div>
+                  <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 5 left</div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
