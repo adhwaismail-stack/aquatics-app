@@ -84,11 +84,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        window.location.href = '/login'
-        return
-      }
+  // Process hash token first (for magic link on mobile)
+await supabase.auth.getSession()
+const { data: { user } } = await supabase.auth.getUser()
+if (!user) {
+  window.location.href = '/login'
+  return
+}
       setUser(user)
 
       const { data: files } = await supabase
