@@ -115,44 +115,16 @@ const DISCIPLINE_LABELS: Record<string, string> = {
 
 const countryToFlag = (countryName: string): string => {
   const countries: Record<string, string> = {
-    'Malaysia': '🇲🇾',
-    'Singapore': '🇸🇬',
-    'Indonesia': '🇮🇩',
-    'Thailand': '🇹🇭',
-    'Philippines': '🇵🇭',
-    'Vietnam': '🇻🇳',
-    'Brunei': '🇧🇳',
-    'Myanmar': '🇲🇲',
-    'Cambodia': '🇰🇭',
-    'Laos': '🇱🇦',
-    'Australia': '🇦🇺',
-    'New Zealand': '🇳🇿',
-    'United Kingdom': '🇬🇧',
-    'United States': '🇺🇸',
-    'Canada': '🇨🇦',
-    'Japan': '🇯🇵',
-    'China': '🇨🇳',
-    'South Korea': '🇰🇷',
-    'India': '🇮🇳',
-    'Germany': '🇩🇪',
-    'France': '🇫🇷',
-    'Netherlands': '🇳🇱',
-    'Spain': '🇪🇸',
-    'Italy': '🇮🇹',
-    'United Arab Emirates': '🇦🇪',
-    'Saudi Arabia': '🇸🇦',
-    'Qatar': '🇶🇦',
-    'Bahrain': '🇧🇭',
-    'Kuwait': '🇰🇼',
-    'Egypt': '🇪🇬',
-    'South Africa': '🇿🇦',
-    'Nigeria': '🇳🇬',
-    'Kenya': '🇰🇪',
-    'Hong Kong': '🇭🇰',
-    'Taiwan': '🇹🇼',
-    'Pakistan': '🇵🇰',
-    'Bangladesh': '🇧🇩',
-    'Sri Lanka': '🇱🇰',
+    'Malaysia': '🇲🇾', 'Singapore': '🇸🇬', 'Indonesia': '🇮🇩', 'Thailand': '🇹🇭',
+    'Philippines': '🇵🇭', 'Vietnam': '🇻🇳', 'Brunei': '🇧🇳', 'Myanmar': '🇲🇲',
+    'Cambodia': '🇰🇭', 'Laos': '🇱🇦', 'Australia': '🇦🇺', 'New Zealand': '🇳🇿',
+    'United Kingdom': '🇬🇧', 'United States': '🇺🇸', 'Canada': '🇨🇦', 'Japan': '🇯🇵',
+    'China': '🇨🇳', 'South Korea': '🇰🇷', 'India': '🇮🇳', 'Germany': '🇩🇪',
+    'France': '🇫🇷', 'Netherlands': '🇳🇱', 'Spain': '🇪🇸', 'Italy': '🇮🇹',
+    'United Arab Emirates': '🇦🇪', 'Saudi Arabia': '🇸🇦', 'Qatar': '🇶🇦',
+    'Bahrain': '🇧🇭', 'Kuwait': '🇰🇼', 'Egypt': '🇪🇬', 'South Africa': '🇿🇦',
+    'Nigeria': '🇳🇬', 'Kenya': '🇰🇪', 'Hong Kong': '🇭🇰', 'Taiwan': '🇹🇼',
+    'Pakistan': '🇵🇰', 'Bangladesh': '🇧🇩', 'Sri Lanka': '🇱🇰',
   }
   return countries[countryName] || '🌍'
 }
@@ -212,6 +184,9 @@ export default function AdminPage() {
   const [systemPrompt, setSystemPrompt] = useState('')
   const [promptSaved, setPromptSaved] = useState(false)
   const [promptLoading, setPromptLoading] = useState(false)
+  const [disciplinePrompts, setDisciplinePrompts] = useState<Record<string, string>>({})
+  const [savingDisciplinePrompt, setSavingDisciplinePrompt] = useState<string | null>(null)
+  const [savedDisciplinePrompt, setSavedDisciplinePrompt] = useState<string | null>(null)
   const [chatLogs, setChatLogs] = useState<ChatLog[]>([])
   const [corrections, setCorrections] = useState<CorrectionNote[]>([])
   const [selectedLog, setSelectedLog] = useState<ChatLog | null>(null)
@@ -250,6 +225,7 @@ export default function AdminPage() {
       setAuthenticated(true)
       setError('')
       loadSystemPrompt()
+      loadDisciplinePrompts()
       loadAllFiles()
       loadChatLogs()
       loadCorrections()
@@ -264,6 +240,28 @@ export default function AdminPage() {
     const { data } = await supabase.from('system_prompts').select('prompt').eq('discipline', 'all').single()
     if (data) setSystemPrompt(data.prompt)
     setPromptLoading(false)
+  }
+
+  const loadDisciplinePrompts = async () => {
+    const prompts: Record<string, string> = {}
+    for (const d of DISCIPLINES) {
+      const { data } = await supabase.from('system_prompts').select('prompt').eq('discipline', d.discipline).single()
+      prompts[d.discipline] = data?.prompt || ''
+    }
+    setDisciplinePrompts(prompts)
+  }
+
+  const handleSaveDisciplinePrompt = async (discipline: string) => {
+    setSavingDisciplinePrompt(discipline)
+    const existing = await supabase.from('system_prompts').select('id').eq('discipline', discipline).single()
+    if (existing.data) {
+      await supabase.from('system_prompts').update({ prompt: disciplinePrompts[discipline], updated_at: new Date().toISOString() }).eq('discipline', discipline)
+    } else {
+      await supabase.from('system_prompts').insert({ discipline, prompt: disciplinePrompts[discipline] })
+    }
+    setSavingDisciplinePrompt(null)
+    setSavedDisciplinePrompt(discipline)
+    setTimeout(() => setSavedDisciplinePrompt(null), 3000)
   }
 
   const loadAllFiles = useCallback(async () => {
@@ -516,7 +514,7 @@ export default function AdminPage() {
 
   const totalInputTokens = tokenLogs.reduce((sum, l) => sum + (l.input_tokens || 0), 0)
   const totalOutputTokens = tokenLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
-  const costRM = ((totalInputTokens * 0.0000008) + (totalOutputTokens * 0.000004)) * 4.5
+  const costRM = ((totalInputTokens * 0.000001) + (totalOutputTokens * 0.000005)) * 4.5
 
   const thisMonthStart = new Date()
   thisMonthStart.setDate(1)
@@ -524,7 +522,7 @@ export default function AdminPage() {
   const thisMonthLogs = tokenLogs.filter(l => new Date(l.created_at) >= thisMonthStart)
   const thisMonthInputTokens = thisMonthLogs.reduce((sum, l) => sum + (l.input_tokens || 0), 0)
   const thisMonthOutputTokens = thisMonthLogs.reduce((sum, l) => sum + (l.output_tokens || 0), 0)
-  const thisMonthCostRM = ((thisMonthInputTokens * 0.0000008) + (thisMonthOutputTokens * 0.000004)) * 4.5
+  const thisMonthCostRM = ((thisMonthInputTokens * 0.000001) + (thisMonthOutputTokens * 0.000005)) * 4.5
 
   const userQuestionCounts = chatLogs.reduce((acc, log) => {
     acc[log.user_email] = (acc[log.user_email] || 0) + 1
@@ -618,9 +616,9 @@ export default function AdminPage() {
         {activeTab === 'rulebooks' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
-            <p className="text-sm text-gray-400 mb-6">Upload PDF, TXT, DOCX, XLSX, or PPTX files per discipline</p>
+            <p className="text-sm text-gray-400 mb-6">Upload PDF, TXT, DOCX, XLSX, or PPTX files per discipline. Add discipline-specific prompt instructions below each rulebook.</p>
             {uploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {uploadProgress}</div>}
-            <div className="space-y-4">
+            <div className="space-y-6">
               {DISCIPLINES.map((d) => {
                 const files = rulebookFiles[d.discipline] || []
                 const isPara = d.discipline === 'paraswimming'
@@ -635,6 +633,8 @@ export default function AdminPage() {
                         {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} uploaded` : 'No files'}
                       </span>
                     </div>
+
+                    {/* Files list */}
                     {files.length > 0 && (
                       <div className="mb-3 space-y-2">
                         {files.map((file) => (
@@ -653,12 +653,40 @@ export default function AdminPage() {
                         ))}
                       </div>
                     )}
-                    <label className="cursor-pointer block">
+
+                    {/* Upload button */}
+                    <label className="cursor-pointer block mb-4">
                       <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${uploading === d.discipline ? 'border-gray-200 text-gray-400' : isPara ? 'border-purple-200 text-purple-600 hover:bg-purple-50' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}>
                         {uploading === d.discipline ? 'Processing...' : files.length > 0 ? '+ Add another document' : 'Upload PDF, DOCX, XLSX, PPTX or TXT'}
                       </div>
                       <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={uploading !== null} onChange={(e) => handleUpload(e, d.discipline)} />
                     </label>
+
+                    {/* Discipline-specific prompt */}
+                    <div className={`border-t pt-4 ${isPara ? 'border-purple-100' : 'border-gray-100'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className={`text-xs font-medium ${isPara ? 'text-purple-700' : 'text-gray-700'}`}>
+                            {d.name} — Specific Prompt Instructions
+                          </p>
+                          <p className="text-xs text-gray-400">Added on top of the base prompt for {d.name} chats only</p>
+                        </div>
+                        <button
+                          onClick={() => handleSaveDisciplinePrompt(d.discipline)}
+                          disabled={savingDisciplinePrompt === d.discipline}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${savedDisciplinePrompt === d.discipline ? 'bg-green-100 text-green-700' : isPara ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                        >
+                          {savingDisciplinePrompt === d.discipline ? 'Saving...' : savedDisciplinePrompt === d.discipline ? 'Saved! ✓' : 'Save'}
+                        </button>
+                      </div>
+                      <textarea
+                        value={disciplinePrompts[d.discipline] || ''}
+                        onChange={(e) => setDisciplinePrompts(prev => ({ ...prev, [d.discipline]: e.target.value }))}
+                        rows={4}
+                        placeholder={`Add ${d.name}-specific instructions here. E.g. special rule clarifications, known edge cases, TC decisions specific to ${d.name}...`}
+                        className={`w-full px-3 py-2 border rounded-lg text-xs font-mono focus:outline-none focus:ring-2 text-gray-700 placeholder-gray-400 resize-y ${isPara ? 'border-purple-200 focus:ring-purple-500' : 'border-gray-200 focus:ring-blue-500'}`}
+                      />
+                    </div>
                   </div>
                 )
               })}
@@ -669,13 +697,13 @@ export default function AdminPage() {
         {/* System Prompt tab */}
         {activeTab === 'system prompt' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
-            <h2 className="font-semibold text-gray-900 mb-2">System Prompt Editor</h2>
-            <p className="text-sm text-gray-400 mb-4">This controls how the AI behaves for ALL disciplines.</p>
+            <h2 className="font-semibold text-gray-900 mb-2">Base System Prompt</h2>
+            <p className="text-sm text-gray-400 mb-4">This is the base prompt that applies to ALL disciplines. Keep only general instructions here. Discipline-specific notes go in each discipline card in the Rulebooks tab.</p>
             {promptLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : (
               <>
-                <textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={16} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700" />
+                <textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={20} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700" />
                 <div className="flex items-center justify-between mt-4">
-                  <p className="text-xs text-gray-400">Tip: Add TC clarifications or rule corrections directly here</p>
+                  <p className="text-xs text-gray-400">💡 Tip: Move discipline-specific notes to each discipline card in the Rulebooks tab</p>
                   <button onClick={handleSavePrompt} disabled={promptLoading} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                     {promptSaved ? 'Saved! ✓' : 'Save Changes'}
                   </button>
@@ -1072,7 +1100,6 @@ export default function AdminPage() {
                     <div className="text-xs text-gray-400 mt-1">Total Questions Asked</div>
                   </div>
                 </div>
-
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Subscription Breakdown</h3>
                   <div className="grid grid-cols-3 gap-4">
@@ -1093,7 +1120,6 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">🤖 AI Token Cost</h3>
                   <div className="grid grid-cols-2 gap-4 mb-4">
@@ -1112,29 +1138,26 @@ export default function AdminPage() {
                     <div className="bg-blue-50 rounded-xl p-3 text-center">
                       <p className="text-xs text-gray-400 mb-1">Input Tokens (all time)</p>
                       <p className="text-lg font-bold text-blue-700">{totalInputTokens.toLocaleString()}</p>
-                      <p className="text-xs text-gray-400">RM {(totalInputTokens * 0.0000008 * 4.5).toFixed(4)}</p>
+                      <p className="text-xs text-gray-400">RM {(totalInputTokens * 0.000001 * 4.5).toFixed(4)}</p>
                     </div>
                     <div className="bg-orange-50 rounded-xl p-3 text-center">
                       <p className="text-xs text-gray-400 mb-1">Output Tokens (all time)</p>
                       <p className="text-lg font-bold text-orange-700">{totalOutputTokens.toLocaleString()}</p>
-                      <p className="text-xs text-gray-400">RM {(totalOutputTokens * 0.000004 * 4.5).toFixed(4)}</p>
+                      <p className="text-xs text-gray-400">RM {(totalOutputTokens * 0.000005 * 4.5).toFixed(4)}</p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-3 text-center">Haiku: $1.00/M input · $5.00/M output · USD×4.5 = RM</p>
+                  <p className="text-xs text-gray-400 mt-3 text-center">Haiku 4.5: $1.00/M input · $5.00/M output · USD×4.5 = RM</p>
                 </div>
-
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Questions Asked — Last 7 Days</h3>
                   <SimpleBarChart data={last7Days} />
                 </div>
-
                 {disciplineUsage.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">Most Popular Disciplines</h3>
                     <SimpleBarChart data={disciplineUsage} />
                   </div>
                 )}
-
                 {top10Users.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">🏆 Top 10 Most Active Users</h3>
@@ -1149,7 +1172,6 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
-
                 {countryData.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">🌍 Users by Country</h3>
@@ -1157,7 +1179,6 @@ export default function AdminPage() {
                     <p className="text-xs text-gray-400 mt-3 text-center">{userSubscriptions.filter(s => s.country).length} users with known location</p>
                   </div>
                 )}
-
                 {last10Logins.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
                     <h3 className="font-semibold text-gray-900 mb-4">🕐 Last 10 Active Users</h3>
@@ -1171,7 +1192,6 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
-
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">User Feedback</h3>
                   <div className="grid grid-cols-3 gap-4">
@@ -1201,7 +1221,6 @@ export default function AdminPage() {
             )}
           </div>
         )}
-
       </div>
     </div>
   )
