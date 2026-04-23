@@ -103,6 +103,7 @@ interface AquaEvent {
   end_date: string
   is_active: boolean
   created_at: string
+  poster_url?: string
 }
 
 const DISCIPLINES = [
@@ -257,6 +258,7 @@ export default function AdminPage() {
   const [eventPrompts, setEventPrompts] = useState<Record<string, string>>({})
   const [savingEventPrompt, setSavingEventPrompt] = useState(false)
   const [savedEventPrompt, setSavedEventPrompt] = useState(false)
+  const [posterUploading, setPosterUploading] = useState(false)
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -384,8 +386,7 @@ export default function AdminPage() {
     if (data) {
       const fileMap: Record<string, number> = {}
       data.forEach((chunk: { source_file: string }) => { fileMap[chunk.source_file] = (fileMap[chunk.source_file] || 0) + 1 })
-      const files = Object.entries(fileMap).map(([name, chunks]) => ({ name, chunks }))
-      setEventFiles(prev => ({ ...prev, [eventId]: files }))
+      setEventFiles(prev => ({ ...prev, [eventId]: Object.entries(fileMap).map(([name, chunks]) => ({ name, chunks })) }))
     }
   }
 
@@ -405,6 +406,28 @@ export default function AdminPage() {
     setSavingEventPrompt(false)
     setSavedEventPrompt(true)
     setTimeout(() => setSavedEventPrompt(false), 3000)
+  }
+
+  const handlePosterUpload = async (e: React.ChangeEvent<HTMLInputElement>, event: AquaEvent) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { alert('Poster must be under 2MB'); return }
+    setPosterUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const fileName = `${event.id}/poster_${Date.now()}.${ext}`
+      const { data: signedData, error: signedError } = await supabase.storage.from('events').createSignedUploadUrl(fileName)
+      if (signedError || !signedData) throw new Error('Could not create upload URL')
+      const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+      if (!uploadResponse.ok) throw new Error('Upload failed')
+      const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(fileName)
+      await supabase.from('events').update({ poster_url: publicUrl }).eq('id', event.id)
+      setSelectedEvent({ ...event, poster_url: publicUrl })
+      await loadEvents()
+      alert('✅ Poster uploaded!')
+    } catch (err) { alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error')) }
+    setPosterUploading(false)
+    e.target.value = ''
   }
 
   const openEventManagement = (event: AquaEvent) => {
@@ -502,7 +525,7 @@ export default function AdminPage() {
   }
 
   const handleDeleteEvent = async (event: AquaEvent) => {
-    if (!confirm(`Delete "${event.name}"? This will also delete all uploaded documents.`)) return
+    if (!confirm(`Delete "${event.name}"?`)) return
     await supabase.from('events').delete().eq('id', event.id)
     setSelectedEvent(null)
     loadEvents()
@@ -702,7 +725,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Events tab */}
+        {/* Events - List */}
         {activeTab === 'events' && !selectedEvent && !showCreateEvent && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -726,16 +749,20 @@ export default function AdminPage() {
                 {events.map((event) => (
                   <div key={event.id} onClick={() => openEventManagement(event)} className={`bg-white border rounded-xl p-4 cursor-pointer hover:shadow-sm transition-all ${event.is_active ? 'border-green-200 hover:border-green-400' : 'border-gray-100 hover:border-gray-300'}`}>
                     <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium text-gray-900">{event.name}</h3>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{event.is_active ? '🟢 Active' : '⚫ Inactive'}</span>
-                        </div>
-                        <p className="text-xs text-gray-400">aquaref.co/events/{event.slug}</p>
-                        <div className="flex items-center gap-3 mt-1 flex-wrap">
-                          <span className="text-xs text-gray-500">{countryToFlag(event.country)} {event.country}</span>
-                          <span className="text-xs text-gray-500">🏊 {DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
-                          {event.start_date && <span className="text-xs text-gray-500">📅 {new Date(event.start_date).toLocaleDateString()}</span>}
+                      <div className="flex items-center gap-4 flex-1">
+                        {event.poster_url && (
+                          <img src={event.poster_url} alt="" className="w-16 h-10 rounded-lg object-cover flex-shrink-0 border border-gray-100" />
+                        )}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium text-gray-900">{event.name}</h3>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{event.is_active ? '🟢 Active' : '⚫ Inactive'}</span>
+                          </div>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="text-xs text-gray-400">aquaref.co/events/{event.slug}</span>
+                            <span className="text-xs text-gray-500">{countryToFlag(event.country)} {event.country}</span>
+                            <span className="text-xs text-gray-500">🏊 {DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
+                          </div>
                         </div>
                       </div>
                       <span className="text-gray-400 text-sm ml-4">→</span>
@@ -747,7 +774,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Create Event */}
+        {/* Events - Create */}
         {activeTab === 'events' && showCreateEvent && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <div className="flex items-center gap-3 mb-6">
@@ -757,11 +784,7 @@ export default function AdminPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
-                <input type="text" value={newEvent.name} onChange={(e) => {
-                  const name = e.target.value
-                  const slug = name.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-')
-                  setNewEvent(prev => ({ ...prev, name, slug }))
-                }} placeholder="e.g. National Age Group Championships 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                <input type="text" value={newEvent.name} onChange={(e) => { const name = e.target.value; const slug = name.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-'); setNewEvent(prev => ({ ...prev, name, slug })) }} placeholder="e.g. National Age Group Championships 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">URL Slug *</label>
@@ -805,7 +828,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Event Management Page - Single consolidated page */}
+        {/* Events - Management Page */}
         {activeTab === 'events' && selectedEvent && (
           <div className="space-y-4">
             {/* Header */}
@@ -826,7 +849,24 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Event Info */}
+            {/* Poster Upload */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <h3 className="font-medium text-gray-900 mb-1 text-sm">🖼️ Event Poster</h3>
+              <p className="text-xs text-gray-400 mb-3">Recommended: 1200×630px, JPG or PNG, max 2MB. Displays on dashboard card and event chat header.</p>
+              {selectedEvent.poster_url && (
+                <div className="mb-3">
+                  <img src={selectedEvent.poster_url} alt="Event poster" className="w-full max-w-lg rounded-xl border border-gray-100 object-cover" style={{ aspectRatio: '1200/630' }} />
+                </div>
+              )}
+              <label className="cursor-pointer block">
+                <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${posterUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
+                  {posterUploading ? '⏳ Uploading poster...' : selectedEvent.poster_url ? '🔄 Replace Poster' : '🖼️ Upload Poster (JPG, PNG)'}
+                </div>
+                <input type="file" accept=".jpg,.jpeg,.png" className="hidden" disabled={posterUploading} onChange={(e) => handlePosterUpload(e, selectedEvent)} />
+              </label>
+            </div>
+
+            {/* Event Details */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h3 className="font-medium text-gray-900 mb-3 text-sm">📋 Event Details</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -852,7 +892,7 @@ export default function AdminPage() {
                 value={eventPrompts[selectedEvent.id] || ''}
                 onChange={(e) => setEventPrompts(prev => ({ ...prev, [selectedEvent.id]: e.target.value }))}
                 rows={4}
-                placeholder="Add custom instructions for this event's AI... e.g. 'This is the 68th Malaysia Open Swimming Championships. Always greet users warmly. The meet referee is...'"
+                placeholder="e.g. This is the 68th Malaysia Open Swimming Championships 2029. The Meet Referee is [name]. Always greet users warmly and help them find their swimmer's schedule."
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 placeholder-gray-400 resize-y"
               />
             </div>
@@ -862,7 +902,7 @@ export default function AdminPage() {
               <h3 className="font-medium text-gray-900 mb-1 text-sm">📄 Event Documents</h3>
               <p className="text-xs text-gray-400 mb-3">Upload start lists, heat sheets, schedules, technical packages.</p>
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
-                <p className="text-xs text-blue-700">💡 <strong>Tip:</strong> For best swimmer lookup results, request start lists in <strong>XLSX format</strong> from HY-TEK Meet Manager. XLSX gives 100% coverage vs ~80% for PDF.</p>
+                <p className="text-xs text-blue-700">💡 <strong>Tip:</strong> For best swimmer lookup, request start lists in <strong>XLSX format</strong> from HY-TEK Meet Manager. XLSX = 100% coverage vs ~80% for PDF.</p>
               </div>
               {eventFiles[selectedEvent.id]?.length > 0 && (
                 <div className="mb-4 space-y-2">
@@ -885,7 +925,7 @@ export default function AdminPage() {
               {eventUploadProgress && <div className="mb-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {eventUploadProgress}</div>}
               <label className="cursor-pointer block">
                 <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${eventUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
-                  {eventUploading ? 'Processing...' : '+ Upload Document (PDF, DOCX, XLSX, PPTX, TXT)'}
+                  {eventUploading ? 'Processing document with AI...' : '+ Upload Document (PDF, DOCX, XLSX, PPTX, TXT)'}
                 </div>
                 <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={eventUploading} onChange={(e) => handleEventUpload(e, selectedEvent)} />
               </label>
