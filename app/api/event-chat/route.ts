@@ -39,11 +39,11 @@ export async function POST(request: NextRequest) {
 
     if (plan === 'lite') {
       const questionCount = meetPass?.question_count || 0
-      if (questionCount >= 3) {
+      if (questionCount >= 5) {
         return NextResponse.json(
           {
             error: 'event_limit_reached',
-            message: `You've used all 3 free questions for this event. Upgrade to PRO or ELITE for unlimited event questions!`,
+            message: `You've used all 5 free questions for this event. Upgrade to PRO or ELITE for unlimited event questions!`,
             upgradeUrl: '/pricing'
           },
           { status: 429 }
@@ -206,7 +206,7 @@ Respond with: "I can only answer questions about ${eventName}. For World Aquatic
     }
 
     const newCount = (meetPass?.question_count || 0) + 1
-    const remainingQuestions = plan === 'lite' ? Math.max(0, 3 - newCount) : null
+    const remainingQuestions = plan === 'lite' ? Math.max(0, 5 - newCount) : null
 
     return NextResponse.json({
       answer,
