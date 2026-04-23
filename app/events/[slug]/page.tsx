@@ -80,13 +80,11 @@ export default function EventChatPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
     setUserEmail(user.email || '')
-
     const { data: sub } = await supabase
       .from('user_subscriptions')
       .select('plan, country')
       .eq('user_email', user.email)
       .single()
-
     setUserPlan(sub?.plan || 'lite')
   }
 
@@ -98,7 +96,6 @@ export default function EventChatPage() {
       .eq('slug', slug)
       .eq('is_active', true)
       .single()
-
     if (!data) {
       setNotFound(true)
     } else {
@@ -113,47 +110,31 @@ export default function EventChatPage() {
 
   const handleSend = async () => {
     if (!input.trim() || sending || !event || limitReached) return
-
     const question = input.trim()
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: question }])
     setSending(true)
-
     try {
       const response = await fetch('/api/event-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          eventId: event.id,
-          eventName: event.name,
-          userEmail
-        })
+        body: JSON.stringify({ question, eventId: event.id, eventName: event.name, userEmail })
       })
-
       const data = await response.json()
-
       if (response.status === 429) {
         setLimitReached(true)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `⚠️ ${data.message}\n\n[Upgrade your plan](/pricing) to continue asking questions about this event.`
-        }])
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.message}\n\nUpgrade your plan to continue asking questions about this event.` }])
         return
       }
-
       if (data.error) {
-        setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, something went wrong. Please try again.` }])
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
         return
       }
-
       setMessages(prev => [...prev, { role: 'assistant', content: data.answer }])
-
       if (data.remainingQuestions !== null && data.remainingQuestions !== undefined) {
         setRemainingQuestions(data.remainingQuestions)
         if (data.remainingQuestions === 0) setLimitReached(true)
       }
-
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
     } finally {
@@ -189,13 +170,10 @@ export default function EventChatPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600">
-              ← Back
-            </button>
+            <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-gray-600">← Back</button>
             <div>
               <h1 className="font-semibold text-gray-900 text-sm">{event?.name}</h1>
               <div className="flex items-center gap-2">
@@ -219,19 +197,13 @@ export default function EventChatPage() {
         </div>
       </div>
 
-      {/* LITE limit banner */}
       {userPlan === 'lite' && remainingQuestions !== null && (
         <div className={`px-4 py-2 text-center text-xs ${remainingQuestions === 0 ? 'bg-red-50 text-red-600' : remainingQuestions === 1 ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
-          {remainingQuestions === 0
-            ? '⚠️ You\'ve used all 3 free questions for this event. Upgrade to PRO for unlimited access.'
-            : `💬 ${remainingQuestions} free question${remainingQuestions !== 1 ? 's' : ''} remaining for this event. `}
-          {remainingQuestions !== null && remainingQuestions <= 1 && (
-            <a href="/pricing" className="underline font-medium">Upgrade now</a>
-          )}
+          {remainingQuestions === 0 ? '⚠️ You\'ve used all 3 free questions for this event. ' : `💬 ${remainingQuestions} free question${remainingQuestions !== 1 ? 's' : ''} remaining. `}
+          {remainingQuestions !== null && remainingQuestions <= 1 && <a href="/pricing" className="underline font-medium">Upgrade now</a>}
         </div>
       )}
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto space-y-4">
           {messages.map((msg, i) => (
@@ -241,16 +213,15 @@ export default function EventChatPage() {
               )}
               <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-100 text-gray-800'}`}>
                 {msg.role === 'assistant' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm max-w-none text-gray-800 prose-table:border prose-td:border prose-td:px-2 prose-th:border prose-th:px-2">
-                    {msg.content}
-                  </ReactMarkdown>
+                  <div className="prose prose-sm max-w-none text-gray-800">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
                 ) : (
                   <p className="text-sm">{msg.content}</p>
                 )}
               </div>
             </div>
           ))}
-
           {sending && (
             <div className="flex justify-start">
               <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold mr-2 mt-1">E</div>
@@ -267,15 +238,12 @@ export default function EventChatPage() {
         </div>
       </div>
 
-      {/* Input */}
       <div className="bg-white border-t border-gray-100 px-4 py-4">
         <div className="max-w-3xl mx-auto">
           {limitReached ? (
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-3">Upgrade to continue asking questions about this event</p>
-              <a href="/pricing" className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-                View Plans
-              </a>
+              <a href="/pricing" className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">View Plans</a>
             </div>
           ) : (
             <div className="flex gap-3">
