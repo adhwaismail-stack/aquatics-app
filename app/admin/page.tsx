@@ -243,8 +243,6 @@ export default function AdminPage() {
   const [extendDays, setExtendDays] = useState('14')
   const [tokenLogs, setTokenLogs] = useState<TokenLog[]>([])
   const [lastLogins, setLastLogins] = useState<Record<string, string>>({})
-
-  // Events state
   const [events, setEvents] = useState<AquaEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventTab, setEventTab] = useState('all-events')
@@ -257,6 +255,7 @@ export default function AdminPage() {
   const [eventUploading, setEventUploading] = useState(false)
   const [eventUploadProgress, setEventUploadProgress] = useState('')
   const [eventFiles, setEventFiles] = useState<Record<string, { name: string, chunks: number }[]>>({})
+  const [deletingEventFile, setDeletingEventFile] = useState<string | null>(null)
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -398,6 +397,23 @@ export default function AdminPage() {
     }
   }
 
+  const handleDeleteEventFile = async (eventId: string, fileName: string) => {
+    if (!confirm(`Delete "${fileName}"? This will remove all its chunks from the AI.`)) return
+    setDeletingEventFile(fileName)
+    try {
+      await supabase
+        .from('event_chunks')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('source_file', fileName)
+      await loadEventFiles(eventId)
+      alert(`✅ "${fileName}" deleted successfully.`)
+    } catch {
+      alert('Failed to delete file.')
+    }
+    setDeletingEventFile(null)
+  }
+
   useEffect(() => {
     if (activeTab === 'chat logs') loadChatLogs()
     if (activeTab === 'corrections') loadCorrections()
@@ -490,11 +506,7 @@ export default function AdminPage() {
     }
     const slug = newEvent.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
     setCreatingEvent(true)
-    const { error } = await supabase.from('events').insert({
-      ...newEvent,
-      slug,
-      is_active: false
-    })
+    const { error } = await supabase.from('events').insert({ ...newEvent, slug, is_active: false })
     if (error) {
       alert('Error creating event: ' + error.message)
     } else {
@@ -528,7 +540,7 @@ export default function AdminPage() {
       if (signedError || !signedData) throw new Error(`Could not create upload URL: ${signedError?.message}`)
       const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
       if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.statusText}`)
-      setEventUploadProgress('Processing document...')
+      setEventUploadProgress('Processing document with AI...')
       const response = await fetch('/api/event-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -537,7 +549,7 @@ export default function AdminPage() {
       const data = await response.json()
       if (data.success) {
         setEventUploadProgress('')
-        alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}`)
+        alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name} (${data.textChunks} text + ${data.visualChunks} visual)`)
         loadEventFiles(event.id)
       } else throw new Error(data.error)
     } catch (err) {
@@ -657,25 +669,19 @@ export default function AdminPage() {
     return acc
   }, {} as Record<string, number>)
 
-  const top10Users = Object.entries(userQuestionCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
+  const top10Users = Object.entries(userQuestionCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
 
   const last10Logins = [...chatLogs]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .filter((log, index, self) => self.findIndex(l => l.user_email === log.user_email) === index)
     .slice(0, 10)
 
-  const countryCounts = userSubscriptions
-    .filter(s => s.country)
-    .reduce((acc, s) => {
-      acc[s.country!] = (acc[s.country!] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
+  const countryCounts = userSubscriptions.filter(s => s.country).reduce((acc, s) => {
+    acc[s.country!] = (acc[s.country!] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
-  const countryData = Object.entries(countryCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([label, value]) => ({ label: `${countryToFlag(label)} ${label}`, value }))
+  const countryData = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label: `${countryToFlag(label)} ${label}`, value }))
 
   if (!authenticated) {
     return (
@@ -744,7 +750,7 @@ export default function AdminPage() {
         {activeTab === 'rulebooks' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
-            <p className="text-sm text-gray-400 mb-6">Upload PDF, TXT, DOCX, XLSX, or PPTX files per discipline. Add discipline-specific prompt instructions below each rulebook.</p>
+            <p className="text-sm text-gray-400 mb-6">Upload PDF, TXT, DOCX, XLSX, or PPTX files per discipline.</p>
             {uploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {uploadProgress}</div>}
             <div className="space-y-6">
               {DISCIPLINES.map((d) => {
@@ -815,13 +821,12 @@ export default function AdminPage() {
               ))}
             </div>
 
-            {/* All Events */}
             {eventTab === 'all-events' && (
               <div className="bg-white rounded-xl border border-gray-100 p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="font-semibold text-gray-900">All Events</h2>
-                    <p className="text-sm text-gray-400 mt-1">{events.length} event{events.length !== 1 ? 's' : ''} total · {events.filter(e => e.is_active).length} active</p>
+                    <p className="text-sm text-gray-400 mt-1">{events.length} event{events.length !== 1 ? 's' : ''} · {events.filter(e => e.is_active).length} active</p>
                   </div>
                   <button onClick={loadEvents} className="text-sm text-green-600 hover:text-green-700">Refresh</button>
                 </div>
@@ -829,7 +834,6 @@ export default function AdminPage() {
                   <div className="text-center py-12 text-gray-400">
                     <p className="text-4xl mb-4">🏊</p>
                     <p className="font-medium text-gray-500">No events yet</p>
-                    <p className="text-sm mt-1">Click "Create Event" to add your first event</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -850,7 +854,6 @@ export default function AdminPage() {
                               <span className="text-xs text-gray-500">🏊 {DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
                               {event.start_date && <span className="text-xs text-gray-500">📅 {new Date(event.start_date).toLocaleDateString()} — {event.end_date ? new Date(event.end_date).toLocaleDateString() : ''}</span>}
                             </div>
-                            {event.description && <p className="text-xs text-gray-400 mt-2">{event.description}</p>}
                           </div>
                           <div className="flex items-center gap-2 ml-4">
                             <button onClick={() => { setSelectedEvent(event); setEventTab('upload-docs'); loadEventFiles(event.id) }} className="px-3 py-1 border border-blue-200 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50">📄 Docs</button>
@@ -867,11 +870,10 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Create Event */}
             {eventTab === 'create-event' && (
               <div className="bg-white rounded-xl border border-gray-100 p-6">
                 <h2 className="font-semibold text-gray-900 mb-2">Create New Event</h2>
-                <p className="text-sm text-gray-400 mb-6">Fill in the event details. You can upload documents after creating the event.</p>
+                <p className="text-sm text-gray-400 mb-6">Fill in the event details.</p>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
@@ -882,7 +884,7 @@ export default function AdminPage() {
                     }} placeholder="e.g. National Age Group Championships 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">URL Slug * <span className="text-xs text-gray-400">(auto-generated, can edit)</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">URL Slug *</label>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-400">aquaref.co/events/</span>
                       <input type="text" value={newEvent.slug} onChange={(e) => setNewEvent(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} placeholder="national-age-group-2026" className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
@@ -890,7 +892,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea value={newEvent.description} onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))} rows={2} placeholder="Brief description of the event..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                    <textarea value={newEvent.description} onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))} rows={2} placeholder="Brief description..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -908,7 +910,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                    <input type="text" value={newEvent.location} onChange={(e) => setNewEvent(prev => ({ ...prev, location: e.target.value }))} placeholder="e.g. Bukit Jalil Aquatic Centre, Kuala Lumpur" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                    <input type="text" value={newEvent.location} onChange={(e) => setNewEvent(prev => ({ ...prev, location: e.target.value }))} placeholder="e.g. Bukit Jalil Aquatic Centre" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -927,13 +929,10 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Upload Docs */}
             {eventTab === 'upload-docs' && (
               <div className="bg-white rounded-xl border border-gray-100 p-6">
                 <h2 className="font-semibold text-gray-900 mb-2">Upload Event Documents</h2>
-                <p className="text-sm text-gray-400 mb-6">Select an event and upload its documents — start lists, heat sheets, schedules, technical packages.</p>
-
-                {/* Event selector */}
+                <p className="text-sm text-gray-400 mb-6">Upload start lists, heat sheets, schedules, technical packages.</p>
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Select Event</label>
                   <select value={selectedEvent?.id || ''} onChange={(e) => {
@@ -952,7 +951,6 @@ export default function AdminPage() {
                       <p className="text-xs text-green-600">aquaref.co/events/{selectedEvent.slug}</p>
                     </div>
 
-                    {/* Existing files */}
                     {eventFiles[selectedEvent.id]?.length > 0 && (
                       <div className="mb-4">
                         <p className="text-xs font-medium text-gray-700 mb-2">Uploaded documents:</p>
@@ -966,6 +964,13 @@ export default function AdminPage() {
                                   <p className="text-xs text-gray-400">{file.chunks} chunks</p>
                                 </div>
                               </div>
+                              <button
+                                onClick={() => handleDeleteEventFile(selectedEvent.id, file.name)}
+                                disabled={deletingEventFile === file.name}
+                                className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50"
+                              >
+                                {deletingEventFile === file.name ? 'Deleting...' : 'Delete'}
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -991,12 +996,12 @@ export default function AdminPage() {
         {activeTab === 'system prompt' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Base System Prompt</h2>
-            <p className="text-sm text-gray-400 mb-4">This is the base prompt that applies to ALL disciplines. Keep only general instructions here. Discipline-specific notes go in each discipline card in the Rulebooks tab.</p>
+            <p className="text-sm text-gray-400 mb-4">Base prompt for ALL disciplines. Discipline-specific notes go in the Rulebooks tab.</p>
             {promptLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : (
               <>
                 <textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={20} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700" />
                 <div className="flex items-center justify-between mt-4">
-                  <p className="text-xs text-gray-400">💡 Tip: Move discipline-specific notes to each discipline card in the Rulebooks tab</p>
+                  <p className="text-xs text-gray-400">💡 Move discipline-specific notes to the Rulebooks tab</p>
                   <button onClick={handleSavePrompt} disabled={promptLoading} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                     {promptSaved ? 'Saved! ✓' : 'Save Changes'}
                   </button>
@@ -1124,7 +1129,6 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-xs text-gray-400">Showing {filteredCorrections.length} result{filteredCorrections.length !== 1 ? 's' : ''}</p>
                 {filteredCorrections.map((c) => (
                   <div key={c.id} className="border border-gray-100 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -1167,28 +1171,6 @@ export default function AdminPage() {
                 <div className="text-xs text-gray-400 mt-1">Satisfaction Rate</div>
               </div>
             </div>
-            <div className="flex gap-3 mb-4 flex-wrap">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Rating</label>
-                <div className="flex gap-2">
-                  {['all', 'like', 'dislike'].map(f => (
-                    <button key={f} onClick={() => setFeedbackFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${feedbackFilter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                      {f === 'all' ? 'All' : f === 'like' ? '👍 Helpful' : '👎 Not Helpful'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Discipline</label>
-                <div className="flex gap-2 flex-wrap">
-                  {['all', 'swimming', 'waterpolo', 'openwater', 'artistic', 'diving', 'highdiving', 'masters', 'paraswimming'].map(d => (
-                    <button key={d} onClick={() => setFeedbackDiscipline(d)} className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${feedbackDiscipline === d ? d === 'paraswimming' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                      {d === 'all' ? 'All' : DISCIPLINE_LABELS[d] || d}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
             {feedbackLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredFeedback.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-4xl mb-4">💬</p>
@@ -1196,7 +1178,6 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-xs text-gray-400">Showing {filteredFeedback.length} result{filteredFeedback.length !== 1 ? 's' : ''}</p>
                 {filteredFeedback.map((f) => (
                   <div key={f.id} className={`border rounded-xl p-4 ${f.feedback === 'like' ? 'border-green-100 bg-green-50' : 'border-red-100 bg-red-50'}`}>
                     <div className="flex items-center justify-between mb-2">
@@ -1221,7 +1202,6 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <h2 className="font-semibold text-gray-900 mb-2">Grant Beta Access</h2>
-              <p className="text-sm text-gray-400 mb-4">Give a user free ELITE access for a set period</p>
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-48">
                   <label className="block text-xs text-gray-400 mb-1">Email address</label>
@@ -1246,10 +1226,7 @@ export default function AdminPage() {
             </div>
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="font-semibold text-gray-900">Active Beta Users</h2>
-                  <p className="text-sm text-gray-400 mt-1">{betaUsers.length} beta user{betaUsers.length !== 1 ? 's' : ''}</p>
-                </div>
+                <h2 className="font-semibold text-gray-900">Active Beta Users ({betaUsers.length})</h2>
                 <button onClick={loadBetaUsers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
               </div>
               {betaLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : betaUsers.length === 0 ? (
@@ -1318,7 +1295,7 @@ export default function AdminPage() {
                 <div className="grid grid-cols-4 gap-3 mb-6">
                   <div className="bg-green-50 rounded-xl p-3 text-center">
                     <div className="text-xl font-bold text-green-600">{liteSubs.length}</div>
-                    <div className="text-xs text-gray-400 mt-1">LITE (Free)</div>
+                    <div className="text-xs text-gray-400 mt-1">LITE</div>
                   </div>
                   <div className="bg-blue-50 rounded-xl p-3 text-center">
                     <div className="text-xl font-bold text-blue-600">{proSubs.length}</div>
@@ -1347,20 +1324,8 @@ export default function AdminPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-gray-400">Joined</p>
-                        <p className="text-xs text-gray-600">{new Date(sub.created_at).toLocaleDateString()}</p>
-                        {lastLogins[sub.user_email] && (
-                          <>
-                            <p className="text-xs text-gray-400 mt-1">Last active</p>
-                            <p className="text-xs text-gray-600">{new Date(lastLogins[sub.user_email]).toLocaleDateString()}</p>
-                          </>
-                        )}
-                        {sub.current_period_end && sub.plan !== 'lite' && (
-                          <>
-                            <p className="text-xs text-gray-400 mt-1">Renews</p>
-                            <p className="text-xs text-gray-600">{new Date(sub.current_period_end).toLocaleDateString()}</p>
-                          </>
-                        )}
+                        <p className="text-xs text-gray-400">Joined {new Date(sub.created_at).toLocaleDateString()}</p>
+                        {lastLogins[sub.user_email] && <p className="text-xs text-gray-400">Active {new Date(lastLogins[sub.user_email]).toLocaleDateString()}</p>}
                       </div>
                     </div>
                   </div>
@@ -1390,47 +1355,25 @@ export default function AdminPage() {
                   </div>
                   <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
                     <div className="text-2xl font-bold text-orange-600">{chatLogs.length}</div>
-                    <div className="text-xs text-gray-400 mt-1">Total Questions Asked</div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl border border-gray-100 p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Subscription Breakdown</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-green-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">AquaRef LITE (Free)</p>
-                      <p className="text-2xl font-bold text-green-700">{liteSubs.length}</p>
-                      <p className="text-xs text-gray-400 mt-1">RM 0.00/month</p>
-                    </div>
-                    <div className="bg-blue-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">AquaRef PRO (RM14.99)</p>
-                      <p className="text-2xl font-bold text-blue-900">{proSubs.length}</p>
-                      <p className="text-xs text-green-600 mt-1">RM {(proSubs.length * 14.99).toFixed(2)}/month</p>
-                    </div>
-                    <div className="bg-yellow-50 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">AquaRef ELITE (RM39.99)</p>
-                      <p className="text-2xl font-bold text-yellow-800">{eliteSubs.length}</p>
-                      <p className="text-xs text-green-600 mt-1">RM {(eliteSubs.length * 39.99).toFixed(2)}/month</p>
-                    </div>
+                    <div className="text-xs text-gray-400 mt-1">Total Questions</div>
                   </div>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">🤖 AI Token Cost</h3>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="bg-purple-50 rounded-xl p-4">
                       <p className="text-xs text-gray-400 mb-1">This Month</p>
                       <p className="text-2xl font-bold text-purple-700">RM {thisMonthCostRM.toFixed(4)}</p>
-                      <p className="text-xs text-gray-400 mt-1">{(thisMonthInputTokens + thisMonthOutputTokens).toLocaleString()} tokens used</p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-4">
                       <p className="text-xs text-gray-400 mb-1">All Time</p>
                       <p className="text-2xl font-bold text-gray-700">RM {costRM.toFixed(4)}</p>
-                      <p className="text-xs text-gray-400 mt-1">{(totalInputTokens + totalOutputTokens).toLocaleString()} tokens used</p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-3 text-center">Haiku 4.5: $1.00/M input · $5.00/M output · USD×4.5 = RM</p>
+                  <p className="text-xs text-gray-400 mt-3 text-center">Haiku 4.5: $1.00/M input · $5.00/M output</p>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Questions Asked — Last 7 Days</h3>
+                  <h3 className="font-semibold text-gray-900 mb-4">Questions — Last 7 Days</h3>
                   <SimpleBarChart data={last7Days} />
                 </div>
                 {disciplineUsage.length > 0 && (
@@ -1441,7 +1384,7 @@ export default function AdminPage() {
                 )}
                 {top10Users.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">🏆 Top 10 Most Active Users</h3>
+                    <h3 className="font-semibold text-gray-900 mb-4">🏆 Top 10 Active Users</h3>
                     <div className="space-y-2">
                       {top10Users.map(([email, count], i) => (
                         <div key={email} className="flex items-center gap-3">
@@ -1459,36 +1402,6 @@ export default function AdminPage() {
                     <SimpleBarChart data={countryData} />
                   </div>
                 )}
-                {last10Logins.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-100 p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">🕐 Last 10 Active Users</h3>
-                    <div className="space-y-2">
-                      {last10Logins.map((log) => (
-                        <div key={log.user_email} className="flex items-center justify-between">
-                          <span className="text-sm text-gray-700 truncate flex-1">{log.user_email}</span>
-                          <span className="text-xs text-gray-400">{new Date(log.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="bg-white rounded-xl border border-gray-100 p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">User Feedback</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">👍 {totalLikes}</p>
-                      <p className="text-xs text-gray-400 mt-1">Helpful</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-red-500">👎 {totalDislikes}</p>
-                      <p className="text-xs text-gray-400 mt-1">Not helpful</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">{satisfactionRate}%</p>
-                      <p className="text-xs text-gray-400 mt-1">Satisfaction</p>
-                    </div>
-                  </div>
-                </div>
               </>
             )}
           </div>
