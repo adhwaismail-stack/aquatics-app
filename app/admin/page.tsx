@@ -403,14 +403,15 @@ export default function AdminPage() {
       const { data: signedData, error: signedError } = await supabase.storage.from('rulebook').createSignedUploadUrl(fileName)
       if (signedError || !signedData) throw new Error(`Could not create upload URL: ${signedError?.message}`)
       setUploadProgress('Uploading file to storage...')
-      const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/pdf' }, body: file })
+      const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
       if (!uploadResponse.ok) throw new Error(`Direct upload failed: ${uploadResponse.statusText}`)
-      setUploadProgress('Generating AI embeddings...')
+      setUploadProgress('Extracting content and generating AI embeddings...')
       const response = await fetch('/api/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName, discipline, originalName: file.name }) })
       const data = await response.json()
       if (data.success) {
         setUploadProgress('')
-        alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}`)
+        const visualNote = data.visualChunks > 0 ? ` + ${data.visualChunks} visual descriptions` : ''
+        alert(`✓ Successfully processed ${data.chunks} chunks from ${file.name}${visualNote}`)
         await loadAllFiles()
       } else throw new Error(data.error)
     } catch (err) {
@@ -617,7 +618,7 @@ export default function AdminPage() {
         {activeTab === 'rulebooks' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
-            <p className="text-sm text-gray-400 mb-6">Upload multiple PDF or TXT files per discipline</p>
+            <p className="text-sm text-gray-400 mb-6">Upload PDF, TXT, DOCX, XLSX, or PPTX files per discipline</p>
             {uploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {uploadProgress}</div>}
             <div className="space-y-4">
               {DISCIPLINES.map((d) => {
@@ -654,9 +655,9 @@ export default function AdminPage() {
                     )}
                     <label className="cursor-pointer block">
                       <div className={`w-full text-center border py-2 rounded-lg text-sm transition-colors ${uploading === d.discipline ? 'border-gray-200 text-gray-400' : isPara ? 'border-purple-200 text-purple-600 hover:bg-purple-50' : 'border-blue-200 text-blue-600 hover:bg-blue-50'}`}>
-                        {uploading === d.discipline ? 'Processing...' : files.length > 0 ? '+ Add another document' : 'Upload PDF or TXT'}
+                        {uploading === d.discipline ? 'Processing...' : files.length > 0 ? '+ Add another document' : 'Upload PDF, DOCX, XLSX, PPTX or TXT'}
                       </div>
-                      <input type="file" accept=".pdf,.txt" className="hidden" disabled={uploading !== null} onChange={(e) => handleUpload(e, d.discipline)} />
+                      <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={uploading !== null} onChange={(e) => handleUpload(e, d.discipline)} />
                     </label>
                   </div>
                 )
@@ -1119,7 +1120,7 @@ export default function AdminPage() {
                       <p className="text-xs text-gray-400">RM {(totalOutputTokens * 0.000004 * 4.5).toFixed(4)}</p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-3 text-center">Haiku: $0.80/M input · $4.00/M output · USD×4.5 = RM</p>
+                  <p className="text-xs text-gray-400 mt-3 text-center">Haiku: $1.00/M input · $5.00/M output · USD×4.5 = RM</p>
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
