@@ -80,9 +80,10 @@ export default function DashboardPage() {
   const [fullName, setFullName] = useState<string | null>(null)
   const [showBetaWelcome, setShowBetaWelcome] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
-  const [events, setEvents] = useState<AquaEvent[]>([])
+  const [allEvents, setAllEvents] = useState<AquaEvent[]>([])
   const [userCountry, setUserCountry] = useState<string | null>(null)
   const [noticeCounts, setNoticeCounts] = useState<Record<string, number>>({})
+  const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
 
   useEffect(() => {
     const getUser = async () => {
@@ -123,12 +124,21 @@ export default function DashboardPage() {
       setUserCountry(sub.country)
 
       const isElite = sub.plan === 'elite' || sub.plan === 'all_disciplines'
+
+      // ELITE loads ALL events (client filters); LITE/PRO loads only their country
       let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
       if (!isElite && sub.country) eventsQuery = eventsQuery.eq('country', sub.country)
       const { data: eventsData } = await eventsQuery.order('start_date', { ascending: true })
+
       if (eventsData) {
-        setEvents(eventsData)
+        setAllEvents(eventsData)
         await loadNoticeCounts(eventsData.map(e => e.id))
+      }
+
+      // Restore ELITE's last country filter choice
+      if (isElite) {
+        const savedFilter = localStorage.getItem('aquaref_elite_country_filter')
+        if (savedFilter) setEliteCountryFilter(savedFilter)
       }
 
       setLoading(false)
@@ -140,12 +150,12 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    if (events.length === 0) return
+    if (allEvents.length === 0) return
     const interval = setInterval(() => {
-      loadNoticeCounts(events.map(e => e.id))
+      loadNoticeCounts(allEvents.map(e => e.id))
     }, 60000)
     return () => clearInterval(interval)
-  }, [events])
+  }, [allEvents])
 
   const loadNoticeCounts = async (eventIds: string[]) => {
     if (eventIds.length === 0) return
@@ -235,6 +245,22 @@ export default function DashboardPage() {
   const handleDisciplineClick = (disciplineId: string) => { if (canAccessDiscipline(disciplineId)) window.location.href = `/chat/${disciplineId}` }
   const handleDismissBetaWelcome = () => { localStorage.setItem('aquaref_beta_welcome_v1', 'seen'); setShowBetaWelcome(false) }
   const isElite = subscription?.plan === 'elite' || subscription?.plan === 'all_disciplines'
+
+  const handleCountryFilterChange = (value: string) => {
+    setEliteCountryFilter(value)
+    localStorage.setItem('aquaref_elite_country_filter', value)
+  }
+
+  // Filter events based on ELITE's country choice
+  const events = (() => {
+    if (!isElite) return allEvents
+    if (eliteCountryFilter === 'all') return allEvents
+    if (eliteCountryFilter === 'home' && userCountry) return allEvents.filter(e => e.country === userCountry)
+    return allEvents.filter(e => e.country === eliteCountryFilter)
+  })()
+
+  // Get unique countries from all events (for the dropdown)
+  const availableCountries = [...new Set(allEvents.map(e => e.country))].sort()
 
   if (loading) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-gray-400 text-sm">Loading your dashboard...</div></div>
@@ -396,74 +422,127 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Events Section - HORIZONTAL CAROUSEL */}
-        {events.length > 0 && (
+        {/* Events Section - HORIZONTAL CAROUSEL with country filter */}
+        {(events.length > 0 || isElite) && (
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">🏆 Live Events ({events.length})</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{isElite ? 'All countries (ELITE)' : `Events in ${userCountry || 'your country'}`}</p>
+                {!isElite && (
+                  <p className="text-xs text-gray-400 mt-0.5">Events in {countryToFlag(userCountry || '')} {userCountry || 'your country'}</p>
+                )}
               </div>
-              {events.length > 2 && (
-                <span className="text-xs text-gray-400 hidden md:block">← Scroll for more →</span>
+
+              {/* ELITE country filter dropdown */}
+              {isElite && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">Viewing:</span>
+                  <select
+                    value={eliteCountryFilter}
+                    onChange={(e) => handleCountryFilterChange(e.target.value)}
+                    className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 font-medium cursor-pointer hover:border-blue-300"
+                  >
+                    {userCountry && (
+                      <option value="home">{countryToFlag(userCountry)} {userCountry} (Home)</option>
+                    )}
+                    <option value="all">🌍 All countries</option>
+                    {availableCountries.map(country => (
+                      <option key={country} value={country}>{countryToFlag(country)} {country}</option>
+                    ))}
+                  </select>
+                </div>
               )}
             </div>
-            {events.length > 2 && (
-              <p className="text-xs text-gray-400 mb-2 md:hidden">← Swipe to see more →</p>
-            )}
-            <div className="carousel-scroll flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4">
-              {events.map((event) => {
-                const noticeCount = noticeCounts[event.id] || 0
-                return (
-                  <div
-                    key={event.id}
-                    className="flex-shrink-0 w-[280px] md:w-[320px] snap-start bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-md transition-all cursor-pointer relative"
-                    onClick={() => { window.location.href = `/events/${event.slug}` }}
-                  >
-                    {/* 🔴 Live Notice Badge */}
-                    {noticeCount > 0 && (
-                      <div className="absolute top-3 right-3 z-10">
-                        <div className="relative flex items-center gap-1.5 bg-red-500 text-white px-2.5 py-1 rounded-full shadow-lg">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                          </span>
-                          <span className="text-xs font-bold">
-                            {noticeCount} <span className="hidden sm:inline">live</span>
-                          </span>
-                        </div>
-                      </div>
-                    )}
 
-                    {event.poster_url && (
-                      <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
-                    )}
-                    <div className="p-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1 mr-2 min-w-0">
-                          <h3 className="font-semibold text-gray-900 text-sm truncate">{event.name}</h3>
-                          <p className="text-xs text-gray-400 mt-0.5 truncate">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
-                        </div>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
-                        {event.start_date && (
-                          <span className="text-xs text-gray-400">
-                            📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                            {event.end_date ? `–${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
-                          </span>
+            {/* LITE/PRO upsell hook */}
+            {!isElite && subscription?.plan !== undefined && (
+              <div className="mb-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-100 rounded-lg px-3 py-2 flex items-center justify-between flex-wrap gap-2">
+                <p className="text-xs text-gray-700">
+                  🌍 <span className="font-medium">Want to see events from other countries?</span>
+                  <span className="text-gray-500"> Upgrade to ELITE for global event access.</span>
+                </p>
+                <button
+                  onClick={() => { window.location.href = '/pricing' }}
+                  className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-medium px-3 py-1 rounded-lg whitespace-nowrap"
+                >
+                  Upgrade to ELITE →
+                </button>
+              </div>
+            )}
+
+            {/* Empty state for filtered view */}
+            {events.length === 0 ? (
+              <div className="bg-white border border-gray-100 rounded-xl p-8 text-center">
+                <p className="text-3xl mb-2">🗓️</p>
+                <p className="text-sm font-medium text-gray-700 mb-1">
+                  No live events {isElite && eliteCountryFilter !== 'all' ? `in ${eliteCountryFilter === 'home' ? userCountry : eliteCountryFilter}` : 'right now'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {isElite && eliteCountryFilter !== 'all'
+                    ? 'Try switching to "All countries" to see global events.'
+                    : 'Check back soon for upcoming competitions.'}
+                </p>
+              </div>
+            ) : (
+              <>
+                {events.length > 2 && (
+                  <p className="text-xs text-gray-400 mb-2 md:hidden">← Swipe to see more →</p>
+                )}
+                <div className="carousel-scroll flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4">
+                  {events.map((event) => {
+                    const noticeCount = noticeCounts[event.id] || 0
+                    return (
+                      <div
+                        key={event.id}
+                        className="flex-shrink-0 w-[280px] md:w-[320px] snap-start bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-md transition-all cursor-pointer relative"
+                        onClick={() => { window.location.href = `/events/${event.slug}` }}
+                      >
+                        {/* 🔴 Live Notice Badge */}
+                        {noticeCount > 0 && (
+                          <div className="absolute top-3 right-3 z-10">
+                            <div className="relative flex items-center gap-1.5 bg-red-500 text-white px-2.5 py-1 rounded-full shadow-lg">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                              </span>
+                              <span className="text-xs font-bold">
+                                {noticeCount} <span className="hidden sm:inline">live</span>
+                              </span>
+                            </div>
+                          </div>
                         )}
+
+                        {event.poster_url && (
+                          <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
+                        )}
+                        <div className="p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1 mr-2 min-w-0">
+                              <h3 className="font-semibold text-gray-900 text-sm truncate">{event.name}</h3>
+                              <p className="text-xs text-gray-400 mt-0.5 truncate">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
+                            </div>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
+                            {event.start_date && (
+                              <span className="text-xs text-gray-400">
+                                📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                                {event.end_date ? `–${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-400">{getEventQuestionLabel()}</span>
+                            <button className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 font-medium">Open →</button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">{getEventQuestionLabel()}</span>
-                        <button className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 font-medium">Open →</button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </div>
         )}
 
