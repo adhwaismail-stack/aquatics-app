@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user subscription
     const { data: userSub } = await supabase
       .from('user_subscriptions')
       .select('plan')
@@ -31,7 +30,6 @@ export async function POST(request: NextRequest) {
 
     const plan = userSub?.plan || 'lite'
 
-    // Check event usage
     const { data: meetPass } = await supabase
       .from('event_usage')
       .select('question_count')
@@ -39,7 +37,6 @@ export async function POST(request: NextRequest) {
       .eq('event_id', eventId)
       .single()
 
-    // LITE plan: 3 questions per event limit
     if (plan === 'lite') {
       const questionCount = meetPass?.question_count || 0
       if (questionCount >= 3) {
@@ -54,7 +51,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Translate question to English for better search
     const translationResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 200,
@@ -68,14 +64,12 @@ export async function POST(request: NextRequest) {
       ? translationResponse.content[0].text.trim()
       : question
 
-    // Embed question for vector search
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: englishQuestion
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Vector search
     const { data: vectorChunks } = await supabase.rpc(
       'match_event_chunks',
       {
@@ -85,10 +79,8 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Extract words for keyword search
     const words = englishQuestion.split(' ').filter((w: string) => w.length > 2)
 
-    // Keyword search
     let keywordChunks: { content: string }[] = []
     for (const word of words.slice(0, 10)) {
       const { data } = await supabase
@@ -100,7 +92,6 @@ export async function POST(request: NextRequest) {
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    // Search for full name combinations
     if (words.length >= 2) {
       for (let i = 0; i < words.length - 1; i++) {
         const namePair = `${words[i]} ${words[i + 1]}`
@@ -114,7 +105,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Combine and deduplicate
     const seen = new Set()
     const allChunks: { content: string }[] = []
     for (const chunk of [...(vectorChunks || []), ...keywordChunks]) {
@@ -141,22 +131,42 @@ Your knowledge comes ONLY from the event documents uploaded for this event — s
 
 YOUR APPROACH:
 1. Answer based strictly on the event documents provided
-2. When asked about a swimmer, search ALL provided content thoroughly for EVERY occurrence of that swimmer's name — list ALL events found
+2. When asked about a swimmer, search ALL provided content for EVERY occurrence of that swimmer's name — list ALL events found
 3. Always reply in the same language the user writes in
-4. Present information in a clean, professional format
-5. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
+4. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
 
-FORMATTING RULES:
-- For swimmer event/heat queries: use a markdown table with columns: Event No. | Event Name | Heat | Lane | Team | Seed Time
-- For schedule queries: use a markdown table with columns: Time | Event No. | Event Name | Session
-- For results queries: use a markdown table with columns: Place | Name | Team | Time | Points
-- For general text answers: use bold headers, bullet points and clear paragraphs
-- Always use proper markdown table syntax with | separators and header dividers like |---|---|
+ANSWER FORMAT FOR SWIMMER/HEAT QUERIES:
+Use this EXACT format — no tables, no deviations:
+
+**[Swimmer Full Name]** — [X] event(s) found:
+
+🏊 **Event [number] — [Full Event Name]**
+- Heat: [heat number] of [total heats]
+- Lane: [lane number]
+- Team: [team name]
+- Seed Time: [seed time]
+
+🏊 **Event [number] — [Full Event Name]**
+- Heat: [heat number] of [total heats]
+- Lane: [lane number]
+- Team: [team name]
+- Seed Time: [seed time]
+
+Repeat the block above for EVERY event found for that swimmer.
+NEVER use tables for swimmer queries.
+NEVER combine multiple pieces of info on one line.
+Each detail MUST be on its own bullet point line.
+
+ANSWER FORMAT FOR SCHEDULE QUERIES:
+Use a clean numbered list:
+1. **[Time]** — Event [number]: [Event Name] ([Session])
+
+ANSWER FORMAT FOR GENERAL QUERIES:
+Use clear paragraphs with **bold headers** and bullet points.
 
 NON-EVENT QUESTIONS:
-For questions unrelated to this event, respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
+Respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
 
-    // Ask Claude
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2000,
@@ -171,7 +181,6 @@ For questions unrelated to this event, respond with: "I can only answer question
       ? message.content[0].text
       : 'Unable to generate answer'
 
-    // Update event usage for LITE
     if (plan === 'lite') {
       if (meetPass) {
         await supabase
