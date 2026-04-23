@@ -24,7 +24,6 @@ function cleanText(text: string): string {
 function smartChunkStartList(text: string): string[] {
   const lines = cleanText(text).split('\n').map(l => l.trim()).filter(l => l.length > 0)
   const chunks: string[] = []
-
   let currentEvent = ''
   let currentHeat = ''
   let heatSwimmers: string[] = []
@@ -35,23 +34,15 @@ function smartChunkStartList(text: string): string[] {
 
   const flushHeat = () => {
     if (currentEvent && heatSwimmers.length > 0) {
-      const chunk = `${currentEvent}\n${currentHeat}\n${heatSwimmers.join('\n')}`
-      chunks.push(chunk)
+      chunks.push(`${currentEvent}\n${currentHeat}\n${heatSwimmers.join('\n')}`)
     }
     heatSwimmers = []
   }
 
   for (const line of lines) {
-    if (isEventHeader(line)) {
-      flushHeat()
-      currentEvent = line
-      currentHeat = ''
-    } else if (isHeatHeader(line)) {
-      flushHeat()
-      currentHeat = line
-    } else if (isSwimmerLine(line) && currentEvent) {
-      heatSwimmers.push(line)
-    }
+    if (isEventHeader(line)) { flushHeat(); currentEvent = line; currentHeat = '' }
+    else if (isHeatHeader(line)) { flushHeat(); currentHeat = line }
+    else if (isSwimmerLine(line) && currentEvent) { heatSwimmers.push(line) }
   }
   flushHeat()
 
@@ -64,7 +55,6 @@ function regularChunkText(text: string): string[] {
   const chunks: string[] = []
   const chunkSize = 600
   const overlap = 150
-
   for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
     const chunk = cleaned.slice(i, i + chunkSize).trim()
     if (chunk.length > 50) chunks.push(chunk)
@@ -82,10 +72,7 @@ async function extractTextFromDOCX(arrayBuffer: ArrayBuffer): Promise<string> {
     const mammoth = await import('mammoth')
     const result = await mammoth.extractRawText({ buffer: Buffer.from(arrayBuffer) })
     return result.value || ''
-  } catch (err) {
-    console.error('DOCX extraction failed:', err)
-    return ''
-  }
+  } catch (err) { console.error('DOCX extraction failed:', err); return '' }
 }
 
 async function extractTextFromXLSX(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -99,10 +86,7 @@ async function extractTextFromXLSX(arrayBuffer: ArrayBuffer): Promise<string> {
       if (csv.trim().length > 0) textParts.push(`[Sheet: ${sheetName}]\n${csv}`)
     }
     return textParts.join('\n\n')
-  } catch (err) {
-    console.error('XLSX extraction failed:', err)
-    return ''
-  }
+  } catch (err) { console.error('XLSX extraction failed:', err); return '' }
 }
 
 async function extractTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string> {
@@ -116,25 +100,13 @@ async function extractTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string> {
     try {
       const text = await (officeParser as any).parseOfficeAsync(tempPath)
       return text || ''
-    } finally {
-      fs.unlinkSync(tempPath)
-    }
-  } catch (err) {
-    console.error('PPTX extraction failed:', err)
-    return ''
-  }
+    } finally { fs.unlinkSync(tempPath) }
+  } catch (err) { console.error('PPTX extraction failed:', err); return '' }
 }
 
-async function extractSwimmersViaVision(arrayBuffer: ArrayBuffer, eventName: string): Promise<string[]> {
+async function extractSwimmersViaVision(base64PDF: string, eventName: string): Promise<string[]> {
   try {
-    const fileSizeMB = arrayBuffer.byteLength / (1024 * 1024)
-    if (fileSizeMB > 15) {
-      console.log(`PDF too large for vision (${fileSizeMB.toFixed(1)}MB), skipping`)
-      return []
-    }
-
-    const base64PDF = Buffer.from(arrayBuffer).toString('base64')
-    console.log(`Vision RAG: sending PDF (${fileSizeMB.toFixed(2)}MB) to Claude...`)
+    console.log('Vision RAG: sending PDF to Claude...')
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -152,17 +124,13 @@ async function extractSwimmersViaVision(arrayBuffer: ArrayBuffer, eventName: str
           content: [
             {
               type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64PDF
-              }
+              source: { type: 'base64', media_type: 'application/pdf', data: base64PDF }
             },
             {
               type: 'text',
               text: `Extract ALL swimmer entries from this start list for "${eventName}".
 
-For EVERY swimmer, output this exact format on its own line:
+For EVERY swimmer output this exact format on its own line:
 [SWIMMER] Name: FULL_NAME | Event: EVENT_NO EVENT_NAME | Heat: HEAT_NO of TOTAL | Lane: LANE_NO | Team: TEAM | Seed: SEED_TIME
 
 Go through every page and every event. Include ALL swimmers.
@@ -181,7 +149,6 @@ If no swimmer data: NO_SWIMMER_DATA`
 
     const data = await res.json()
     const text = data?.content?.[0]?.text?.trim() || ''
-
     if (!text || text.includes('NO_SWIMMER_DATA')) return []
 
     const swimmers = text
@@ -215,10 +182,10 @@ export async function POST(request: NextRequest) {
       throw new Error(`Failed to download file: ${downloadError?.message}`)
     }
 
-  const arrayBuffer = await fileData.arrayBuffer()
-// Copy buffer before it gets consumed by text extraction
-const arrayBufferCopy = arrayBuffer.slice(0)
-const uint8Array = new Uint8Array(arrayBuffer)
+    // Convert to everything we need BEFORE any extraction
+    const arrayBuffer = await fileData.arrayBuffer()
+    const uint8Array = new Uint8Array(arrayBuffer)
+    const base64ForVision = Buffer.from(uint8Array).toString('base64')
 
     const isDocx = originalName.endsWith('.docx')
     const isXlsx = originalName.endsWith('.xlsx')
@@ -229,7 +196,7 @@ const uint8Array = new Uint8Array(arrayBuffer)
     let text = ''
 
     if (isTxt) {
-      text = Buffer.from(arrayBuffer).toString('utf-8')
+      text = Buffer.from(uint8Array).toString('utf-8')
     } else if (isDocx) {
       text = await extractTextFromDOCX(arrayBuffer)
     } else if (isXlsx) {
@@ -259,16 +226,14 @@ const uint8Array = new Uint8Array(arrayBuffer)
 
     const eventName = eventData?.name || 'Aquatics Event'
     const isStartList = /Event\s+\d+/i.test(text) && /Heat\s+\d+/i.test(text)
-
     const textChunks = chunkText(text, isStartList)
 
-    // Always try Vision RAG for PDFs
+    // Vision RAG using pre-converted base64
     let visualChunks: string[] = []
-  if (isPdf) {
-  visualChunks = await extractSwimmersViaVision(arrayBufferCopy, eventName)
-}
+    if (isPdf) {
+      visualChunks = await extractSwimmersViaVision(base64ForVision, eventName)
+    }
 
-    // Combine — deduplicate visual chunks that overlap with text chunks
     const allChunks = [...textChunks, ...visualChunks]
 
     if (allChunks.length === 0) {
@@ -286,12 +251,10 @@ const uint8Array = new Uint8Array(arrayBuffer)
 
     for (let i = 0; i < allChunks.length; i += batchSize) {
       const batch = allChunks.slice(i, i + batchSize)
-
       const embeddingResponse = await openai.embeddings.create({
         model: 'text-embedding-3-small',
         input: batch
       })
-
       const rows = batch.map((content, j) => ({
         event_id: eventId,
         content,
@@ -299,10 +262,8 @@ const uint8Array = new Uint8Array(arrayBuffer)
         source_file: originalName,
         embedding: embeddingResponse.data[j].embedding
       }))
-
       const { error } = await supabase.from('event_chunks').insert(rows)
       if (error) throw error
-
       totalSaved += batch.length
     }
 
