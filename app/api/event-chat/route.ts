@@ -32,18 +32,39 @@ export async function POST(request: NextRequest) {
 
     const { data: meetPass } = await supabase
       .from('event_usage')
-      .select('question_count')
+      .select('question_count, questions_today, last_question_date')
       .eq('user_email', userEmail)
       .eq('event_id', eventId)
       .single()
 
+    // LITE: 5 questions total per event (lifetime)
     if (plan === 'lite') {
       const questionCount = meetPass?.question_count || 0
       if (questionCount >= 5) {
         return NextResponse.json(
           {
             error: 'event_limit_reached',
-            message: `You've used all 5 free questions for this event. Upgrade to PRO or ELITE for unlimited event questions!`,
+            message: `You've used all 5 free questions for this event. Upgrade to PRO or ELITE for more event questions!`,
+            upgradeUrl: '/pricing'
+          },
+          { status: 429 }
+        )
+      }
+    }
+
+    // PRO: 50 questions per day per event
+    const today = new Date().toISOString().split('T')[0]
+    let questionsToday = 0
+
+    if (plan === 'pro') {
+      const lastDate = meetPass?.last_question_date
+      questionsToday = (lastDate === today) ? (meetPass?.questions_today || 0) : 0
+
+      if (questionsToday >= 50) {
+        return NextResponse.json(
+          {
+            error: 'event_limit_reached',
+            message: `You've used all 50 questions for this event today. Your limit resets tomorrow, or upgrade to ELITE for unlimited questions!`,
             upgradeUrl: '/pricing'
           },
           { status: 429 }
@@ -191,6 +212,7 @@ Respond with: "I can only answer questions about ${eventName}. For World Aquatic
       ? message.content[0].text
       : 'Unable to generate answer'
 
+    // Update usage tracking
     if (plan === 'lite') {
       if (meetPass) {
         await supabase
@@ -205,8 +227,39 @@ Respond with: "I can only answer questions about ${eventName}. For World Aquatic
       }
     }
 
-    const newCount = (meetPass?.question_count || 0) + 1
-    const remainingQuestions = plan === 'lite' ? Math.max(0, 5 - newCount) : null
+    if (plan === 'pro') {
+      const newQuestionsToday = questionsToday + 1
+      if (meetPass) {
+        await supabase
+          .from('event_usage')
+          .update({
+            questions_today: newQuestionsToday,
+            last_question_date: today,
+            question_count: (meetPass.question_count || 0) + 1
+          })
+          .eq('user_email', userEmail)
+          .eq('event_id', eventId)
+      } else {
+        await supabase
+          .from('event_usage')
+          .insert({
+            user_email: userEmail,
+            event_id: eventId,
+            question_count: 1,
+            questions_today: 1,
+            last_question_date: today
+          })
+      }
+    }
+
+    // Calculate remaining questions
+    let remainingQuestions = null
+    if (plan === 'lite') {
+      const newCount = (meetPass?.question_count || 0) + 1
+      remainingQuestions = Math.max(0, 5 - newCount)
+    } else if (plan === 'pro') {
+      remainingQuestions = Math.max(0, 50 - (questionsToday + 1))
+    }
 
     return NextResponse.json({
       answer,
