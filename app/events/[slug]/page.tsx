@@ -174,16 +174,15 @@ export default function EventChatPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
         {/* Poster banner */}
-        {event?.poster_url && (
-          <div className="w-full max-h-48 overflow-hidden">
-            <img
-              src={event.poster_url}
-              alt={event.name}
-              className="w-full object-cover object-center"
-              style={{ maxHeight: '192px' }}
-            />
-          </div>
-        )}
+{event?.poster_url && (
+  <div className="w-full">
+    <img
+      src={event.poster_url}
+      alt={event.name}
+      className="w-full object-contain"
+    />
+  </div>
+)}
         <div className="px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
