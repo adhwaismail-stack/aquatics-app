@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'event_limit_reached',
-            message: `You've used all 5 free questions for this event. Upgrade to PRO or ELITE for more event questions!`,
+            message: `You've reached your 5 free questions for this event. ✨ Upgrade to PRO for 50 questions/day, or ELITE for unlimited questions + all 7 disciplines + priority support.`,
             upgradeUrl: '/pricing'
           },
           { status: 429 }
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'event_limit_reached',
-            message: `You've used all 50 questions for this event today. Your limit resets tomorrow, or upgrade to ELITE for unlimited questions!`,
+            message: `You've reached today's 50-question limit for this event. Resets tomorrow. ✨ ELITE members get unlimited event questions + all 7 disciplines + priority support for just RM39.99/month.`,
             upgradeUrl: '/pricing'
           },
           { status: 429 }
