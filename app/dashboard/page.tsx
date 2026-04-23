@@ -128,7 +128,6 @@ export default function DashboardPage() {
       const { data: eventsData } = await eventsQuery.order('start_date', { ascending: true })
       if (eventsData) {
         setEvents(eventsData)
-        // Load notice counts for visible events
         await loadNoticeCounts(eventsData.map(e => e.id))
       }
 
@@ -140,7 +139,6 @@ export default function DashboardPage() {
     getUser()
   }, [])
 
-  // Refresh notice counts every 60 seconds so badges update without reload
   useEffect(() => {
     if (events.length === 0) return
     const interval = setInterval(() => {
@@ -244,6 +242,12 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Carousel scrollbar hiding */}
+      <style jsx global>{`
+        .carousel-scroll::-webkit-scrollbar { display: none; }
+        .carousel-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
       {/* Navbar */}
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -392,21 +396,30 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Events Section - TOP with poster and live notice badge */}
+        {/* Events Section - HORIZONTAL CAROUSEL */}
         {events.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-base font-semibold text-gray-900">🏆 Live Events</h2>
+                <h2 className="text-base font-semibold text-gray-900">🏆 Live Events ({events.length})</h2>
                 <p className="text-xs text-gray-400 mt-0.5">{isElite ? 'All countries (ELITE)' : `Events in ${userCountry || 'your country'}`}</p>
               </div>
-              {!isElite && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">🌍 ELITE: global events</span>}
+              {events.length > 2 && (
+                <span className="text-xs text-gray-400 hidden md:block">← Scroll for more →</span>
+              )}
             </div>
-            <div className="grid md:grid-cols-2 gap-3">
+            {events.length > 2 && (
+              <p className="text-xs text-gray-400 mb-2 md:hidden">← Swipe to see more →</p>
+            )}
+            <div className="carousel-scroll flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4">
               {events.map((event) => {
                 const noticeCount = noticeCounts[event.id] || 0
                 return (
-                  <div key={event.id} className="bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-sm transition-all cursor-pointer relative" onClick={() => { window.location.href = `/events/${event.slug}` }}>
+                  <div
+                    key={event.id}
+                    className="flex-shrink-0 w-[280px] md:w-[320px] snap-start bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-md transition-all cursor-pointer relative"
+                    onClick={() => { window.location.href = `/events/${event.slug}` }}
+                  >
                     {/* 🔴 Live Notice Badge */}
                     {noticeCount > 0 && (
                       <div className="absolute top-3 right-3 z-10">
@@ -416,7 +429,7 @@ export default function DashboardPage() {
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                           </span>
                           <span className="text-xs font-bold">
-                            {noticeCount} <span className="hidden sm:inline">live update{noticeCount > 1 ? 's' : ''}</span>
+                            {noticeCount} <span className="hidden sm:inline">live</span>
                           </span>
                         </div>
                       </div>
@@ -425,26 +438,26 @@ export default function DashboardPage() {
                     {event.poster_url && (
                       <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
                     )}
-                    <div className="p-4">
+                    <div className="p-3">
                       <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1 mr-2">
-                          <h3 className="font-semibold text-gray-900 text-sm">{event.name}</h3>
-                          <p className="text-xs text-gray-400 mt-0.5">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
+                        <div className="flex-1 mr-2 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm truncate">{event.name}</h3>
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">{countryToFlag(event.country)} {event.country} · 📍 {event.location}</p>
                         </div>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢 Live</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">🟢</span>
                       </div>
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                         <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
                         {event.start_date && (
                           <span className="text-xs text-gray-400">
                             📅 {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
-                            {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
+                            {event.end_date ? `–${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-400">{getEventQuestionLabel()}</span>
-                        <button className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium">Open Event AI →</button>
+                        <button className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 font-medium">Open →</button>
                       </div>
                     </div>
                   </div>
