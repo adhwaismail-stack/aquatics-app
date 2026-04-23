@@ -8,6 +8,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const NOTICE_CATEGORY_LABELS: Record<string, string> = {
+  current_event: 'Current Event',
+  call_room: 'Call Room',
+  announcement: 'Announcement',
+  venue: 'Venue',
+  schedule: 'Schedule',
+}
+
 export async function POST(request: NextRequest) {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
@@ -71,6 +79,14 @@ export async function POST(request: NextRequest) {
         )
       }
     }
+
+    // 📢 FETCH ACTIVE LIVE NOTICES (highest priority context)
+    const { data: activeNotices } = await supabase
+      .from('event_notices')
+      .select('category, message, created_at')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
 
     const translationResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -150,27 +166,57 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (allChunks.length === 0) {
+    if (allChunks.length === 0 && (!activeNotices || activeNotices.length === 0)) {
       return NextResponse.json(
         { error: 'No event documents found. Please contact the event organiser.' },
         { status: 404 }
       )
     }
 
-    // Increased context to 50 chunks
-    const context = allChunks.slice(0, 50)
+    // Build document context
+    const documentContext = allChunks.slice(0, 50)
       .map((c: { content: string }) => c.content)
       .join('\n\n---\n\n')
 
+    // 📢 Build live notices context (highest priority)
+    let noticesContext = ''
+    if (activeNotices && activeNotices.length > 0) {
+      noticesContext = activeNotices.map((n, i) => {
+        const label = NOTICE_CATEGORY_LABELS[n.category] || 'Announcement'
+        const time = new Date(n.created_at).toLocaleString('en-MY', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+        return `[${i + 1}] ${label} (posted ${time}): ${n.message}`
+      }).join('\n')
+    }
+
     const systemPrompt = `You are an AI assistant for the "${eventName}" aquatics event. You help officials, coaches, swimmers and parents find information about this specific event.
 
-Your knowledge comes ONLY from the event documents uploaded for this event — such as start lists, heat sheets, schedules, technical packages, and official notices.
+Your knowledge comes from TWO sources (in this priority order):
+
+1. **LIVE NOTICES** (highest priority) — Real-time updates posted by the event organisers. These override any conflicting information in documents. If a notice says "Session 3 delayed 30 min", that's the current truth, even if the schedule document says otherwise.
+
+2. **EVENT DOCUMENTS** — Start lists, heat sheets, schedules, technical packages, and official notices uploaded for this event.
 
 YOUR APPROACH:
-1. Answer based strictly on the event documents provided
-2. When asked about a swimmer, search ALL provided content for EVERY occurrence of that swimmer's name — list ALL events found
-3. Always reply in the same language the user writes in
-4. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
+1. ALWAYS check live notices FIRST before answering any question
+2. If a live notice is relevant to the question, mention it prominently at the TOP of your answer with a 📢 emoji
+3. Then provide the document-based answer, noting if the notice affects it
+4. When asked about a swimmer, search ALL provided content for EVERY occurrence of that swimmer's name — list ALL events found
+5. Always reply in the same language the user writes in
+6. End every answer with: "For official decisions, always refer to the Meet Referee or Event Director."
+
+HANDLING LIVE NOTICES:
+- If the user asks a general question like "what's happening?" or "any updates?" — list ALL active notices
+- If the user asks something specific (e.g. about a swimmer, heat, or time), check if any notice affects the answer
+- ALWAYS trust notices over documents when they conflict — notices are newer and authoritative
+- Use this format for notice callouts at the top of relevant answers:
+
+📢 **Live Update:** [category] — [message]
+   *Posted [time]*
 
 ANSWER FORMAT FOR SWIMMER/HEAT QUERIES:
 Use this EXACT format — no tables, no deviations:
@@ -198,13 +244,26 @@ Use clear paragraphs with **bold headers** and bullet points.
 NON-EVENT QUESTIONS:
 Respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
 
+    // Build the user message with notices FIRST, then documents
+    let userContent = ''
+
+    if (noticesContext) {
+      userContent += `🔴 ACTIVE LIVE NOTICES (highest priority — always check these first):\n\n${noticesContext}\n\n=====\n\n`
+    }
+
+    if (documentContext) {
+      userContent += `📄 EVENT DOCUMENTS:\n\n${documentContext}\n\n`
+    }
+
+    userContent += `Question (answer in the same language as this question): ${question}`
+
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2000,
       system: systemPrompt,
       messages: [{
         role: 'user',
-        content: `Here is the event information:\n\n${context}\n\nQuestion (answer in the same language as this question): ${question}`
+        content: userContent
       }]
     })
 
