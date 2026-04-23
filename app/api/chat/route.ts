@@ -93,16 +93,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 1: Get system prompt from database
-    const { data: promptData } = await supabase
+    // Step 1: Get base prompt (all disciplines)
+    const { data: basePromptData } = await supabase
       .from('system_prompts')
       .select('prompt')
       .eq('discipline', 'all')
       .single()
 
-    const systemPrompt = promptData?.prompt || 'You are a World Aquatics Rules Assistant. Answer only from the World Aquatics Regulations provided. Always cite rule numbers. End with: "For official decisions, always defer to your Meet Referee."'
+    const basePrompt = basePromptData?.prompt || 'You are a World Aquatics Rules Assistant. Answer only from the World Aquatics Regulations provided. Always cite rule numbers. End with: "For official decisions, always defer to your Meet Referee."'
 
-    // Step 2: Translate question to English for better search
+    // Step 2: Get discipline-specific prompt (if exists)
+    const { data: disciplinePromptData } = await supabase
+      .from('system_prompts')
+      .select('prompt')
+      .eq('discipline', discipline)
+      .single()
+
+    const disciplinePrompt = disciplinePromptData?.prompt || ''
+
+    // Step 3: Combine base + discipline prompt
+    const systemPrompt = disciplinePrompt
+      ? `${basePrompt}\n\n--- ${discipline.toUpperCase()} SPECIFIC INSTRUCTIONS ---\n${disciplinePrompt}`
+      : basePrompt
+
+    // Step 4: Translate question to English for better search
     const translationResponse = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 200,
@@ -118,14 +132,14 @@ export async function POST(request: NextRequest) {
       ? translationResponse.content[0].text.trim()
       : question
 
-    // Step 3: Embed the English version for better search
+    // Step 5: Embed the English version for better search
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: englishQuestion
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Step 4: Vector similarity search
+    // Step 6: Vector similarity search
     const { data: vectorChunks } = await supabase.rpc(
       'match_rulebook_chunks',
       {
@@ -135,7 +149,7 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Step 5: Keyword search using English question
+    // Step 7: Keyword search using English question
     const keywords = englishQuestion.toLowerCase()
       .split(' ')
       .filter((w: string) => w.length > 3)
@@ -153,7 +167,7 @@ export async function POST(request: NextRequest) {
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    // Step 6: Get relevant correction notes
+    // Step 8: Get relevant correction notes
     const { data: corrections } = await supabase
       .from('correction_notes')
       .select('question, correct_note')
@@ -166,7 +180,7 @@ export async function POST(request: NextRequest) {
       )
     )
 
-    // Step 7: Combine and deduplicate chunks
+    // Step 9: Combine and deduplicate chunks
     const seen = new Set()
     const allChunks: { content: string }[] = []
 
@@ -191,7 +205,7 @@ export async function POST(request: NextRequest) {
       ? `\n\nADDITIONAL VERIFIED INFORMATION (use this to supplement your answer, do not mention this label to the user):\n${relevantCorrections.map(c => `${c.correct_note}`).join('\n\n')}`
       : ''
 
-    // Step 8: Ask Claude — capture token usage
+    // Step 10: Ask Claude with combined system prompt
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
@@ -208,19 +222,13 @@ export async function POST(request: NextRequest) {
       ? message.content[0].text
       : 'Unable to generate answer'
 
-    // Capture token usage
     const inputTokens = message.usage.input_tokens
     const outputTokens = message.usage.output_tokens
-
-    // Also capture translation tokens
     const translationInputTokens = translationResponse.usage.input_tokens
     const translationOutputTokens = translationResponse.usage.output_tokens
-
-    // Total tokens for this request
     const totalInputTokens = inputTokens + translationInputTokens
     const totalOutputTokens = outputTokens + translationOutputTokens
 
-    // Save to chat logs with token usage
     await supabase.from('chat_logs').insert({
       user_email: userEmail,
       discipline,
@@ -231,7 +239,6 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString()
     })
 
-    // Update daily usage (skip for LITE)
     if (plan !== 'lite') {
       const today = new Date().toISOString().split('T')[0]
       await supabase.rpc('increment_usage', {
@@ -240,7 +247,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Calculate remaining questions for LITE
     if (plan === 'lite') {
       const accountCreated = new Date(userSub?.created_at || new Date())
       const now = new Date()
