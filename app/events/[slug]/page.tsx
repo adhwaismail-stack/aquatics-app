@@ -96,7 +96,6 @@ export default function EventChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Load notices + auto-refresh every 30 seconds
   useEffect(() => {
     if (!event?.id) return
     loadNotices(event.id)
@@ -106,7 +105,6 @@ export default function EventChatPage() {
     return () => clearInterval(interval)
   }, [event?.id])
 
-  // Close poster modal on Escape key
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setPosterModalOpen(false)
@@ -262,24 +260,29 @@ export default function EventChatPage() {
 
       {/* Header */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
-        {/* Compact poster banner - tap to expand */}
+        {/* Slim cinematic poster banner - tap to view full */}
         {event?.poster_url && (
           <div
-            className="w-full bg-gray-100 overflow-hidden cursor-pointer group relative"
+            className="w-full relative cursor-pointer group overflow-hidden"
             onClick={() => setPosterModalOpen(true)}
-            style={{ maxHeight: '160px' }}
+            style={{ height: '90px' }}
           >
             <img
               src={event.poster_url}
               alt={event.name}
-              className="w-full h-full object-contain mx-auto transition-transform group-hover:scale-[1.02]"
-              style={{ maxHeight: '160px' }}
+              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+              style={{ objectPosition: 'center 40%' }}
             />
-            {/* Hover hint */}
-            <div className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-              <span>🔍</span>
-              <span>Tap to enlarge</span>
-            </div>
+            {/* Subtle dark gradient overlay for legibility */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/40"></div>
+            {/* View poster button - always visible */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setPosterModalOpen(true) }}
+              className="absolute top-1/2 right-4 -translate-y-1/2 bg-white/90 hover:bg-white backdrop-blur text-gray-800 text-xs font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 transition-all"
+            >
+              <span>🖼️</span>
+              <span>View poster</span>
+            </button>
           </div>
         )}
         <div className="px-6 py-4">
