@@ -125,7 +125,6 @@ export default function DashboardPage() {
 
       const isElite = sub.plan === 'elite' || sub.plan === 'all_disciplines'
 
-      // ELITE loads ALL events (client filters); LITE/PRO loads only their country
       let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
       if (!isElite && sub.country) eventsQuery = eventsQuery.eq('country', sub.country)
       const { data: eventsData } = await eventsQuery.order('start_date', { ascending: true })
@@ -135,7 +134,6 @@ export default function DashboardPage() {
         await loadNoticeCounts(eventsData.map(e => e.id))
       }
 
-      // Restore ELITE's last country filter choice
       if (isElite) {
         const savedFilter = localStorage.getItem('aquaref_elite_country_filter')
         if (savedFilter) setEliteCountryFilter(savedFilter)
@@ -251,7 +249,6 @@ export default function DashboardPage() {
     localStorage.setItem('aquaref_elite_country_filter', value)
   }
 
-  // Filter events based on ELITE's country choice
   const events = (() => {
     if (!isElite) return allEvents
     if (eliteCountryFilter === 'all') return allEvents
@@ -259,7 +256,6 @@ export default function DashboardPage() {
     return allEvents.filter(e => e.country === eliteCountryFilter)
   })()
 
-  // Get unique countries from all events (for the dropdown)
   const availableCountries = [...new Set(allEvents.map(e => e.country))].sort()
 
   if (loading) {
@@ -422,8 +418,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Events Section - HORIZONTAL CAROUSEL with country filter */}
-        {(events.length > 0 || isElite) && (
+        {/* Events Section - only show if events exist in DB */}
+        {allEvents.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
               <div>
@@ -470,17 +466,15 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Empty state for filtered view */}
+            {/* Empty state (only for ELITE filtered views) */}
             {events.length === 0 ? (
               <div className="bg-white border border-gray-100 rounded-xl p-8 text-center">
                 <p className="text-3xl mb-2">🗓️</p>
                 <p className="text-sm font-medium text-gray-700 mb-1">
-                  No live events {isElite && eliteCountryFilter !== 'all' ? `in ${eliteCountryFilter === 'home' ? userCountry : eliteCountryFilter}` : 'right now'}
+                  No live events {eliteCountryFilter !== 'all' ? `in ${eliteCountryFilter === 'home' ? userCountry : eliteCountryFilter}` : 'right now'}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {isElite && eliteCountryFilter !== 'all'
-                    ? 'Try switching to "All countries" to see global events.'
-                    : 'Check back soon for upcoming competitions.'}
+                  Try switching to &quot;All countries&quot; to see global events.
                 </p>
               </div>
             ) : (
