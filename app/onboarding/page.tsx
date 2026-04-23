@@ -16,6 +16,21 @@ export default function OnboardingPage() {
         return
       }
       setUser(user)
+
+      // Check if user already has a name — skip onboarding
+      const { data: sub } = await supabase
+        .from('user_subscriptions')
+        .select('full_name, selected_discipline, plan')
+        .eq('user_email', user.email)
+        .single()
+
+      if (sub?.full_name) {
+        if (sub.plan === 'lite' && !sub.selected_discipline) {
+          window.location.href = '/choose-discipline'
+        } else {
+          window.location.href = '/dashboard'
+        }
+      }
     }
     getUser()
   }, [])
@@ -23,13 +38,23 @@ export default function OnboardingPage() {
   const handleSave = async () => {
     if (!name.trim()) return
     setSaving(true)
-
     await supabase
       .from('user_subscriptions')
       .update({ full_name: name.trim() })
       .eq('user_email', user?.email)
 
-    window.location.href = '/dashboard'
+    // Check plan to decide where to redirect
+    const { data: sub } = await supabase
+      .from('user_subscriptions')
+      .select('plan, selected_discipline')
+      .eq('user_email', user?.email)
+      .single()
+
+    if (sub?.plan === 'lite' && !sub?.selected_discipline) {
+      window.location.href = '/choose-discipline'
+    } else {
+      window.location.href = '/dashboard'
+    }
   }
 
   return (
@@ -45,12 +70,9 @@ export default function OnboardingPage() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to AquaRef! 👋</h1>
           <p className="text-gray-500">Let us know what to call you</p>
         </div>
-
         <div className="bg-white border border-gray-200 rounded-2xl p-8">
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Your name
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Your name</label>
             <input
               type="text"
               value={name}
@@ -62,7 +84,6 @@ export default function OnboardingPage() {
             />
             <p className="text-xs text-gray-400 mt-2">This is how we'll greet you on your dashboard</p>
           </div>
-
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
