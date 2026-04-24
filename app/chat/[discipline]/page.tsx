@@ -163,20 +163,20 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
           setMonthlyRemaining(0)
           setMessages([...newMessages, {
             role: 'assistant',
-            content: `⚠️ ${data.message}`,
+            content: data.message,
             feedback: null
           }])
         } else {
           setMessages([...newMessages, {
             role: 'assistant',
-            content: '⚠️ ' + data.error,
+            content: data.error,
             feedback: null
           }])
         }
       } else if (data.error) {
         setMessages([...newMessages, {
           role: 'assistant',
-          content: '❌ ' + data.error,
+          content: data.error,
           feedback: null
         }])
       } else {
@@ -193,7 +193,7 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
             setTimeout(() => {
               setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: `⚠️ You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}.\n\n[👉 Upgrade to PRO for 50 questions per day →](/pricing)`,
+                content: `You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}.\n\n[Upgrade to PRO for 50 questions per day](/pricing)`,
                 feedback: null
               }])
             }, 500)
@@ -203,21 +203,12 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
     } catch {
       setMessages([...newMessages, {
         role: 'assistant',
-        content: '❌ Something went wrong. Please try again.',
+        content: 'Something went wrong. Please try again.',
         feedback: null
       }])
     }
 
     setLoading(false)
-  }
-
-  const getIcon = () => {
-    const icons: { [key: string]: string } = {
-      swimming: '🏊', waterpolo: '🤽', artistic: '💃',
-      diving: '🤿', highdiving: '🏔️', masters: '🏅',
-      openwater: '🌊', paraswimming: '🏋️'
-    }
-    return icons[discipline] || '🏊'
   }
 
   const getSampleQuestions = () => {
@@ -238,7 +229,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <div className="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -258,7 +248,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
             </div>
           </div>
 
-          {/* Question meter — hide for ELITE */}
           {plan !== 'elite' && (
             <div className="flex items-center gap-3">
               {plan === 'lite' ? (
@@ -292,35 +281,32 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         </div>
       </div>
 
-      {/* Para Swimming disclaimer banner */}
       {isParaSwimming && (
         <div className="bg-purple-50 border-b border-purple-100 px-6 py-2">
           <div className="max-w-4xl mx-auto text-center">
             <p className="text-xs text-purple-700">
-              ⚠️ Para Swimming rules are governed by <strong>World Para Swimming (WPS)</strong> under the International Paralympic Committee (IPC), independent of World Aquatics. Always verify with official WPS regulations and your Meet Referee.
+              Para Swimming rules are governed by <strong>World Para Swimming (WPS)</strong> under the International Paralympic Committee (IPC), independent of World Aquatics. Always verify with official WPS regulations and your Meet Referee.
             </p>
           </div>
         </div>
       )}
 
-      {/* LITE limit warning banner */}
       {plan === 'lite' && monthlyRemaining <= 1 && monthlyRemaining > 0 && (
         <div className="bg-orange-50 border-b border-orange-100 px-6 py-2">
           <div className="max-w-4xl mx-auto text-center">
             <p className="text-xs text-orange-700">
-              ⚠️ <strong>{monthlyRemaining} question left</strong> this month. Resets on {resetDate}.{' '}
+              <strong>{monthlyRemaining} question left</strong> this month. Resets on {resetDate}.{' '}
               <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for 50/day.
             </p>
           </div>
         </div>
       )}
 
-      {/* LITE limit reached banner */}
       {plan === 'lite' && monthlyRemaining <= 0 && (
         <div className="bg-red-50 border-b border-red-100 px-6 py-3">
           <div className="max-w-4xl mx-auto text-center">
             <p className="text-sm font-medium text-red-800 mb-1">
-              You've used all 5 free questions this month
+              You&apos;ve used all 5 free questions this month
             </p>
             <p className="text-xs text-red-600 mb-2">
               Resets in {daysUntilReset} days on {resetDate}
@@ -332,12 +318,10 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         </div>
       )}
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.length === 0 && (
             <div className="text-center py-16">
-              <div className="text-4xl mb-4">{getIcon()}</div>
               <h2 className={`text-xl font-semibold mb-2 ${isParaSwimming ? 'text-purple-900' : 'text-gray-900'}`}>
                 {disciplineNames[discipline]} Rules Assistant
               </h2>
@@ -350,14 +334,14 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
               {isParaSwimming && (
                 <div className="mt-3 inline-block bg-purple-50 border border-purple-200 rounded-lg px-4 py-2">
                   <p className="text-xs text-purple-700">
-                    🏋️ Governed by <strong>World Para Swimming (WPS)</strong> under IPC
+                    Governed by <strong>World Para Swimming (WPS)</strong> under IPC
                   </p>
                 </div>
               )}
               {plan === 'lite' && (
                 <div className="mt-3 inline-block bg-green-50 border border-green-200 rounded-lg px-4 py-2">
                   <p className="text-xs text-green-700">
-                    🆓 LITE Plan — <strong>{monthlyRemaining} of 5</strong> free questions remaining this month
+                    LITE Plan — <strong>{monthlyRemaining} of 5</strong> free questions remaining this month
                   </p>
                 </div>
               )}
@@ -435,20 +419,20 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
                     </div>
                   </div>
 
-                  {!msg.content.startsWith('❌') && !msg.content.startsWith('⚠️') && (
+                  {!msg.content.toLowerCase().startsWith('something went wrong') && !msg.content.toLowerCase().startsWith("you've used all") && !msg.content.toLowerCase().startsWith("you've just used") && (
                     <div className="flex items-center gap-2 mt-2 ml-1">
                       <span className="text-xs text-gray-400">Was this helpful?</span>
                       <button
                         onClick={() => handleFeedback(i, 'like')}
                         className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${msg.feedback === 'like' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600'}`}
                       >
-                        👍 {msg.feedback === 'like' ? 'Helpful' : ''}
+                        Helpful
                       </button>
                       <button
                         onClick={() => handleFeedback(i, 'dislike')}
                         className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${msg.feedback === 'dislike' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600'}`}
                       >
-                        👎 {msg.feedback === 'dislike' ? 'Not helpful' : ''}
+                        Not helpful
                       </button>
                     </div>
                   )}
@@ -477,7 +461,6 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
         </div>
       </div>
 
-      {/* Input */}
       <div className="bg-white border-t border-gray-100 px-6 py-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto">
           <div className="flex gap-3">

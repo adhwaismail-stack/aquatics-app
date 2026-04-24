@@ -94,7 +94,6 @@ export default function EventChatPage() {
   useEffect(() => {
     loadEvent()
     loadUser()
-    // Check if browser supports native share
     if (typeof navigator !== 'undefined' && 'share' in navigator) {
       setNativeShareSupported(true)
     }
@@ -113,7 +112,6 @@ export default function EventChatPage() {
     return () => clearInterval(interval)
   }, [event?.id])
 
-  // Close share modal on Escape
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setShareModalOpen(false)
@@ -158,7 +156,7 @@ export default function EventChatPage() {
       setEvent(data)
       setMessages([{
         role: 'assistant',
-        content: `👋 Welcome to the **${data.name}** AI Assistant!\n\nI can help you find information about this event — including schedules, heat lists, start times, officials, and more.\n\nWhat would you like to know?`
+        content: `Welcome to the **${data.name}** AI Assistant.\n\nI can help you find information about this event — including schedules, heat lists, start times, officials, and more.\n\nWhat would you like to know?`
       }])
     }
     setLoading(false)
@@ -179,11 +177,11 @@ export default function EventChatPage() {
       const data = await response.json()
       if (response.status === 429) {
         setLimitReached(true)
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.message}\n\nUpgrade your plan to continue asking questions about this event.` }])
+        setMessages(prev => [...prev, { role: 'assistant', content: `${data.message}\n\nUpgrade your plan to continue asking questions about this event.` }])
         return
       }
       if (data.error) {
-        setMessages(prev => [...prev, { role: 'assistant', content: '❌ Sorry, something went wrong. Please try again.' }])
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
         return
       }
       setMessages(prev => [...prev, { role: 'assistant', content: data.answer }])
@@ -192,7 +190,7 @@ export default function EventChatPage() {
         if (data.remainingQuestions === 0) setLimitReached(true)
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Something went wrong. Please try again.' }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
     } finally {
       setSending(false)
     }
@@ -230,7 +228,7 @@ export default function EventChatPage() {
         url: getShareUrl(),
       })
     } catch {
-      // User cancelled share — do nothing
+      // User cancelled
     }
   }
 
@@ -249,7 +247,6 @@ export default function EventChatPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="text-center">
-          <p className="text-4xl mb-4">🏊</p>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Event Not Found</h2>
           <p className="text-gray-400 text-sm mb-6">This event may have ended or is not available in your region.</p>
           <button onClick={() => router.push('/dashboard')} className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
@@ -262,7 +259,6 @@ export default function EventChatPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Ticker animation styles */}
       <style jsx>{`
         @keyframes ticker-scroll {
           0% { transform: translateX(0); }
@@ -278,7 +274,6 @@ export default function EventChatPage() {
         }
       `}</style>
 
-      {/* Share Event Modal */}
       {shareModalOpen && event && (
         <div
           className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4"
@@ -288,7 +283,6 @@ export default function EventChatPage() {
             className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg text-gray-900">Share this event</h3>
               <button
@@ -304,7 +298,6 @@ export default function EventChatPage() {
               Share <span className="font-medium text-gray-700">{event.name}</span> with coaches, teammates, or parents.
             </p>
 
-            {/* QR Code */}
             <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 mb-4 flex items-center justify-center">
               <div className="bg-white p-3 rounded-lg shadow-sm">
                 <QRCodeSVG
@@ -314,7 +307,6 @@ export default function EventChatPage() {
                   includeMargin={false}
                 />
               </div>
-              {/* Hidden canvas for PNG download */}
               <div style={{ display: 'none' }}>
                 <QRCodeCanvas
                   ref={shareQrCanvasRef}
@@ -326,7 +318,6 @@ export default function EventChatPage() {
               </div>
             </div>
 
-            {/* URL */}
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-500 mb-1">Event link</label>
               <div className="flex gap-2">
@@ -340,39 +331,35 @@ export default function EventChatPage() {
                   onClick={handleCopyUrl}
                   className={`text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${copiedUrl ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                 >
-                  {copiedUrl ? '✓ Copied' : '📋 Copy'}
+                  {copiedUrl ? 'Copied' : 'Copy'}
                 </button>
               </div>
             </div>
 
-            {/* Action buttons */}
             <div className="space-y-2">
               {nativeShareSupported && (
                 <button
                   onClick={handleNativeShare}
-                  className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700"
                 >
-                  <span>📲</span>
-                  <span>Share to WhatsApp, Messages, Mail…</span>
+                  Share to WhatsApp, Messages, Mail…
                 </button>
               )}
               <button
                 onClick={handleDownloadQR}
-                className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
+                className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
               >
-                <span>📥</span>
-                <span>Download QR code</span>
+                Download QR code
               </button>
             </div>
 
             <p className="text-xs text-gray-400 text-center mt-4">
-              💡 Scans work for anyone with an AquaRef account.
+              Scans work for anyone with an AquaRef account.
             </p>
           </div>
         </div>
       )}
 
-      {/* Header */}
       <div className="bg-white border-b border-gray-100 flex-shrink-0">
         <div className="px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
@@ -381,30 +368,27 @@ export default function EventChatPage() {
               <div className="w-px h-4 bg-gray-200 flex-shrink-0"></div>
               <div className="min-w-0">
                 <h1 className="font-semibold text-gray-900 flex items-center gap-2 truncate">
-                  🏆 {event?.name}
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium flex-shrink-0">🟢 Live</span>
+                  {event?.name}
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium flex items-center gap-1 flex-shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                    Live
+                  </span>
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-xs text-gray-400 truncate">
-                    {countryToFlag(event?.country || '')} {event?.country} · 📍 {event?.location} · 🏊 {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}
-                    {event?.start_date && ` · 📅 ${new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}${event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`}
+                    {countryToFlag(event?.country || '')} {event?.country} · {event?.location} · {DISCIPLINE_LABELS[event?.discipline || ''] || event?.discipline}
+                    {event?.start_date && ` · ${new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}${event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`}
                   </p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
- {/* Share button - prominent, green */}
               <button
                 onClick={() => setShareModalOpen(true)}
-                className="text-sm px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
+                className="text-sm px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-all shadow-sm hover:shadow-md"
                 title="Share this event"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                  <polyline points="16 6 12 2 8 6"/>
-                  <line x1="12" y1="2" x2="12" y2="15"/>
-                </svg>
-                <span>Share Event</span>
+                Share Event
               </button>
               {userPlan === 'lite' && remainingQuestions !== null && (
                 <div className="text-right">
@@ -417,7 +401,6 @@ export default function EventChatPage() {
         </div>
       </div>
 
-      {/* 📢 Live Notices Ticker - only shows when notices exist */}
       {notices.length > 0 && (
         <div className="ticker-wrapper bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 border-b border-gray-200 overflow-hidden flex-shrink-0">
           <div className="flex items-center">
@@ -449,17 +432,15 @@ export default function EventChatPage() {
         </div>
       )}
 
-      {/* LITE limit banner */}
       {userPlan === 'lite' && remainingQuestions !== null && remainingQuestions <= 1 && (
         <div className={`px-6 py-2 border-b text-center text-xs ${remainingQuestions === 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}>
           {remainingQuestions === 0
-            ? <>⚠️ You've used all 5 free questions for this event. <a href="/pricing" className="underline font-medium">Upgrade now</a></>
-            : <>⚠️ Last free question for this event. <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for unlimited access.</>
+            ? <>You&apos;ve used all 5 free questions for this event. <a href="/pricing" className="underline font-medium">Upgrade now</a></>
+            : <>Last free question for this event. <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for unlimited access.</>
           }
         </div>
       )}
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.map((msg, i) => (
@@ -532,7 +513,6 @@ export default function EventChatPage() {
         </div>
       </div>
 
-      {/* Input */}
       <div className="bg-white border-t border-gray-100 px-6 py-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto">
           {limitReached ? (

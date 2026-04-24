@@ -1,13 +1,44 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { supabase } from '../../lib/supabase'
-import { use } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Waves, ThumbsUp, ThumbsDown, AlertTriangle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
 
-const disciplineNames: { [key: string]: string } = {
+const disciplines = [
+  { id: 'swimming', name: 'Swimming', code: 'SW Rules', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules', isPara: false },
+  { id: 'waterpolo', name: 'Water Polo', code: 'WP Rules', desc: 'Field of play, players, referees, gameplay and penalty rules', isPara: false },
+  { id: 'artistic', name: 'Artistic Swimming', code: 'AS Rules', desc: 'Solo, duet, team and combo routine rules and judging criteria', isPara: false },
+  { id: 'diving', name: 'Diving', code: 'DV Rules', desc: 'Springboard, platform, synchronised diving rules and scoring', isPara: false },
+  { id: 'highdiving', name: 'High Diving', code: 'HD Rules', desc: 'Platform heights, entry requirements and competition rules', isPara: false },
+  { id: 'masters', name: 'Masters', code: 'MS Rules', desc: 'Age group categories, records and masters competition rules', isPara: false },
+  { id: 'openwater', name: 'Open Water', code: 'OW Rules', desc: 'Open water swimming rules, equipment, officials and competition regulations', isPara: false },
+  { id: 'paraswimming', name: 'Para Swimming', code: 'WPS Rules', desc: 'Para swimming classifications, rules and competition regulations under World Para Swimming (IPC)', isPara: true },
+]
+
+interface UserSubscription {
+  plan: string
+  selected_discipline: string | null
+  status: string
+  current_period_end: string | null
+  stripe_customer_id: string | null
+  full_name: string | null
+  country: string | null
+}
+
+interface AquaEvent {
+  id: string
+  name: string
+  slug: string
+  description: string
+  discipline: string
+  country: string
+  location: string
+  start_date: string
+  end_date: string
+  is_active: boolean
+  poster_url?: string
+}
+
+const DISCIPLINE_LABELS: Record<string, string> = {
   swimming: 'Swimming',
   waterpolo: 'Water Polo',
   artistic: 'Artistic Swimming',
@@ -15,504 +46,551 @@ const disciplineNames: { [key: string]: string } = {
   highdiving: 'High Diving',
   masters: 'Masters',
   openwater: 'Open Water',
-  paraswimming: 'Para Swimming'
+  paraswimming: 'Para Swimming',
 }
 
-const disciplineCodes: { [key: string]: string } = {
-  swimming: 'SW Rules',
-  waterpolo: 'WP Rules',
-  artistic: 'AS Rules',
-  diving: 'DV Rules',
-  highdiving: 'HD Rules',
-  masters: 'MS Rules',
-  openwater: 'OW Rules',
-  paraswimming: 'WPS Rules'
+const countryToFlag = (countryName: string): string => {
+  const countries: Record<string, string> = {
+    'Malaysia': '🇲🇾', 'Singapore': '🇸🇬', 'Indonesia': '🇮🇩', 'Thailand': '🇹🇭',
+    'Philippines': '🇵🇭', 'Vietnam': '🇻🇳', 'Brunei': '🇧🇳', 'Myanmar': '🇲🇲',
+    'Cambodia': '🇰🇭', 'Laos': '🇱🇦', 'Australia': '🇦🇺', 'New Zealand': '🇳🇿',
+    'United Kingdom': '🇬🇧', 'United States': '🇺🇸', 'Canada': '🇨🇦', 'Japan': '🇯🇵',
+    'China': '🇨🇳', 'South Korea': '🇰🇷', 'India': '🇮🇳', 'Germany': '🇩🇪',
+    'France': '🇫🇷', 'United Arab Emirates': '🇦🇪', 'Hong Kong': '🇭🇰',
+  }
+  return countries[countryName] || '🌍'
 }
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  feedback?: 'like' | 'dislike' | null
+async function detectCountry(): Promise<string | null> {
+  try {
+    const res = await fetch('https://ip-api.com/json/?fields=country')
+    const data = await res.json()
+    return data.country || null
+  } catch {
+    return null
+  }
 }
 
-export default function ChatPage({ params }: { params: Promise<{ discipline: string }> }) {
-  const { discipline } = use(params)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
+export default function DashboardPage() {
   const [user, setUser] = useState<{ email?: string } | null>(null)
-  const [usage, setUsage] = useState(0)
-  const [dailyLimit, setDailyLimit] = useState(50)
-  const [plan, setPlan] = useState<string>('lite')
-  const [monthlyRemaining, setMonthlyRemaining] = useState<number>(5)
-  const [resetDate, setResetDate] = useState<string>('')
-  const [daysUntilReset, setDaysUntilReset] = useState<number>(30)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const isParaSwimming = discipline === 'paraswimming'
+  const [loading, setLoading] = useState(true)
+  const [liveDisciplines, setLiveDisciplines] = useState<string[]>([])
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null)
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [fullName, setFullName] = useState<string | null>(null)
+  const [showBetaWelcome, setShowBetaWelcome] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [allEvents, setAllEvents] = useState<AquaEvent[]>([])
+  const [userCountry, setUserCountry] = useState<string | null>(null)
+  const [noticeCounts, setNoticeCounts] = useState<Record<string, number>>({})
+  const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
 
   useEffect(() => {
     const getUser = async () => {
+      await supabase.auth.getSession()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        window.location.href = '/login'
-        return
-      }
+      if (!user) { window.location.href = '/login'; return }
       setUser(user)
 
-      const { data: sub } = await supabase
-        .from('user_subscriptions')
-        .select('plan, created_at')
-        .eq('user_email', user.email)
-        .single()
+      const { data: files } = await supabase.from('rulebook_files').select('discipline')
+      if (files) setLiveDisciplines([...new Set(files.map((f: { discipline: string }) => f.discipline))])
 
-      const userPlan = sub?.plan || 'lite'
-      setPlan(userPlan)
+      const { data: sub, error } = await supabase.from('user_subscriptions').select('plan, selected_discipline, status, current_period_end, stripe_customer_id, full_name, country').eq('user_email', user.email).single()
 
-      if (userPlan === 'lite') {
-        const accountCreated = new Date(sub?.created_at || new Date())
-        const now = new Date()
-        const daysSinceCreation = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
-        const cycleDay = daysSinceCreation % 30
-        const cycleStart = new Date(now)
-        cycleStart.setDate(cycleStart.getDate() - cycleDay)
-        cycleStart.setHours(0, 0, 0, 0)
-
-        const { data: monthlyLogs } = await supabase
-          .from('chat_logs')
-          .select('id')
-          .eq('user_email', user.email)
-          .gte('created_at', cycleStart.toISOString())
-
-        const used = monthlyLogs?.length || 0
-        setMonthlyRemaining(Math.max(0, 5 - used))
-
-        const resetDateObj = new Date(cycleStart)
-        resetDateObj.setDate(resetDateObj.getDate() + 30)
-        setResetDate(resetDateObj.toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' }))
-        setDaysUntilReset(Math.ceil((resetDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-        setDailyLimit(5)
-        setUsage(used)
-      } else {
-        if (userPlan === 'elite') setDailyLimit(99999)
-        else if (userPlan === 'all_disciplines') setDailyLimit(200)
-        else setDailyLimit(50)
-
-        const today = new Date().toISOString().split('T')[0]
-        const { data: usageData } = await supabase
-          .from('daily_usage')
-          .select('count')
-          .eq('user_email', user.email)
-          .eq('date', today)
-          .single()
-
-        if (usageData) setUsage(usageData.count)
+      if (error || !sub) {
+        const country = await detectCountry()
+        await supabase.from('user_subscriptions').insert({ user_email: user.email, plan: 'lite', status: 'active', stripe_customer_id: null, current_period_end: null, selected_discipline: null, full_name: null, country })
+        window.location.href = '/onboarding'
+        return
       }
+
+      if (!sub.country) {
+        const country = await detectCountry()
+        if (country) { await supabase.from('user_subscriptions').update({ country }).eq('user_email', user.email); sub.country = country }
+      }
+
+      if (sub.status === 'active' && !sub.current_period_end && !sub.stripe_customer_id && sub.plan !== 'lite') {
+        const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + 14)
+        await supabase.from('user_subscriptions').update({ current_period_end: expiryDate.toISOString() }).eq('user_email', user.email)
+        sub.current_period_end = expiryDate.toISOString()
+      }
+
+      if (sub.full_name) { setFullName(sub.full_name) }
+      else if (sub.status === 'active') { window.location.href = '/onboarding'; return }
+
+      if (sub.plan === 'lite' && !sub.selected_discipline && sub.full_name) { window.location.href = '/choose-discipline'; return }
+
+      setSubscription(sub)
+      setUserCountry(sub.country)
+
+      const isElite = sub.plan === 'elite' || sub.plan === 'all_disciplines'
+
+      let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
+      if (!isElite && sub.country) eventsQuery = eventsQuery.eq('country', sub.country)
+      const { data: eventsData } = await eventsQuery.order('start_date', { ascending: true })
+
+      if (eventsData) {
+        setAllEvents(eventsData)
+        await loadNoticeCounts(eventsData.map(e => e.id))
+      }
+
+      if (isElite) {
+        const savedFilter = localStorage.getItem('aquaref_elite_country_filter')
+        if (savedFilter) setEliteCountryFilter(savedFilter)
+      }
+
+      setLoading(false)
+
+      const isBeta = sub.stripe_customer_id === null && sub.plan !== 'lite' && sub.current_period_end !== null
+      if (isBeta && !localStorage.getItem('aquaref_beta_welcome_v1')) setShowBetaWelcome(true)
     }
     getUser()
   }, [])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (allEvents.length === 0) return
+    const interval = setInterval(() => {
+      loadNoticeCounts(allEvents.map(e => e.id))
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [allEvents])
 
-  const handleFeedback = async (index: number, feedback: 'like' | 'dislike') => {
-    const message = messages[index]
-    const question = messages[index - 1]?.content || ''
-
-    setMessages(prev => prev.map((msg, i) =>
-      i === index ? { ...msg, feedback } : msg
-    ))
-
-    await supabase.from('answer_feedback').insert({
-      user_email: user?.email,
-      discipline,
-      question,
-      answer: message.content,
-      feedback
-    })
-  }
-
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return
-
-    const question = input.trim()
-    setInput('')
-    setLoading(true)
-
-    const newMessages: Message[] = [
-      ...messages,
-      { role: 'user', content: question }
-    ]
-    setMessages(newMessages)
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          discipline,
-          userEmail: user?.email
-        })
+  const loadNoticeCounts = async (eventIds: string[]) => {
+    if (eventIds.length === 0) return
+    const { data } = await supabase
+      .from('event_notices')
+      .select('event_id')
+      .in('event_id', eventIds)
+      .eq('is_active', true)
+    if (data) {
+      const counts: Record<string, number> = {}
+      data.forEach((n: { event_id: string }) => {
+        counts[n.event_id] = (counts[n.event_id] || 0) + 1
       })
+      setNoticeCounts(counts)
+    }
+  }
 
+  const handleLogout = async () => { await supabase.auth.signOut(); window.location.href = '/' }
+
+  const handleManageSubscription = async () => {
+    if (!user?.email) return
+    setPortalLoading(true)
+    try {
+      const response = await fetch('/api/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: user.email }) })
       const data = await response.json()
-
-      if (response.status === 429) {
-        if (data.error === 'monthly_limit_reached') {
-          setMonthlyRemaining(0)
-          setMessages([...newMessages, {
-            role: 'assistant',
-            content: data.message,
-            feedback: null
-          }])
-        } else {
-          setMessages([...newMessages, {
-            role: 'assistant',
-            content: data.error,
-            feedback: null
-          }])
-        }
-      } else if (data.error) {
-        setMessages([...newMessages, {
-          role: 'assistant',
-          content: data.error,
-          feedback: null
-        }])
-      } else {
-        setMessages([...newMessages, {
-          role: 'assistant',
-          content: data.answer,
-          feedback: null
-        }])
-        setUsage(prev => prev + 1)
-
-        if (plan === 'lite' && data.remainingQuestions !== undefined) {
-          setMonthlyRemaining(data.remainingQuestions)
-          if (data.isLastQuestion) {
-            setTimeout(() => {
-              setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `You've just used your last free question for this month. Your quota resets in ${data.daysUntilReset} day${data.daysUntilReset !== 1 ? 's' : ''} on ${data.resetDate}.\n\n[Upgrade to PRO for 50 questions per day →](/pricing)`,
-                feedback: null
-              }])
-            }, 500)
-          }
-        }
-      }
-    } catch {
-      setMessages([...newMessages, {
-        role: 'assistant',
-        content: 'Something went wrong. Please try again.',
-        feedback: null
-      }])
-    }
-
-    setLoading(false)
+      if (data.url) { window.location.href = data.url } else { alert('Unable to open billing portal. Please contact hello@aquaref.co') }
+    } catch { alert('Something went wrong. Please try again.') }
+    setPortalLoading(false)
   }
 
-  const getSampleQuestions = () => {
-    const questions: { [key: string]: string[] } = {
-      swimming: ['What is the false start rule?', 'What are the breaststroke turn rules?', 'Can a swimmer false start twice?'],
-      waterpolo: ['What are the referee duties?', 'How long is each period?', 'What constitutes a foul?'],
-      openwater: ['What is the minimum water temperature for Open Water?', 'Can swimmers wear wetsuits in Open Water?', 'What are the feeding rules in Open Water?'],
-      artistic: ['How is artistic swimming scored?', 'What are the routine time limits?', 'What are the deck work rules?'],
-      diving: ['How are dives scored?', 'What is the degree of difficulty?', 'What are the springboard height rules?'],
-      highdiving: ['What are the platform height requirements?', 'How are high dives scored?', 'What safety rules apply?'],
-      masters: ['What are the age group categories?', 'How are masters records set?', 'What are the eligibility rules?'],
-      paraswimming: ['What are the Para Swimming classification classes?', 'What are the start rules for Para swimmers?', 'What equipment is permitted in Para Swimming?']
-    }
-    return questions[discipline] || questions.swimming
+  const isExpired = (sub?: UserSubscription | null) => {
+    const s = sub || subscription
+    if (s?.plan === 'lite') return false
+    if (!s?.current_period_end) return false
+    return new Date(s.current_period_end) < new Date()
   }
 
-  const isLimitReached = plan === 'lite' ? monthlyRemaining <= 0 : usage >= dailyLimit
+  const canAccessDiscipline = (disciplineId: string) => {
+    if (!subscription) return false
+    if (subscription.status !== 'active') return false
+    if (subscription.plan === 'lite') return subscription.selected_discipline === disciplineId
+    if (subscription.plan === 'pro') { if (isExpired()) return false; return subscription.selected_discipline === disciplineId }
+    if (subscription.plan === 'elite') { if (isExpired()) return false; return true }
+    if (subscription.plan === 'all_disciplines') { if (isExpired()) return false; return true }
+    if (subscription.plan === 'starter') { if (isExpired()) return false; return subscription.selected_discipline === disciplineId }
+    return false
+  }
+
+  const isBetaTester = () => subscription?.stripe_customer_id === null && subscription?.plan !== 'lite' && subscription?.current_period_end !== null
+
+  const getPlanName = () => {
+    if (!subscription) return 'No Plan'
+    if (isBetaTester()) return 'Beta Access — All Disciplines'
+    if (subscription.plan === 'elite') return 'AquaRef ELITE'
+    if (subscription.plan === 'pro') return 'AquaRef PRO'
+    if (subscription.plan === 'lite') return 'AquaRef LITE'
+    if (subscription.plan === 'all_disciplines') return 'All Disciplines Plan'
+    if (subscription.plan === 'starter') return 'Starter Plan'
+    return 'Unknown Plan'
+  }
+
+  const getPlanPrice = () => {
+    if (isBetaTester()) return 'Free (Beta)'
+    if (subscription?.plan === 'elite') return 'RM39.99/month'
+    if (subscription?.plan === 'pro') return 'RM14.99/month'
+    if (subscription?.plan === 'lite') return 'Free forever'
+    if (subscription?.plan === 'all_disciplines') return 'RM27.99/month'
+    if (subscription?.plan === 'starter') return 'RM11.99/month'
+    return '-'
+  }
+
+  const getQuestionsPerDay = () => {
+    if (subscription?.plan === 'elite') return 'Unlimited'
+    if (subscription?.plan === 'pro') return '50'
+    if (subscription?.plan === 'lite') return '5'
+    if (subscription?.plan === 'all_disciplines') return '200'
+    return '50'
+  }
+
+  const getEventQuestionLabel = () => {
+    if (subscription?.plan === 'elite' || subscription?.plan === 'all_disciplines') return 'Unlimited'
+    if (subscription?.plan === 'pro') return '50/day'
+    if (subscription?.plan === 'lite') return '5 free questions'
+    return '5 free questions'
+  }
+
+  const handleDisciplineClick = (disciplineId: string) => { if (canAccessDiscipline(disciplineId)) window.location.href = `/chat/${disciplineId}` }
+  const handleDismissBetaWelcome = () => { localStorage.setItem('aquaref_beta_welcome_v1', 'seen'); setShowBetaWelcome(false) }
+  const isElite = subscription?.plan === 'elite' || subscription?.plan === 'all_disciplines'
+
+  const handleCountryFilterChange = (value: string) => {
+    setEliteCountryFilter(value)
+    localStorage.setItem('aquaref_elite_country_filter', value)
+  }
+
+  const events = (() => {
+    if (!isElite) return allEvents
+    if (eliteCountryFilter === 'all') return allEvents
+    if (eliteCountryFilter === 'home' && userCountry) return allEvents.filter(e => e.country === userCountry)
+    return allEvents.filter(e => e.country === eliteCountryFilter)
+  })()
+
+  const availableCountries = [...new Set(allEvents.map(e => e.country))].sort()
+
+  if (loading) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-gray-400 text-sm">Loading your dashboard...</div></div>
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <a href="/dashboard" className="text-gray-400 hover:text-gray-600 text-sm">← Back</a>
-            <div className="w-px h-4 bg-gray-200"></div>
-            <div>
-              <h1 className="font-semibold text-gray-900 flex items-center gap-2">
-                {disciplineNames[discipline] || discipline}
-                {isParaSwimming && (
-                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">WPS</span>
+      <style jsx global>{`
+        .carousel-scroll::-webkit-scrollbar { display: none; }
+        .carousel-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
+      <div className="bg-white border-b border-gray-100 px-6 py-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <a href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
+            <span className="font-bold text-xl text-gray-900">AquaRef</span>
+          </a>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
+            {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && !isExpired() && (
+              <button onClick={() => { window.location.href = '/choose-discipline' }} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Switch Discipline</button>
+            )}
+            <button onClick={() => setShowPlanModal(true)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">My Plan</button>
+            <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
+          </div>
+        </div>
+      </div>
+
+      {showBetaWelcome && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
+              <span className="font-bold text-lg text-gray-900">AquaRef</span>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-1">Beta</span>
+            </div>
+            <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
+              <p>Dear {fullName || 'Beta Tester'},</p>
+              <p>Thank you for being part of the <strong>AquaRef Beta programme</strong>.</p>
+              <p>Please test the AI for your discipline and share honest feedback. Your insights as a Technical Official are invaluable.</p>
+              <p><strong className="text-purple-700">Para Swimming</strong> is now available, powered by <strong>World Para Swimming (WPS)</strong> under IPC.</p>
+              <p>Share feedback using the like and dislike buttons after each answer.</p>
+              <div className="pt-2 border-t border-gray-100"><p>Sincerely,</p><p className="font-semibold text-gray-900 mt-1">Adhwa</p></div>
+            </div>
+            <button onClick={handleDismissBetaWelcome} className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700">Got it, thanks!</button>
+          </div>
+        </div>
+      )}
+
+      {showPlanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-lg text-gray-900">My Plan</h3>
+              <button onClick={() => setShowPlanModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className={`border rounded-xl p-4 mb-4 ${subscription?.plan === 'elite' ? 'bg-gray-900 border-gray-700' : subscription?.plan === 'lite' ? 'bg-green-50 border-green-100' : 'bg-blue-50 border-blue-100'}`}>
+              <p className={`text-xs mb-1 ${subscription?.plan === 'elite' ? 'text-yellow-400' : subscription?.plan === 'lite' ? 'text-green-600' : 'text-blue-500'}`}>Current Plan</p>
+              <p className={`font-bold text-lg ${subscription?.plan === 'elite' ? 'text-white' : subscription?.plan === 'lite' ? 'text-green-900' : 'text-blue-900'}`}>{getPlanName()}</p>
+              <p className={`text-sm mt-1 ${subscription?.plan === 'elite' ? 'text-gray-400' : subscription?.plan === 'lite' ? 'text-green-700' : 'text-blue-700'}`}>{getPlanPrice()}</p>
+            </div>
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Status</span><span className="font-medium text-green-600">Active</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Email</span><span className="text-gray-700 text-xs">{user?.email}</span></div>
+              {subscription?.country && <div className="flex justify-between text-sm"><span className="text-gray-500">Country</span><span className="text-gray-700">{subscription.country}</span></div>}
+              {subscription?.current_period_end && subscription?.plan !== 'lite' && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">{isBetaTester() ? 'Beta expires' : 'Renews on'}</span>
+                  <span className="text-gray-700">{new Date(subscription.current_period_end).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                </div>
+              )}
+              {subscription?.plan === 'lite' && <div className="flex justify-between text-sm"><span className="text-gray-500">Expiry</span><span className="text-green-600 font-medium">Never — Free forever</span></div>}
+              {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && subscription.selected_discipline && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Discipline</span>
+                  <span className="text-gray-700">{disciplines.find(d => d.id === subscription.selected_discipline)?.name}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Questions</span><span className="text-gray-700">{getQuestionsPerDay()}</span></div>
+            </div>
+            <div className="space-y-2">
+              {!isBetaTester() && subscription?.stripe_customer_id && (
+                <button onClick={handleManageSubscription} disabled={portalLoading} className="w-full py-2.5 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900 disabled:opacity-50">
+                  {portalLoading ? 'Opening...' : 'Manage Subscription'}
+                </button>
+              )}
+              {(subscription?.plan === 'lite' || subscription?.plan === 'pro' || subscription?.plan === 'starter' || isExpired() || !subscription) && (
+                <button onClick={() => { setShowPlanModal(false); window.location.href = '/pricing' }} className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                  {isExpired() ? 'Renew Subscription' : 'Upgrade Plan'}
+                </button>
+              )}
+              <button onClick={() => setShowPlanModal(false)} className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">Close</button>
+            </div>
+            <p className="text-xs text-gray-400 text-center mt-4">For billing help, contact <a href="mailto:hello@aquaref.co" className="text-blue-500">hello@aquaref.co</a></p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-gray-900 mb-1">Welcome back{fullName ? `, ${fullName}` : ''}</h1>
+          <p className="text-gray-500 text-sm">Select a discipline to get instant AI-powered rules answers</p>
+        </div>
+
+        {isExpired() && (
+          <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-red-900">Your access has expired</p><p className="text-xs text-red-600 mt-0.5">Subscribe to continue</p></div>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">View Plans</button>
+          </div>
+        )}
+
+        {isBetaTester() && !isExpired() && (
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-green-900">Beta Access — All Disciplines</p><p className="text-xs text-green-600 mt-0.5">Expires: {new Date(subscription!.current_period_end!).toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Subscribe Now</button>
+          </div>
+        )}
+
+        {subscription?.plan === 'lite' && (
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-green-900">AquaRef LITE — Free Forever</p><p className="text-xs text-green-600 mt-0.5">5 questions/month · 1 discipline</p></div>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade</button>
+          </div>
+        )}
+
+        {subscription?.plan === 'pro' && !isExpired() && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-blue-900">AquaRef PRO</p><p className="text-xs text-blue-600 mt-0.5">50 questions/day · {subscription.selected_discipline ? disciplines.find(d => d.id === subscription.selected_discipline)?.name : 'No discipline'}</p></div>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade to ELITE</button>
+          </div>
+        )}
+
+        {!subscription && (
+          <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 mb-4 flex items-center justify-between">
+            <div><p className="text-sm font-medium text-yellow-900">No active subscription</p></div>
+            <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">View Plans</button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="bg-white rounded-xl border border-gray-100 p-3 text-center">
+            <div className="text-lg font-bold text-blue-600">{liveDisciplines.length}</div>
+            <div className="text-xs text-gray-400 mt-0.5">Disciplines</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-3 text-center">
+            <div className="text-lg font-bold text-blue-600 truncate">{getQuestionsPerDay()}</div>
+            <div className="text-xs text-gray-400 mt-0.5">Questions/{subscription?.plan === 'lite' ? 'mo' : 'day'}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-3 text-center">
+            <div className="text-lg font-bold text-blue-600">90+</div>
+            <div className="text-xs text-gray-400 mt-0.5">Languages</div>
+          </div>
+        </div>
+
+        {allEvents.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Live Events ({events.length})</h2>
+                {!isElite && (
+                  <p className="text-xs text-gray-400 mt-0.5">Events in {countryToFlag(userCountry || '')} {userCountry || 'your country'}</p>
                 )}
-              </h1>
-              <p className={`text-xs ${isParaSwimming ? 'text-purple-400' : 'text-gray-400'}`}>
-                {disciplineCodes[discipline]}
-                {isParaSwimming && ' · World Para Swimming (IPC)'}
-              </p>
-            </div>
-          </div>
-
-          {/* Question meter — hide for ELITE */}
-          {plan !== 'elite' && (
-            <div className="flex items-center gap-3">
-              {plan === 'lite' ? (
-                <div className="text-right">
-                  <div className="text-xs text-gray-400">This month</div>
-                  <div className="text-sm font-medium text-gray-700">
-                    {monthlyRemaining} of 5 left
-                  </div>
-                  {resetDate && (
-                    <div className="text-xs text-gray-400">Resets {daysUntilReset}d</div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-right">
-                  <div className="text-xs text-gray-400">Today</div>
-                  <div className="text-sm font-medium text-gray-700">{usage}/{dailyLimit} questions</div>
-                </div>
-              )}
-              <div className="w-16 bg-gray-100 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all ${isParaSwimming ? 'bg-purple-600' : 'bg-blue-600'}`}
-                  style={{
-                    width: plan === 'lite'
-                      ? `${Math.min(((5 - monthlyRemaining) / 5) * 100, 100)}%`
-                      : `${Math.min((usage / dailyLimit) * 100, 100)}%`
-                  }}
-                />
               </div>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Para Swimming disclaimer banner */}
-      {isParaSwimming && (
-        <div className="bg-purple-50 border-b border-purple-100 px-6 py-2">
-          <div className="max-w-4xl mx-auto text-center">
-            <p className="text-xs text-purple-700 flex items-center justify-center gap-1.5">
-              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-              <span>Para Swimming rules are governed by <strong>World Para Swimming (WPS)</strong> under the International Paralympic Committee (IPC), independent of World Aquatics. Always verify with official WPS regulations and your Meet Referee.</span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* LITE limit warning banner */}
-      {plan === 'lite' && monthlyRemaining <= 1 && monthlyRemaining > 0 && (
-        <div className="bg-orange-50 border-b border-orange-100 px-6 py-2">
-          <div className="max-w-4xl mx-auto text-center">
-            <p className="text-xs text-orange-700">
-              <strong>{monthlyRemaining} question left</strong> this month. Resets on {resetDate}.{' '}
-              <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for 50/day.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* LITE limit reached banner */}
-      {plan === 'lite' && monthlyRemaining <= 0 && (
-        <div className="bg-red-50 border-b border-red-100 px-6 py-3">
-          <div className="max-w-4xl mx-auto text-center">
-            <p className="text-sm font-medium text-red-800 mb-1">
-              You&apos;ve used all 5 free questions this month
-            </p>
-            <p className="text-xs text-red-600 mb-2">
-              Resets in {daysUntilReset} days on {resetDate}
-            </p>
-            <a href="/pricing" className="inline-block bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700">
-              Upgrade to PRO — RM14.99/month
-            </a>
-          </div>
-        </div>
-      )}
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {messages.length === 0 && (
-            <div className="text-center py-16">
-              <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${isParaSwimming ? 'bg-purple-100' : 'bg-blue-100'}`}>
-                <Waves className={`w-8 h-8 ${isParaSwimming ? 'text-purple-600' : 'text-blue-600'}`} />
-              </div>
-              <h2 className={`text-xl font-semibold mb-2 ${isParaSwimming ? 'text-purple-900' : 'text-gray-900'}`}>
-                {disciplineNames[discipline]} Rules Assistant
-              </h2>
-              <p className="text-gray-500 text-sm max-w-md mx-auto leading-relaxed">
-                Ask any question about {disciplineNames[discipline]} rules.
-                {isParaSwimming
-                  ? ' Answers are based strictly on official World Para Swimming (WPS) Regulations.'
-                  : ' Answers are based strictly on the official World Aquatics Regulations.'}
-              </p>
-              {isParaSwimming && (
-                <div className="mt-3 inline-block bg-purple-50 border border-purple-200 rounded-lg px-4 py-2">
-                  <p className="text-xs text-purple-700">
-                    Governed by <strong>World Para Swimming (WPS)</strong> under IPC
-                  </p>
-                </div>
-              )}
-              {plan === 'lite' && (
-                <div className="mt-3 inline-block bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-                  <p className="text-xs text-green-700">
-                    LITE Plan — <strong>{monthlyRemaining} of 5</strong> free questions remaining this month
-                  </p>
-                </div>
-              )}
-              <div className="mt-6 grid grid-cols-1 gap-2 max-w-md mx-auto">
-                {getSampleQuestions().map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setInput(q)}
-                    className={`text-left px-4 py-3 bg-white border rounded-lg text-sm font-medium transition-colors ${
-                      isParaSwimming
-                        ? 'border-purple-200 text-gray-700 hover:border-purple-400 hover:bg-purple-50'
-                        : 'border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50'
-                    }`}
+              {isElite && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">Viewing:</span>
+                  <select
+                    value={eliteCountryFilter}
+                    onChange={(e) => handleCountryFilterChange(e.target.value)}
+                    className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 font-medium cursor-pointer hover:border-blue-300"
                   >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'assistant' && (
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-1 ${isParaSwimming ? 'bg-purple-600' : 'bg-blue-600'}`}>
-                  <span className="text-white text-xs font-bold">A</span>
+                    {userCountry && (
+                      <option value="home">{countryToFlag(userCountry)} {userCountry} (Home)</option>
+                    )}
+                    <option value="all">All countries</option>
+                    {availableCountries.map(country => (
+                      <option key={country} value={country}>{countryToFlag(country)} {country}</option>
+                    ))}
+                  </select>
                 </div>
               )}
-              {msg.role === 'user' ? (
-                <div style={{ backgroundColor: isParaSwimming ? '#7c3aed' : '#1e40af', borderRadius: '16px 16px 4px 16px', padding: '12px 20px', maxWidth: '75%' }}>
-                  <p style={{ color: '#ffffff', fontSize: '14px', fontWeight: '600', margin: 0, lineHeight: '1.5' }}>
-                    {msg.content}
-                  </p>
-                </div>
-              ) : (
-                <div className="max-w-3xl w-full">
-                  <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
-                    <div className="text-gray-700 text-sm">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-4 mb-2 pb-1 border-b border-gray-100">{children}</h1>,
-                          h2: ({ children }) => <h2 className="text-sm font-bold text-gray-900 mt-4 mb-2">{children}</h2>,
-                          h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
-                          p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3">{children}</p>,
-                          strong: ({ children }) => <strong className={`font-semibold ${isParaSwimming ? 'text-purple-700' : 'text-blue-700'}`}>{children}</strong>,
-                          ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
-                          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                          blockquote: ({ children }) => <blockquote className={`border-l-4 pl-4 italic text-gray-600 my-3 ${isParaSwimming ? 'border-purple-200' : 'border-blue-200'}`}>{children}</blockquote>,
-                          table: ({ children }) => (
-                            <div className="overflow-x-auto mb-4 rounded-lg border border-gray-200">
-                              <table className="min-w-full text-sm">{children}</table>
-                            </div>
-                          ),
-                          thead: ({ children }) => (
-                            <thead className={`${isParaSwimming ? 'bg-purple-50' : 'bg-blue-50'}`}>{children}</thead>
-                          ),
-                          tbody: ({ children }) => (
-                            <tbody className="divide-y divide-gray-100 bg-white">{children}</tbody>
-                          ),
-                          tr: ({ children }) => (
-                            <tr className="hover:bg-gray-50 transition-colors">{children}</tr>
-                          ),
-                          th: ({ children }) => (
-                            <th className={`px-4 py-2.5 text-left text-xs font-semibold ${isParaSwimming ? 'text-purple-700' : 'text-blue-700'} border-b border-gray-200`}>{children}</th>
-                          ),
-                          td: ({ children }) => (
-                            <td className="px-4 py-2.5 text-gray-700 text-xs">{children}</td>
-                          ),
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
+            </div>
 
-                  {!msg.content.toLowerCase().startsWith('something went wrong') && !msg.content.toLowerCase().startsWith("you've used all") && !msg.content.toLowerCase().startsWith("you've just used") && (
-                    <div className="flex items-center gap-2 mt-2 ml-1">
-                      <span className="text-xs text-gray-400">Was this helpful?</span>
-                      <button
-                        onClick={() => handleFeedback(i, 'like')}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${msg.feedback === 'like' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-600'}`}
+            {!isElite && subscription?.plan !== undefined && (
+              <div className="mb-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-100 rounded-lg px-3 py-2 flex items-center justify-between flex-wrap gap-2">
+                <p className="text-xs text-gray-700">
+                  <span className="font-medium">Want to see events from other countries?</span>
+                  <span className="text-gray-500"> Upgrade to ELITE for global event access.</span>
+                </p>
+                <button
+                  onClick={() => { window.location.href = '/pricing' }}
+                  className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-medium px-3 py-1 rounded-lg whitespace-nowrap"
+                >
+                  Upgrade to ELITE →
+                </button>
+              </div>
+            )}
+
+            {events.length === 0 ? (
+              <div className="bg-white border border-gray-100 rounded-xl p-8 text-center">
+                <p className="text-sm font-medium text-gray-700 mb-1">
+                  No live events {eliteCountryFilter !== 'all' ? `in ${eliteCountryFilter === 'home' ? userCountry : eliteCountryFilter}` : 'right now'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  Try switching to &quot;All countries&quot; to see global events.
+                </p>
+              </div>
+            ) : (
+              <>
+                {events.length > 2 && (
+                  <p className="text-xs text-gray-400 mb-2 md:hidden">Swipe to see more</p>
+                )}
+                <div className="carousel-scroll flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4">
+                  {events.map((event) => {
+                    const noticeCount = noticeCounts[event.id] || 0
+                    return (
+                      <div
+                        key={event.id}
+                        className="flex-shrink-0 w-[280px] md:w-[320px] snap-start bg-white rounded-xl border border-green-100 overflow-hidden hover:border-green-300 hover:shadow-md transition-all cursor-pointer relative"
+                        onClick={() => { window.location.href = `/events/${event.slug}` }}
                       >
-                        <ThumbsUp className="w-3 h-3" />
-                        {msg.feedback === 'like' ? 'Helpful' : ''}
-                      </button>
-                      <button
-                        onClick={() => handleFeedback(i, 'dislike')}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${msg.feedback === 'dislike' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600'}`}
-                      >
-                        <ThumbsDown className="w-3 h-3" />
-                        {msg.feedback === 'dislike' ? 'Not helpful' : ''}
-                      </button>
-                    </div>
+                        {noticeCount > 0 && (
+                          <div className="absolute top-3 right-3 z-10">
+                            <div className="relative flex items-center gap-1.5 bg-red-500 text-white px-2.5 py-1 rounded-full shadow-lg">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                              </span>
+                              <span className="text-xs font-bold">
+                                {noticeCount} <span className="hidden sm:inline">live</span>
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {event.poster_url && (
+                          <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
+                        )}
+                        <div className="p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1 mr-2 min-w-0">
+                              <h3 className="font-semibold text-gray-900 text-sm truncate">{event.name}</h3>
+                              <p className="text-xs text-gray-400 mt-0.5 truncate">
+                                {countryToFlag(event.country)} {event.country} · {event.location}
+                              </p>
+                            </div>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                              Live
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
+                            {event.start_date && (
+                              <span className="text-xs text-gray-400">
+                                {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                                {event.end_date ? `–${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}` : ''}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-400">{getEventQuestionLabel()}</span>
+                            <button className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 font-medium">Open →</button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="mb-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-3">Choose a discipline</h2>
+          <div className="grid md:grid-cols-3 gap-4">
+            {disciplines.map((d) => {
+              const isLive = liveDisciplines.includes(d.id)
+              const hasAccess = canAccessDiscipline(d.id)
+              const isSelected = subscription?.selected_discipline === d.id
+              return (
+                <div key={d.id} className={`bg-white rounded-xl border p-5 transition-all ${!isLive ? 'border-gray-100 opacity-50' : hasAccess ? `${d.isPara ? 'border-purple-200 hover:border-purple-400' : 'border-blue-200 hover:border-blue-400'} hover:shadow-sm cursor-pointer` : 'border-gray-200'}`}>
+                  <div className="flex items-center justify-end mb-3">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${!isLive ? 'bg-gray-100 text-gray-400' : isSelected ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}` : hasAccess ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}` : 'bg-gray-100 text-gray-400'}`}>
+                      {!isLive ? 'Coming Soon' : isSelected ? 'Your Plan' : hasAccess ? 'Live' : 'Locked'}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-1 text-sm">{d.name}</h3>
+                  <p className={`text-xs mb-1 ${d.isPara ? 'text-purple-500 font-medium' : 'text-gray-400'}`}>{d.code}</p>
+                  {d.isPara && <p className="text-xs text-purple-400 mb-1">World Para Swimming (IPC)</p>}
+                  <p className="text-xs text-gray-400 mb-3 leading-relaxed">{d.desc}</p>
+                  {!isLive ? (
+                    <button disabled className="w-full bg-gray-50 text-gray-300 py-2 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-100">Coming Soon</button>
+                  ) : hasAccess ? (
+                    <button onClick={() => handleDisciplineClick(d.id)} className={`w-full py-2 rounded-lg text-sm font-medium transition-colors text-white ${d.isPara ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}>Ask Rules Question →</button>
+                  ) : (
+                    <button onClick={() => { window.location.href = subscription?.plan === 'lite' ? '/choose-discipline' : '/pricing' }} className="w-full bg-gray-100 text-gray-500 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                      {subscription?.plan === 'lite' ? 'Select This Discipline' : isExpired() ? 'Renew Access' : 'Upgrade to Access'}
+                    </button>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
-
-          {loading && (
-            <div className="flex justify-start">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${isParaSwimming ? 'bg-purple-600' : 'bg-blue-600'}`}>
-                <span className="text-white text-xs font-bold">A</span>
-              </div>
-              <div className="bg-white border border-gray-100 px-6 py-4 rounded-2xl rounded-bl-sm shadow-sm">
-                <div className="flex gap-1 items-center">
-                  <div className={`w-2 h-2 rounded-full animate-bounce ${isParaSwimming ? 'bg-purple-400' : 'bg-blue-400'}`}></div>
-                  <div className={`w-2 h-2 rounded-full animate-bounce ${isParaSwimming ? 'bg-purple-400' : 'bg-blue-400'}`} style={{animationDelay: '0.2s'}}></div>
-                  <div className={`w-2 h-2 rounded-full animate-bounce ${isParaSwimming ? 'bg-purple-400' : 'bg-blue-400'}`} style={{animationDelay: '0.4s'}}></div>
-                  <span className="text-xs text-gray-400 ml-2">Searching regulations...</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* Input */}
-      <div className="bg-white border-t border-gray-100 px-6 py-4 flex-shrink-0">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isLimitReached && sendMessage()}
-              placeholder={isLimitReached
-                ? plan === 'lite' ? 'Monthly limit reached — upgrade to continue' : 'Daily limit reached — resets at midnight'
-                : `Ask a ${disciplineNames[discipline] || discipline} rules question...`
-              }
-              disabled={isLimitReached}
-              className={`flex-1 px-4 py-3 border rounded-xl text-sm text-gray-900 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400 ${
-                isParaSwimming
-                  ? 'border-purple-200 focus:ring-2 focus:ring-purple-400'
-                  : 'border-gray-200 focus:ring-2 focus:ring-blue-500'
-              }`}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={loading || !input.trim() || isLimitReached}
-              className={`text-white px-6 py-3 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
-                isParaSwimming
-                  ? 'bg-purple-600 hover:bg-purple-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              Send
-            </button>
+              )
+            })}
           </div>
-          <p className="text-xs text-gray-400 mt-2 text-center">
-            {isParaSwimming
-              ? 'Answers based on World Para Swimming (WPS) Regulations only · Available in 90+ languages · Always verify with your Meet Referee.'
-              : 'Answers based on official World Aquatics Regulations only · Available in 90+ languages · Always verify with your Meet Referee.'}
-          </p>
+          <p className="text-xs text-gray-400 mt-3">* Para Swimming rules are governed by World Para Swimming (WPS) under IPC, independent of World Aquatics.</p>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <h3 className="font-semibold text-blue-900 mb-2 text-sm">How AquaRef works</h3>
+          <div className="grid md:grid-cols-2 gap-2">
+            {['Ask any rules question in your language', 'AI answers only from official World Aquatics Regulations', 'Every answer includes the exact rule number', 'Always verify with your Meet Referee for official decisions'].map((tip, i) => (
+              <p key={i} className="text-xs text-blue-700">• {tip}</p>
+            ))}
+          </div>
         </div>
       </div>
+
+      <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-6">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center"><span className="text-white font-bold text-xs">A</span></div>
+            <span className="font-bold text-gray-900 text-sm">AquaRef</span>
+          </div>
+          <p className="text-xs text-gray-400 text-center">For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.</p>
+          <div className="flex gap-5 text-xs text-gray-400">
+            <a href="/privacy-policy" className="hover:text-gray-600">Privacy Policy</a>
+            <a href="/terms-of-service" className="hover:text-gray-600">Terms</a>
+            <a href="/contact" className="hover:text-gray-600">Contact Us</a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
