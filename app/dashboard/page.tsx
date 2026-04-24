@@ -541,7 +541,7 @@ export default function DashboardPage() {
               const hasAccess = canAccessDiscipline(d.id)
               const isSelected = subscription?.selected_discipline === d.id
               return (
-                <div key={d.id} className={`bg-white rounded-xl border p-5 transition-all ${!isLive ? 'border-gray-100 opacity-50' : hasAccess ? `${d.isPara ? 'border-purple-200 hover:border-purple-400' : 'border-blue-200 hover:border-blue-400'} hover:shadow-sm cursor-pointer` : 'border-gray-200'}`}>
+                <div key={d.id} className={`bg-white rounded-xl border p-5 transition-all flex flex-col ${!isLive ? 'border-gray-100 opacity-50' : hasAccess ? `${d.isPara ? 'border-purple-200 hover:border-purple-400' : 'border-blue-200 hover:border-blue-400'} hover:shadow-sm cursor-pointer` : 'border-gray-200'}`}>
                   <div className="flex items-center justify-end mb-3">
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${!isLive ? 'bg-gray-100 text-gray-400' : isSelected ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}` : hasAccess ? `${d.isPara ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}` : 'bg-gray-100 text-gray-400'}`}>
                       {!isLive ? 'Coming Soon' : isSelected ? 'Your Plan' : hasAccess ? 'Live' : 'Locked'}
@@ -550,7 +550,7 @@ export default function DashboardPage() {
                   <h3 className="font-semibold text-gray-900 mb-1 text-sm">{d.name}</h3>
                   <p className={`text-xs mb-1 ${d.isPara ? 'text-purple-500 font-medium' : 'text-gray-400'}`}>{d.code}</p>
                   {d.isPara && <p className="text-xs text-purple-400 mb-1">World Para Swimming (IPC)</p>}
-                  <p className="text-xs text-gray-400 mb-3 leading-relaxed">{d.desc}</p>
+                  <p className="text-xs text-gray-400 mb-3 leading-relaxed flex-1">{d.desc}</p>
                   {!isLive ? (
                     <button disabled className="w-full bg-gray-50 text-gray-300 py-2 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-100">Coming Soon</button>
                   ) : hasAccess ? (
