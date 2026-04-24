@@ -19,7 +19,7 @@ export default function FAQWidget() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Hi! 👋 I\'m AquaBot. Ask me about features, pricing, or which plan fits you best — I\'ll guide you to the right one.'
+      content: 'Hi! 👋 I\'m the AquaRef Assistant. Ask me about features, pricing, or which plan fits you best — I\'ll guide you to the right one.'
     }
   ])
   const [input, setInput] = useState('')
@@ -97,12 +97,12 @@ export default function FAQWidget() {
         >
           {/* Header */}
           <div className="bg-blue-600 px-4 py-3 flex items-center gap-3">
-            <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-bold">A</span>
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+              <span className="text-blue-600 font-bold text-sm">A</span>
             </div>
             <div>
-              <p className="text-white text-sm font-semibold">AquaBot</p>
-              <p className="text-blue-200 text-xs">Your AquaRef guide</p>
+              <p className="text-white text-sm font-semibold">AquaRef Assistant</p>
+              <p className="text-blue-200 text-xs">Ask me anything</p>
             </div>
           </div>
 
