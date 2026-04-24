@@ -8,10 +8,10 @@ interface Message {
 }
 
 const QUICK_QUESTIONS = [
-  'How accurate are the answers?',
-  'Which sports are covered?',
+  'What is AquaRef?',
+  'What is Event Hub?',
+  'Which plan is right for me?',
   'How much does it cost?',
-  'Can I cancel anytime?',
 ]
 
 export default function FAQWidget() {
@@ -19,7 +19,7 @@ export default function FAQWidget() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Hi! 👋 I\'m the AquaRef assistant. Ask me anything about our app, pricing, or features!'
+      content: 'Hi! 👋 I\'m AquaBot. Ask me about features, pricing, or which plan fits you best — I\'ll guide you to the right one.'
     }
   ])
   const [input, setInput] = useState('')
@@ -91,7 +91,8 @@ export default function FAQWidget() {
 
       {/* Chat widget */}
       {isOpen && (
-       <div className="fixed bottom-20 right-6 z-50 bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
+        <div
+          className="fixed bottom-20 right-6 z-50 bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden"
           style={{ height: '500px', width: '360px' }}
         >
           {/* Header */}
@@ -100,8 +101,8 @@ export default function FAQWidget() {
               <span className="text-white text-sm font-bold">A</span>
             </div>
             <div>
-              <p className="text-white text-sm font-semibold">AquaRef Assistant</p>
-              <p className="text-blue-200 text-xs">Ask me anything!</p>
+              <p className="text-white text-sm font-semibold">AquaBot</p>
+              <p className="text-blue-200 text-xs">Your AquaRef guide</p>
             </div>
           </div>
 
@@ -109,12 +110,13 @@ export default function FAQWidget() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-xs px-3 py-2 rounded-xl text-sm ${
-                msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-sm text-xs leading-relaxed'
-                    : 'bg-gray-100 text-gray-700 rounded-bl-sm text-xs leading-relaxed'
-                }`}
-                 dangerouslySetInnerHTML={{
+                <div
+                  className={`max-w-xs px-3 py-2 rounded-xl text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-blue-600 text-white rounded-br-sm text-xs leading-relaxed'
+                      : 'bg-gray-100 text-gray-700 rounded-bl-sm text-xs leading-relaxed'
+                  }`}
+                  dangerouslySetInnerHTML={{
                     __html: msg.content
                       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                       .replace(/^- /gm, '• ')
@@ -127,6 +129,7 @@ export default function FAQWidget() {
             {/* Quick questions */}
             {messages.length === 1 && (
               <div className="space-y-2 mt-2">
+                <p className="text-xs text-gray-400 mb-2">Try asking:</p>
                 {QUICK_QUESTIONS.map((q, i) => (
                   <button
                     key={i}
