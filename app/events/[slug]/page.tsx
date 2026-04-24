@@ -254,6 +254,11 @@ export default function EventChatPage() {
     return `${base}/events/${event.slug}?ref=user_share`
   }
 
+  const getShareMessage = () => {
+    if (!event) return ''
+    return `Check out ${event.name} on AquaRef — get instant AI answers about heats, schedules, and more: ${getShareUrl()}`
+  }
+
   const handleCopyUrl = async () => {
     await navigator.clipboard.writeText(getShareUrl())
     setCopiedUrl(true)
@@ -276,12 +281,40 @@ export default function EventChatPage() {
     try {
       await navigator.share({
         title: event.name,
-        text: `Check out the AquaRef AI for ${event.name}`,
+        text: getShareMessage(),
         url: getShareUrl(),
       })
     } catch {
       // User cancelled
     }
+  }
+
+  // Platform share handlers
+  const shareWhatsApp = () => {
+    const text = encodeURIComponent(getShareMessage())
+    window.open(`https://wa.me/?text=${text}`, '_blank')
+  }
+
+  const shareSMS = () => {
+    const text = encodeURIComponent(getShareMessage())
+    window.open(`sms:?body=${text}`, '_blank')
+  }
+
+  const shareFacebook = () => {
+    const url = encodeURIComponent(getShareUrl())
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=600,height=500')
+  }
+
+  const shareTwitter = () => {
+    const text = encodeURIComponent(getShareMessage())
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank', 'width=600,height=500')
+  }
+
+  const shareEmail = () => {
+    if (!event) return
+    const subject = encodeURIComponent(`Check out ${event.name} on AquaRef`)
+    const body = encodeURIComponent(getShareMessage())
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank')
   }
 
   if (loading || isLoggedIn === null) {
@@ -331,12 +364,7 @@ export default function EventChatPage() {
         <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
           {event.poster_url && (
             <div className="mb-6 rounded-2xl overflow-hidden shadow-lg border border-gray-200">
-              <img
-                src={event.poster_url}
-                alt={event.name}
-                className="w-full object-cover"
-                style={{ aspectRatio: '1200/630' }}
-              />
+              <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
             </div>
           )}
 
@@ -456,86 +484,113 @@ export default function EventChatPage() {
       `}</style>
 
       {shareModalOpen && event && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4"
-          onClick={() => setShareModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" onClick={() => setShareModalOpen(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-lg text-gray-900">Share this event</h3>
-              <button
-                onClick={() => setShareModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
-                aria-label="Close"
-              >
+              <button onClick={() => setShareModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100" aria-label="Close">
                 X
               </button>
             </div>
 
-            <p className="text-xs text-gray-500 mb-4">
+            <p className="text-xs text-gray-500 mb-5">
               Share <span className="font-medium text-gray-700">{event.name}</span> with coaches, teammates, or parents.
             </p>
 
-            <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 mb-4 flex items-center justify-center">
+            {/* QR code */}
+            <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-5 mb-5 flex items-center justify-center">
               <div className="bg-white p-3 rounded-lg shadow-sm">
-                <QRCodeSVG
-                  value={getShareUrl()}
-                  size={160}
-                  level="H"
-                  includeMargin={false}
-                />
+                <QRCodeSVG value={getShareUrl()} size={140} level="H" includeMargin={false} />
               </div>
               <div style={{ display: 'none' }}>
-                <QRCodeCanvas
-                  ref={shareQrCanvasRef}
-                  value={getShareUrl()}
-                  size={512}
-                  level="H"
-                  includeMargin={true}
-                />
+                <QRCodeCanvas ref={shareQrCanvasRef} value={getShareUrl()} size={512} level="H" includeMargin={true} />
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Event link</label>
+            {/* Share to platforms - circular icon row */}
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Share via</p>
+              <div className="grid grid-cols-5 gap-3">
+
+                {/* WhatsApp */}
+                <button onClick={shareWhatsApp} className="flex flex-col items-center gap-1 group">
+                  <div className="w-12 h-12 rounded-full bg-[#25D366] flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-700 font-medium">WhatsApp</span>
+                </button>
+
+                {/* Messages (SMS) */}
+                <button onClick={shareSMS} className="flex flex-col items-center gap-1 group">
+                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-700 font-medium">Messages</span>
+                </button>
+
+                {/* Facebook */}
+                <button onClick={shareFacebook} className="flex flex-col items-center gap-1 group">
+                  <div className="w-12 h-12 rounded-full bg-[#1877F2] flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-700 font-medium">Facebook</span>
+                </button>
+
+                {/* X (Twitter) */}
+                <button onClick={shareTwitter} className="flex flex-col items-center gap-1 group">
+                  <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-700 font-medium">X</span>
+                </button>
+
+                {/* Email */}
+                <button onClick={shareEmail} className="flex flex-col items-center gap-1 group">
+                  <div className="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                      <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-700 font-medium">Email</span>
+                </button>
+
+              </div>
+            </div>
+
+            {/* Copy URL */}
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Or copy link</p>
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={getShareUrl()}
-                  readOnly
-                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-700 font-mono truncate"
-                />
-                <button
-                  onClick={handleCopyUrl}
-                  className={`text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${copiedUrl ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                >
+                <input type="text" value={getShareUrl()} readOnly className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-700 font-mono truncate" />
+                <button onClick={handleCopyUrl} className={`text-xs px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${copiedUrl ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
                   {copiedUrl ? 'Copied' : 'Copy'}
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2">
+            {/* Native share + Download QR */}
+            <div className="space-y-2 mt-4 pt-4 border-t border-gray-100">
               {nativeShareSupported && (
-                <button
-                  onClick={handleNativeShare}
-                  className="w-full py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700"
-                >
-                  Share to WhatsApp, Messages, Mail
+                <button onClick={handleNativeShare} className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
+                  More sharing options...
                 </button>
               )}
-              <button
-                onClick={handleDownloadQR}
-                className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
-              >
+              <button onClick={handleDownloadQR} className="w-full py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
                 Download QR code
               </button>
             </div>
 
             <p className="text-xs text-gray-400 text-center mt-4">
-              Scans work for anyone with an AquaRef account.
+              Recipients need an AquaRef account to use the AI.
             </p>
           </div>
         </div>
@@ -564,11 +619,7 @@ export default function EventChatPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={() => setShareModalOpen(true)}
-                className="text-sm px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-all shadow-sm hover:shadow-md"
-                title="Share this event"
-              >
+              <button onClick={() => setShareModalOpen(true)} className="text-sm px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-all shadow-sm hover:shadow-md" title="Share this event">
                 Share Event
               </button>
               {userPlan === 'lite' && remainingQuestions !== null && (
@@ -704,20 +755,8 @@ export default function EventChatPage() {
             </div>
           ) : (
             <div className="flex gap-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                placeholder={`Ask about ${event?.name}...`}
-                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 placeholder-gray-400"
-                disabled={sending}
-              />
-              <button
-                onClick={handleSend}
-                disabled={sending || !input.trim()}
-                className="px-6 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
+              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder={`Ask about ${event?.name}...`} className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 placeholder-gray-400" disabled={sending} />
+              <button onClick={handleSend} disabled={sending || !input.trim()} className="px-6 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors">
                 Send
               </button>
             </div>
