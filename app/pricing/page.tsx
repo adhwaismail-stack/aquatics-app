@@ -142,30 +142,14 @@ export default function PricingPage() {
 
             {showEmail === 'lite' && !userLoggedIn && (
               <div className="mb-4">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-400 text-gray-900"
-                />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-400 text-gray-900" />
               </div>
             )}
 
             {userLoggedIn ? (
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
-              >
-                Go to Dashboard
-              </button>
+              <button onClick={() => router.push('/dashboard')} className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors">Go to Dashboard</button>
             ) : (
-              <button
-                onClick={() => handleCheckout('lite')}
-                className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
-              >
-                Get Started Free
-              </button>
+              <button onClick={() => handleCheckout('lite')} className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors">Get Started Free</button>
             )}
           </div>
 
@@ -229,13 +213,7 @@ export default function PricingPage() {
 
             {showEmail === 'pro' && !userLoggedIn && (
               <div className="mb-4">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full px-4 py-3 border border-blue-300 rounded-lg text-sm mb-2 bg-blue-300 text-white placeholder-blue-100 focus:outline-none focus:ring-2 focus:ring-white"
-                />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" className="w-full px-4 py-3 border border-blue-300 rounded-lg text-sm mb-2 bg-blue-300 text-white placeholder-blue-100 focus:outline-none focus:ring-2 focus:ring-white" />
               </div>
             )}
 
@@ -245,13 +223,7 @@ export default function PricingPage() {
               </div>
             )}
 
-            <button
-              onClick={() => handleCheckout('pro')}
-              disabled={loading === 'pro'}
-              className="w-full bg-white text-blue-500 py-3 rounded-lg font-medium hover:bg-blue-50 disabled:opacity-50 transition-colors"
-            >
-              {loading === 'pro' ? 'Loading...' : 'Start 7-Day Free Trial'}
-            </button>
+            <button onClick={() => handleCheckout('pro')} disabled={loading === 'pro'} className="w-full bg-white text-blue-500 py-3 rounded-lg font-medium hover:bg-blue-50 disabled:opacity-50 transition-colors">{loading === 'pro' ? 'Loading...' : 'Start 7-Day Free Trial'}</button>
           </div>
 
           {/* ELITE Plan */}
@@ -315,13 +287,7 @@ export default function PricingPage() {
 
             {showEmail === 'elite' && !userLoggedIn && (
               <div className="mb-4">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full px-4 py-3 border border-slate-600 rounded-lg text-sm mb-2 bg-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" className="w-full px-4 py-3 border border-slate-600 rounded-lg text-sm mb-2 bg-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-yellow-400" />
               </div>
             )}
 
@@ -331,13 +297,7 @@ export default function PricingPage() {
               </div>
             )}
 
-            <button
-              onClick={() => handleCheckout('elite')}
-              disabled={loading === 'elite'}
-              className="w-full bg-yellow-400 text-slate-900 py-3 rounded-lg font-medium hover:bg-yellow-300 disabled:opacity-50 transition-colors"
-            >
-              {loading === 'elite' ? 'Loading...' : 'Start 7-Day Free Trial'}
-            </button>
+            <button onClick={() => handleCheckout('elite')} disabled={loading === 'elite'} className="w-full bg-yellow-400 text-slate-900 py-3 rounded-lg font-medium hover:bg-yellow-300 disabled:opacity-50 transition-colors">{loading === 'elite' ? 'Loading...' : 'Start 7-Day Free Trial'}</button>
           </div>
 
           {/* PARTNER Plan */}
@@ -398,26 +358,17 @@ export default function PricingPage() {
               </li>
             </ul>
 
-            
-              href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry"
-              className="block w-full text-center bg-white text-purple-700 py-3 rounded-lg font-medium hover:bg-purple-50"
-            >
-              Contact Sales
-            </a>
+            <a href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry" className="block w-full text-center bg-white text-purple-700 py-3 rounded-lg font-medium hover:bg-purple-50">Contact Sales</a>
           </div>
 
         </div>
 
-        <p className="text-center text-sm text-gray-400 mt-8">
-          No charge for 7 days on paid plans. Cancel anytime before trial ends. LITE plan is free forever.
-        </p>
+        <p className="text-center text-sm text-gray-400 mt-8">No charge for 7 days on paid plans. Cancel anytime before trial ends. LITE plan is free forever.</p>
 
-        {/* Who is PARTNER for? — Helper section below the cards */}
+        {/* Who is PARTNER for? */}
         <div className="mt-12 bg-white rounded-2xl border border-gray-200 p-8 max-w-4xl mx-auto">
           <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">Is the PARTNER plan right for you?</h3>
-          <p className="text-sm text-gray-500 text-center mb-6">
-            We work with organizations of all sizes — from local clubs to national federations.
-          </p>
+          <p className="text-sm text-gray-500 text-center mb-6">We work with organizations of all sizes — from local clubs to national federations.</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div className="p-4">
               <p className="font-semibold text-gray-700 text-sm mb-1">Federations</p>
@@ -437,12 +388,7 @@ export default function PricingPage() {
             </div>
           </div>
           <div className="mt-6 text-center">
-            
-              href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry"
-              className="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-purple-700"
-            >
-              Get in touch
-            </a>
+            <a href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry" className="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-purple-700">Get in touch</a>
           </div>
         </div>
 
