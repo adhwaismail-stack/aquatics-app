@@ -16,6 +16,10 @@ const NOTICE_CATEGORY_LABELS: Record<string, string> = {
   schedule: 'Schedule',
 }
 
+// Claude Haiku pricing (USD per million tokens)
+const HAIKU_INPUT_COST_PER_M = 0.80
+const HAIKU_OUTPUT_COST_PER_M = 4.00
+
 export async function POST(request: NextRequest) {
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
@@ -52,7 +56,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'event_limit_reached',
-            message: `You've reached your 5 free questions for this event. ✨ Upgrade to PRO for 50 questions/day, or ELITE for unlimited questions + all 7 disciplines + priority support.`,
+            message: `You've reached your 5 free questions for this event. Upgrade to PRO for 50 questions/day, or ELITE for unlimited questions + all 8 disciplines + priority support.`,
             upgradeUrl: '/pricing'
           },
           { status: 429 }
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'event_limit_reached',
-            message: `You've reached today's 50-question limit for this event. Resets tomorrow. ✨ ELITE members get unlimited event questions + all 7 disciplines + priority support for just RM39.99/month.`,
+            message: `You've reached today's 50-question limit for this event. Resets tomorrow. ELITE members get unlimited event questions + all 8 disciplines + priority support for just RM39.99/month.`,
             upgradeUrl: '/pricing'
           },
           { status: 429 }
@@ -80,7 +84,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 📢 FETCH ACTIVE LIVE NOTICES (highest priority context)
+    // Fetch active live notices
     const { data: activeNotices } = await supabase
       .from('event_notices')
       .select('category, message, created_at')
@@ -107,7 +111,6 @@ export async function POST(request: NextRequest) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Vector search - increased to 30
     const { data: vectorChunks } = await supabase.rpc(
       'match_event_chunks',
       {
@@ -119,7 +122,6 @@ export async function POST(request: NextRequest) {
 
     const words = englishQuestion.split(' ').filter((w: string) => w.length > 2)
 
-    // Keyword search per word - increased limit
     let keywordChunks: { content: string }[] = []
     for (const word of words.slice(0, 10)) {
       const { data } = await supabase
@@ -131,7 +133,6 @@ export async function POST(request: NextRequest) {
       if (data) keywordChunks = [...keywordChunks, ...data]
     }
 
-    // Full name pair search - increased limit
     if (words.length >= 2) {
       for (let i = 0; i < words.length - 1; i++) {
         const namePair = `${words[i]} ${words[i + 1]}`
@@ -145,7 +146,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Also search for just the last name alone for better coverage
     if (words.length >= 2) {
       const lastName = words[words.length - 1]
       const { data } = await supabase
@@ -173,12 +173,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build document context
     const documentContext = allChunks.slice(0, 50)
       .map((c: { content: string }) => c.content)
       .join('\n\n---\n\n')
 
-    // 📢 Build live notices context (highest priority)
     let noticesContext = ''
     if (activeNotices && activeNotices.length > 0) {
       noticesContext = activeNotices.map((n, i) => {
@@ -244,7 +242,6 @@ Use clear paragraphs with **bold headers** and bullet points.
 NON-EVENT QUESTIONS:
 Respond with: "I can only answer questions about ${eventName}. For World Aquatics rules questions, please use the main AquaRef rules assistant."`
 
-    // Build the user message with notices FIRST, then documents
     let userContent = ''
 
     if (noticesContext) {
@@ -270,6 +267,24 @@ Respond with: "I can only answer questions about ${eventName}. For World Aquatic
     const answer = message.content[0].type === 'text'
       ? message.content[0].text
       : 'Unable to generate answer'
+
+    // ✅ Log tokens, cost and chat to event_chat_logs
+    const tokensInput = message.usage.input_tokens
+    const tokensOutput = message.usage.output_tokens
+    const costUsd = (
+      (tokensInput / 1_000_000) * HAIKU_INPUT_COST_PER_M +
+      (tokensOutput / 1_000_000) * HAIKU_OUTPUT_COST_PER_M
+    )
+
+    await supabase.from('event_chat_logs').insert({
+      event_id: eventId,
+      user_email: userEmail,
+      question,
+      answer,
+      tokens_input: tokensInput,
+      tokens_output: tokensOutput,
+      cost_usd: costUsd
+    })
 
     // Update usage tracking
     if (plan === 'lite') {

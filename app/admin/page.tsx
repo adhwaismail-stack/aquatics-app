@@ -118,6 +118,25 @@ interface EventNotice {
   updated_at: string
 }
 
+interface EventChatLog {
+  id: string
+  event_id: string
+  user_email: string
+  question: string
+  answer: string
+  tokens_input: number
+  tokens_output: number
+  cost_usd: number
+  created_at: string
+}
+
+interface EventAnalytics {
+  totalQuestions: number
+  uniqueUsers: number
+  totalCostUsd: number
+  top20Users: { email: string; count: number }[]
+}
+
 const NOTICE_CATEGORIES = [
   { value: 'current_event', label: 'Current Event', color: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
   { value: 'call_room', label: 'Call Room', color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
@@ -188,13 +207,15 @@ const getPlanColor = (plan: string) => {
   return 'bg-gray-100 text-gray-500'
 }
 
+const RM_PER_USD = 4.5
+
 function ExpandableAnswer({ answer }: { answer: string }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div>
       <p className={`text-sm text-gray-500 ${expanded ? '' : 'line-clamp-2'}`}>A: {answer}</p>
       <button onClick={() => setExpanded(!expanded)} className="text-xs text-blue-500 hover:text-blue-600 mt-1">
-        {expanded ? '▲ Show less' : '▼ Show full answer'}
+        {expanded ? 'Show less' : 'Show full answer'}
       </button>
     </div>
   )
@@ -302,6 +323,21 @@ export default function AdminPage() {
   const qrPngRef = useRef<HTMLCanvasElement>(null)
   const qrSvgRef = useRef<SVGSVGElement>(null)
   const [copiedUrl, setCopiedUrl] = useState(false)
+
+  // ✅ NEW: Event inner tab state
+  const [eventInnerTab, setEventInnerTab] = useState<'overview' | 'analytics' | 'chatlog'>('overview')
+
+  // ✅ NEW: Event analytics state
+  const [eventAnalytics, setEventAnalytics] = useState<EventAnalytics | null>(null)
+  const [eventAnalyticsLoading, setEventAnalyticsLoading] = useState(false)
+
+  // ✅ NEW: Event chat logs state
+  const [eventChatLogs, setEventChatLogs] = useState<EventChatLog[]>([])
+  const [eventChatLogsLoading, setEventChatLogsLoading] = useState(false)
+  const [selectedEventLog, setSelectedEventLog] = useState<EventChatLog | null>(null)
+  const [eventCorrectionText, setEventCorrectionText] = useState('')
+  const [savingEventCorrection, setSavingEventCorrection] = useState(false)
+  const [eventLogKeyword, setEventLogKeyword] = useState('')
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -443,11 +479,66 @@ export default function AdminPage() {
     if (data) setEventNotices(data)
   }
 
+  // ✅ NEW: Load event analytics
+  const loadEventAnalytics = async (eventId: string) => {
+    setEventAnalyticsLoading(true)
+    const { data } = await supabase
+      .from('event_chat_logs')
+      .select('user_email, tokens_input, tokens_output, cost_usd')
+      .eq('event_id', eventId)
+
+    if (data) {
+      const totalQuestions = data.length
+      const uniqueUsers = new Set(data.map(l => l.user_email)).size
+      const totalCostUsd = data.reduce((sum, l) => sum + (l.cost_usd || 0), 0)
+
+      const userCounts: Record<string, number> = {}
+      data.forEach(l => { userCounts[l.user_email] = (userCounts[l.user_email] || 0) + 1 })
+      const top20Users = Object.entries(userCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([email, count]) => ({ email, count }))
+
+      setEventAnalytics({ totalQuestions, uniqueUsers, totalCostUsd, top20Users })
+    }
+    setEventAnalyticsLoading(false)
+  }
+
+  // ✅ NEW: Load event chat logs
+  const loadEventChatLogs = async (eventId: string) => {
+    setEventChatLogsLoading(true)
+    const { data } = await supabase
+      .from('event_chat_logs')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    if (data) setEventChatLogs(data)
+    setEventChatLogsLoading(false)
+  }
+
+  // ✅ NEW: Save event correction
+  const handleAddEventCorrection = async () => {
+    if (!selectedEventLog || !eventCorrectionText.trim() || !selectedEvent) return
+    setSavingEventCorrection(true)
+    await supabase.from('correction_notes').insert({
+      discipline: selectedEvent.discipline,
+      question: selectedEventLog.question,
+      wrong_answer: selectedEventLog.answer,
+      correct_note: eventCorrectionText.trim()
+    })
+    setSavingEventCorrection(false)
+    setEventCorrectionText('')
+    setSelectedEventLog(null)
+    alert('Correction saved!')
+    loadCorrections()
+  }
+
   const handlePushNotice = async () => {
     if (!selectedEvent || !noticeMessage.trim()) return
     const activeCount = eventNotices.length
     if (activeCount >= 5) {
-      alert('⚠️ Maximum 5 active notices per event. Please clear an existing notice first.')
+      alert('Maximum 5 active notices per event. Please clear an existing notice first.')
       return
     }
     setPushingNotice(true)
@@ -517,7 +608,7 @@ export default function AdminPage() {
       await supabase.from('events').update({ poster_url: publicUrl }).eq('id', event.id)
       setSelectedEvent({ ...event, poster_url: publicUrl })
       await loadEvents()
-      alert('✅ Poster uploaded!')
+      alert('Poster uploaded!')
     } catch (err) { alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error')) }
     setPosterUploading(false)
     e.target.value = ''
@@ -529,9 +620,11 @@ export default function AdminPage() {
     loadEventFiles(event.id)
     loadEventNotices(event.id)
     setEditingDetails(false)
+    setEventInnerTab('overview')
+    setEventAnalytics(null)
+    setEventChatLogs([])
   }
 
-  // Edit event details handlers
   const handleStartEdit = () => {
     if (!selectedEvent) return
     setEditForm({
@@ -559,10 +652,9 @@ export default function AdminPage() {
       return
     }
 
-    // If slug was changed, warn first
     if (editForm.slug !== selectedEvent.slug && !slugWarningShown) {
       const confirmed = confirm(
-        '⚠️ WARNING: Changing the URL slug will break any existing links, QR codes, or flyers using the current URL. Users with the old link will get a 404 error.\n\nOld URL: aquaref.co/events/' + selectedEvent.slug + '\nNew URL: aquaref.co/events/' + editForm.slug + '\n\nAre you sure?'
+        'WARNING: Changing the URL slug will break any existing links, QR codes, or flyers using the current URL. Users with the old link will get a 404 error.\n\nOld URL: aquaref.co/events/' + selectedEvent.slug + '\nNew URL: aquaref.co/events/' + editForm.slug + '\n\nAre you sure?'
       )
       if (!confirmed) return
       setSlugWarningShown(true)
@@ -604,7 +696,6 @@ export default function AdminPage() {
     setSavingDetails(false)
   }
 
-  // QR Code handlers
   const getEventUrl = (event: AquaEvent) => {
     const base = typeof window !== 'undefined' ? window.location.origin : 'https://aquaref.co'
     return `${base}/events/${event.slug}?ref=qr`
@@ -643,6 +734,18 @@ export default function AdminPage() {
     URL.revokeObjectURL(url)
   }
 
+  // ✅ NEW: Handle inner tab switching with lazy loading
+  const handleEventInnerTab = (tab: 'overview' | 'analytics' | 'chatlog') => {
+    setEventInnerTab(tab)
+    if (!selectedEvent) return
+    if (tab === 'analytics' && !eventAnalytics) {
+      loadEventAnalytics(selectedEvent.id)
+    }
+    if (tab === 'chatlog' && eventChatLogs.length === 0) {
+      loadEventChatLogs(selectedEvent.id)
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'chat logs') loadChatLogs()
     if (activeTab === 'corrections') loadCorrections()
@@ -668,7 +771,7 @@ export default function AdminPage() {
     setSavingCorrection(false)
     setCorrectionText('')
     setSelectedLog(null)
-    alert('✅ Correction saved!')
+    alert('Correction saved!')
     loadCorrections()
   }
 
@@ -703,7 +806,7 @@ export default function AdminPage() {
       setUploadProgress('Processing with AI...')
       const response = await fetch('/api/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName, discipline, originalName: file.name }) })
       const data = await response.json()
-      if (data.success) { setUploadProgress(''); alert(`✓ ${data.chunks} chunks from ${file.name}`); await loadAllFiles() }
+      if (data.success) { setUploadProgress(''); alert(`${data.chunks} chunks from ${file.name}`); await loadAllFiles() }
       else throw new Error(data.error)
     } catch (err) { alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error')); setUploadProgress('') }
     setUploading(null)
@@ -752,7 +855,7 @@ export default function AdminPage() {
       setEventUploadProgress('Processing with AI...')
       const response = await fetch('/api/event-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileName, eventId: event.id, originalName: file.name }) })
       const data = await response.json()
-      if (data.success) { setEventUploadProgress(''); alert(`✓ ${data.chunks} chunks (${data.textChunks} text + ${data.visualChunks} visual)`); loadEventFiles(event.id) }
+      if (data.success) { setEventUploadProgress(''); alert(`${data.chunks} chunks (${data.textChunks} text + ${data.visualChunks} visual)`); loadEventFiles(event.id) }
       else throw new Error(data.error)
     } catch (err) { alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error')); setEventUploadProgress('') }
     setEventUploading(false)
@@ -767,7 +870,7 @@ export default function AdminPage() {
     const { data: existing } = await supabase.from('user_subscriptions').select('id').eq('user_email', betaEmail.trim().toLowerCase()).single()
     if (existing) { await supabase.from('user_subscriptions').update({ plan: 'elite', status: 'active', current_period_end: expiryDate.toISOString(), stripe_customer_id: null }).eq('user_email', betaEmail.trim().toLowerCase()) }
     else { await supabase.from('user_subscriptions').insert({ user_email: betaEmail.trim().toLowerCase(), plan: 'elite', status: 'active', current_period_end: expiryDate.toISOString(), stripe_customer_id: null }) }
-    alert(`✅ Beta access granted to ${betaEmail} for ${betaDays} days`)
+    alert(`Beta access granted to ${betaEmail} for ${betaDays} days`)
     setBetaEmail(''); setBetaDays('14'); setGrantingBeta(false); loadBetaUsers()
   }
 
@@ -778,7 +881,7 @@ export default function AdminPage() {
     const newExpiry = new Date(Math.max(new Date(user.current_period_end).getTime(), Date.now()))
     newExpiry.setDate(newExpiry.getDate() + days)
     await supabase.from('user_subscriptions').update({ current_period_end: newExpiry.toISOString(), status: 'active' }).eq('user_email', email)
-    alert(`✅ Extended by ${days} days.`)
+    alert(`Extended by ${days} days.`)
     setExtendEmail(null); loadBetaUsers()
   }
 
@@ -811,6 +914,13 @@ export default function AdminPage() {
   const top10Users = Object.entries(userQuestionCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
   const countryCounts = userSubscriptions.filter(s => s.country).reduce((acc, s) => { acc[s.country!] = (acc[s.country!] || 0) + 1; return acc }, {} as Record<string, number>)
   const countryData = Object.entries(countryCounts).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label: `${countryToFlag(label)} ${label}`, value }))
+
+  // ✅ NEW: Filtered event chat logs
+  const filteredEventChatLogs = eventChatLogs.filter(l => {
+    if (!eventLogKeyword) return true
+    const kw = eventLogKeyword.toLowerCase()
+    return l.question?.toLowerCase().includes(kw) || l.answer?.toLowerCase().includes(kw) || l.user_email?.toLowerCase().includes(kw)
+  })
 
   if (!authenticated) {
     return (
@@ -875,7 +985,7 @@ export default function AdminPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h2 className="font-semibold text-gray-900 mb-2">Rulebook Management</h2>
             <p className="text-sm text-gray-400 mb-6">Upload PDF, TXT, DOCX, XLSX, or PPTX files per discipline.</p>
-            {uploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {uploadProgress}</div>}
+            {uploadProgress && <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">Processing... {uploadProgress}</div>}
             <div className="space-y-6">
               {DISCIPLINES.map((d) => {
                 const files = rulebookFiles[d.discipline] || []
@@ -896,7 +1006,6 @@ export default function AdminPage() {
                         {files.map((file) => (
                           <div key={file.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                             <div className="flex items-center gap-2">
-                              <span className={isPara ? 'text-purple-600' : 'text-green-600'}>📄</span>
                               <div>
                                 <p className="text-sm text-gray-700 font-medium">{file.original_name}</p>
                                 <p className="text-xs text-gray-400">{file.chunk_count} chunks · {new Date(file.uploaded_at).toLocaleDateString()}</p>
@@ -920,7 +1029,7 @@ export default function AdminPage() {
                           <p className="text-xs text-gray-400">Added on top of the base prompt</p>
                         </div>
                         <button onClick={() => handleSaveDisciplinePrompt(d.discipline)} disabled={savingDisciplinePrompt === d.discipline} className={`px-4 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${savedDisciplinePrompt === d.discipline ? 'bg-green-100 text-green-700' : isPara ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                          {savingDisciplinePrompt === d.discipline ? 'Saving...' : savedDisciplinePrompt === d.discipline ? 'Saved! ✓' : 'Save'}
+                          {savingDisciplinePrompt === d.discipline ? 'Saving...' : savedDisciplinePrompt === d.discipline ? 'Saved!' : 'Save'}
                         </button>
                       </div>
                       <textarea value={disciplinePrompts[d.discipline] || ''} onChange={(e) => setDisciplinePrompts(prev => ({ ...prev, [d.discipline]: e.target.value }))} rows={3} placeholder={`Add ${d.name}-specific instructions here...`} className={`w-full px-3 py-2 border rounded-lg text-xs font-mono focus:outline-none focus:ring-2 text-gray-700 placeholder-gray-400 resize-y ${isPara ? 'border-purple-200 focus:ring-purple-500' : 'border-gray-200 focus:ring-blue-500'}`} />
@@ -942,14 +1051,13 @@ export default function AdminPage() {
               </div>
               <div className="flex gap-2">
                 <button onClick={loadEvents} className="text-sm text-green-600 hover:text-green-700">Refresh</button>
-                <button onClick={() => setShowCreateEvent(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">➕ New Event</button>
+                <button onClick={() => setShowCreateEvent(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">New Event</button>
               </div>
             </div>
             {eventsLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : events.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-100 p-12 text-center text-gray-400">
-                <p className="text-4xl mb-4">🏊</p>
                 <p className="font-medium text-gray-500 mb-2">No events yet</p>
-                <button onClick={() => setShowCreateEvent(true)} className="text-sm text-green-600 hover:text-green-700 font-medium">Create your first event →</button>
+                <button onClick={() => setShowCreateEvent(true)} className="text-sm text-green-600 hover:text-green-700 font-medium">Create your first event</button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -963,12 +1071,12 @@ export default function AdminPage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-medium text-gray-900">{event.name}</h3>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{event.is_active ? '🟢 Active' : '⚫ Inactive'}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${event.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{event.is_active ? 'Active' : 'Inactive'}</span>
                           </div>
                           <div className="flex items-center gap-3 flex-wrap">
                             <span className="text-xs text-gray-400">aquaref.co/events/{event.slug}</span>
                             <span className="text-xs text-gray-500">{countryToFlag(event.country)} {event.country}</span>
-                            <span className="text-xs text-gray-500">🏊 {DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
+                            <span className="text-xs text-gray-500">{DISCIPLINE_LABELS[event.discipline] || event.discipline}</span>
                           </div>
                         </div>
                       </div>
@@ -1029,7 +1137,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <button onClick={handleCreateEvent} disabled={creatingEvent || !newEvent.name || !newEvent.slug} className="w-full py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50">
-                {creatingEvent ? 'Creating...' : '✅ Create Event'}
+                {creatingEvent ? 'Creating...' : 'Create Event'}
               </button>
             </div>
           </div>
@@ -1048,7 +1156,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-1 rounded-full ${selectedEvent.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{selectedEvent.is_active ? '🟢 Active' : '⚫ Inactive'}</span>
+                <span className={`text-xs px-2 py-1 rounded-full ${selectedEvent.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{selectedEvent.is_active ? 'Active' : 'Inactive'}</span>
                 <button onClick={() => handleToggleEvent(selectedEvent)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${selectedEvent.is_active ? 'border-orange-200 text-orange-600 hover:bg-orange-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
                   {selectedEvent.is_active ? 'Deactivate' : 'Activate'}
                 </button>
@@ -1056,316 +1164,386 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Poster Upload */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h3 className="font-medium text-gray-900 mb-1 text-sm">🖼️ Event Poster</h3>
-              <p className="text-xs text-gray-400 mb-3">Recommended: 1200×630px, JPG or PNG, max 2MB. Displays on dashboard card and event chat header.</p>
-              {selectedEvent.poster_url && (
-                <div className="mb-3">
-                  <img src={selectedEvent.poster_url} alt="Event poster" className="w-full max-w-lg rounded-xl border border-gray-100 object-cover" style={{ aspectRatio: '1200/630' }} />
-                </div>
-              )}
-              <label className="cursor-pointer block">
-                <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${posterUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
-                  {posterUploading ? '⏳ Uploading poster...' : selectedEvent.poster_url ? '🔄 Replace Poster' : '🖼️ Upload Poster (JPG, PNG)'}
-                </div>
-                <input type="file" accept=".jpg,.jpeg,.png" className="hidden" disabled={posterUploading} onChange={(e) => handlePosterUpload(e, selectedEvent)} />
-              </label>
-            </div>
-
-            {/* Event Details - EDITABLE */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-gray-900 text-sm">📋 Event Details</h3>
-                {!editingDetails ? (
-                  <button onClick={handleStartEdit} className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium">✏️ Edit</button>
-                ) : (
-                  <div className="flex gap-2">
-                    <button onClick={handleCancelEdit} disabled={savingDetails} className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">Cancel</button>
-                    <button onClick={handleSaveDetails} disabled={savingDetails} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">{savingDetails ? 'Saving...' : '💾 Save Changes'}</button>
-                  </div>
-                )}
-              </div>
-
-              {!editingDetails ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                  <div><p className="text-gray-400">Country</p><p className="font-medium text-gray-700">{countryToFlag(selectedEvent.country)} {selectedEvent.country}</p></div>
-                  <div><p className="text-gray-400">Location</p><p className="font-medium text-gray-700">📍 {selectedEvent.location}</p></div>
-                  <div><p className="text-gray-400">Discipline</p><p className="font-medium text-gray-700">🏊 {DISCIPLINE_LABELS[selectedEvent.discipline] || selectedEvent.discipline}</p></div>
-                  <div><p className="text-gray-400">Dates</p><p className="font-medium text-gray-700">📅 {selectedEvent.start_date ? new Date(selectedEvent.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '—'}{selectedEvent.end_date ? ` — ${new Date(selectedEvent.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p></div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Event Name *</label>
-                    <input type="text" value={editForm.name} onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">URL Slug <span className="text-orange-600">⚠️ Changing breaks existing links/QR codes</span></label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">aquaref.co/events/</span>
-                      <input type="text" value={editForm.slug} onChange={(e) => setEditForm(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-orange-50" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Discipline</label>
-                      <select value={editForm.discipline} onChange={(e) => setEditForm(prev => ({ ...prev, discipline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
-                        {DISCIPLINES.map(d => <option key={d.discipline} value={d.discipline}>{d.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Country</label>
-                      <select value={editForm.country} onChange={(e) => setEditForm(prev => ({ ...prev, country: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
-                        {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
-                    <input type="text" value={editForm.location} onChange={(e) => setEditForm(prev => ({ ...prev, location: e.target.value }))} placeholder="e.g. Bukit Jalil Aquatic Centre" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
-                      <input type="date" value={editForm.start_date} onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
-                      <input type="date" value={editForm.end_date} onChange={(e) => setEditForm(prev => ({ ...prev, end_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Share This Event — QR + URL */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h3 className="font-medium text-gray-900 mb-1 text-sm">📤 Share This Event</h3>
-              <p className="text-xs text-gray-400 mb-4">Print this QR code at the pool deck, registration booth, or meet flyers. Every scan is tracked (<code className="bg-gray-100 px-1 rounded">?ref=qr</code>).</p>
-
-              <div className="flex flex-col md:flex-row gap-5 items-start">
-                {/* QR Code */}
-                <div className="flex-shrink-0 bg-white border-2 border-gray-100 rounded-xl p-4">
-                  <QRCodeSVG
-                    ref={qrSvgRef}
-                    value={getEventUrl(selectedEvent)}
-                    size={180}
-                    level="H"
-                    includeMargin={false}
-                  />
-                  {/* Hidden canvas for PNG download */}
-                  <div style={{ display: 'none' }}>
-                    <QRCodeCanvas
-                      ref={qrPngRef}
-                      value={getEventUrl(selectedEvent)}
-                      size={512}
-                      level="H"
-                      includeMargin={true}
-                    />
-                  </div>
-                </div>
-
-                {/* URL + Download buttons */}
-                <div className="flex-1 space-y-4 w-full">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">🔗 Event URL</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={getEventUrl(selectedEvent)}
-                        readOnly
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-700 font-mono"
-                      />
-                      <button
-                        onClick={handleCopyUrl}
-                        className={`text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap ${copiedUrl ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                      >
-                        {copiedUrl ? '✓ Copied!' : '📋 Copy'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">📥 Download QR Code</label>
-                    <div className="flex gap-2 flex-wrap">
-                      <button
-                        onClick={handleDownloadQRPNG}
-                        className="text-xs px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-                      >
-                        📥 PNG (for web)
-                      </button>
-                      <button
-                        onClick={handleDownloadQRSVG}
-                        className="text-xs px-4 py-2 border border-green-200 text-green-600 rounded-lg hover:bg-green-50 font-medium"
-                      >
-                        📥 SVG (for print)
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">💡 PNG = web/social. SVG = scales to any size without pixelation (best for large banners/posters).</p>
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                    <p className="text-xs text-blue-700">
-                      <strong>💡 Tip:</strong> When users scan this QR, they'll be tagged with <code className="bg-white px-1 rounded">?ref=qr</code> — you can later track conversion rates from QR-driven traffic.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Event AI Prompt */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="font-medium text-gray-900 text-sm">🤖 Event AI Prompt</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Custom instructions for this event's AI assistant</p>
-                </div>
-                <button onClick={() => handleSaveEventPrompt(selectedEvent.id)} disabled={savingEventPrompt} className={`px-4 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${savedEventPrompt ? 'bg-green-100 text-green-700' : 'bg-green-600 text-white hover:bg-green-700'}`}>
-                  {savingEventPrompt ? 'Saving...' : savedEventPrompt ? 'Saved! ✓' : 'Save Prompt'}
+            {/* ✅ NEW: Inner tab navigation */}
+            <div className="flex gap-2">
+              {[
+                { key: 'overview', label: 'Overview' },
+                { key: 'analytics', label: 'Analytics' },
+                { key: 'chatlog', label: 'Chat Log' },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => handleEventInnerTab(tab.key as 'overview' | 'analytics' | 'chatlog')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    eventInnerTab === tab.key
+                      ? 'bg-green-600 text-white'
+                      : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {tab.label}
                 </button>
-              </div>
-              <textarea
-                value={eventPrompts[selectedEvent.id] || ''}
-                onChange={(e) => setEventPrompts(prev => ({ ...prev, [selectedEvent.id]: e.target.value }))}
-                rows={4}
-                placeholder="e.g. This is the 68th Malaysia Open Swimming Championships 2029. The Meet Referee is [name]. Always greet users warmly and help them find their swimmer's schedule."
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 placeholder-gray-400 resize-y"
-              />
+              ))}
             </div>
 
-            {/* Document Upload */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h3 className="font-medium text-gray-900 mb-1 text-sm">📄 Event Documents</h3>
-              <p className="text-xs text-gray-400 mb-3">Upload start lists, heat sheets, schedules, technical packages.</p>
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
-                <p className="text-xs text-blue-700">💡 <strong>Tip:</strong> For best swimmer lookup, request start lists in <strong>XLSX format</strong> from HY-TEK Meet Manager. XLSX = 100% coverage vs ~80% for PDF.</p>
-              </div>
-              {eventFiles[selectedEvent.id]?.length > 0 && (
-                <div className="mb-4 space-y-2">
-                  {eventFiles[selectedEvent.id].map((file, i) => (
-                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-green-600">📄</span>
-                        <div>
-                          <p className="text-sm text-gray-700 font-medium">{file.name}</p>
-                          <p className="text-xs text-gray-400">{file.chunks} chunks</p>
+            {/* ✅ OVERVIEW TAB */}
+            {eventInnerTab === 'overview' && (
+              <div className="space-y-4">
+                {/* Poster Upload */}
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <h3 className="font-medium text-gray-900 mb-1 text-sm">Event Poster</h3>
+                  <p className="text-xs text-gray-400 mb-3">Recommended: 1200x630px, JPG or PNG, max 2MB.</p>
+                  {selectedEvent.poster_url && (
+                    <div className="mb-3">
+                      <img src={selectedEvent.poster_url} alt="Event poster" className="w-full max-w-lg rounded-xl border border-gray-100 object-cover" style={{ aspectRatio: '1200/630' }} />
+                    </div>
+                  )}
+                  <label className="cursor-pointer block">
+                    <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${posterUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
+                      {posterUploading ? 'Uploading poster...' : selectedEvent.poster_url ? 'Replace Poster' : 'Upload Poster (JPG, PNG)'}
+                    </div>
+                    <input type="file" accept=".jpg,.jpeg,.png" className="hidden" disabled={posterUploading} onChange={(e) => handlePosterUpload(e, selectedEvent)} />
+                  </label>
+                </div>
+
+                {/* Event Details */}
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900 text-sm">Event Details</h3>
+                    {!editingDetails ? (
+                      <button onClick={handleStartEdit} className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium">Edit</button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={handleCancelEdit} disabled={savingDetails} className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">Cancel</button>
+                        <button onClick={handleSaveDetails} disabled={savingDetails} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">{savingDetails ? 'Saving...' : 'Save Changes'}</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {!editingDetails ? (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div><p className="text-gray-400">Country</p><p className="font-medium text-gray-700">{countryToFlag(selectedEvent.country)} {selectedEvent.country}</p></div>
+                      <div><p className="text-gray-400">Location</p><p className="font-medium text-gray-700">{selectedEvent.location}</p></div>
+                      <div><p className="text-gray-400">Discipline</p><p className="font-medium text-gray-700">{DISCIPLINE_LABELS[selectedEvent.discipline] || selectedEvent.discipline}</p></div>
+                      <div><p className="text-gray-400">Dates</p><p className="font-medium text-gray-700">{selectedEvent.start_date ? new Date(selectedEvent.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '—'}{selectedEvent.end_date ? ` — ${new Date(selectedEvent.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p></div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Event Name *</label>
+                        <input type="text" value={editForm.name} onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">URL Slug <span className="text-orange-600">Changing breaks existing links/QR codes</span></label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">aquaref.co/events/</span>
+                          <input type="text" value={editForm.slug} onChange={(e) => setEditForm(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-orange-50" />
                         </div>
                       </div>
-                      <button onClick={() => handleDeleteEventFile(selectedEvent.id, file.name)} disabled={deletingEventFile === file.name} className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50">
-                        {deletingEventFile === file.name ? 'Deleting...' : 'Delete'}
-                      </button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Discipline</label>
+                          <select value={editForm.discipline} onChange={(e) => setEditForm(prev => ({ ...prev, discipline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
+                            {DISCIPLINES.map(d => <option key={d.discipline} value={d.discipline}>{d.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Country</label>
+                          <select value={editForm.country} onChange={(e) => setEditForm(prev => ({ ...prev, country: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
+                            {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
+                        <input type="text" value={editForm.location} onChange={(e) => setEditForm(prev => ({ ...prev, location: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+                          <input type="date" value={editForm.start_date} onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+                          <input type="date" value={editForm.end_date} onChange={(e) => setEditForm(prev => ({ ...prev, end_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                        </div>
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-              {eventUploadProgress && <div className="mb-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">⏳ {eventUploadProgress}</div>}
-              <label className="cursor-pointer block">
-                <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${eventUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
-                  {eventUploading ? 'Processing document with AI...' : '+ Upload Document (PDF, DOCX, XLSX, PPTX, TXT)'}
+
+                {/* Share This Event */}
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <h3 className="font-medium text-gray-900 mb-1 text-sm">Share This Event</h3>
+                  <p className="text-xs text-gray-400 mb-4">Print this QR code at the pool deck. Every scan is tracked with ?ref=qr.</p>
+                  <div className="flex flex-col md:flex-row gap-5 items-start">
+                    <div className="flex-shrink-0 bg-white border-2 border-gray-100 rounded-xl p-4">
+                      <QRCodeSVG ref={qrSvgRef} value={getEventUrl(selectedEvent)} size={180} level="H" includeMargin={false} />
+                      <div style={{ display: 'none' }}>
+                        <QRCodeCanvas ref={qrPngRef} value={getEventUrl(selectedEvent)} size={512} level="H" includeMargin={true} />
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-4 w-full">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Event URL</label>
+                        <div className="flex gap-2">
+                          <input type="text" value={getEventUrl(selectedEvent)} readOnly className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 text-gray-700 font-mono" />
+                          <button onClick={handleCopyUrl} className={`text-xs px-3 py-2 rounded-lg font-medium whitespace-nowrap ${copiedUrl ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>{copiedUrl ? 'Copied!' : 'Copy'}</button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Download QR Code</label>
+                        <div className="flex gap-2 flex-wrap">
+                          <button onClick={handleDownloadQRPNG} className="text-xs px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">PNG (web)</button>
+                          <button onClick={handleDownloadQRSVG} className="text-xs px-4 py-2 border border-green-200 text-green-600 rounded-lg hover:bg-green-50 font-medium">SVG (print)</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={eventUploading} onChange={(e) => handleEventUpload(e, selectedEvent)} />
-              </label>
-            </div>
 
-            {/* Live Notices */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-medium text-gray-900 text-sm">📢 Live Notices</h3>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${eventNotices.length >= 5 ? 'bg-red-100 text-red-700' : eventNotices.length >= 3 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {eventNotices.length} / 5 active
-                </span>
-              </div>
-              <p className="text-xs text-gray-400 mb-4">Push real-time notices that appear as a scrolling ticker on the event chat page. Users see updates instantly.</p>
+                {/* Event AI Prompt */}
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-medium text-gray-900 text-sm">Event AI Prompt</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Custom instructions for this event's AI assistant</p>
+                    </div>
+                    <button onClick={() => handleSaveEventPrompt(selectedEvent.id)} disabled={savingEventPrompt} className={`px-4 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 ${savedEventPrompt ? 'bg-green-100 text-green-700' : 'bg-green-600 text-white hover:bg-green-700'}`}>
+                      {savingEventPrompt ? 'Saving...' : savedEventPrompt ? 'Saved!' : 'Save Prompt'}
+                    </button>
+                  </div>
+                  <textarea value={eventPrompts[selectedEvent.id] || ''} onChange={(e) => setEventPrompts(prev => ({ ...prev, [selectedEvent.id]: e.target.value }))} rows={4} placeholder="e.g. This is the 68th Malaysia Open Swimming Championships 2029. The Meet Referee is [name]." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 placeholder-gray-400 resize-y" />
+                </div>
 
-              {/* Push Notice Form */}
-              <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-4">
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Category</label>
-                    <div className="flex flex-wrap gap-2">
-                      {NOTICE_CATEGORIES.map(cat => (
-                        <button
-                          key={cat.value}
-                          onClick={() => setNoticeCategory(cat.value)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                            noticeCategory === cat.value
-                              ? `${cat.color} ring-2 ring-offset-1 ring-gray-300`
-                              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${cat.dot}`}></span>
-                          {cat.label}
-                        </button>
+                {/* Document Upload */}
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <h3 className="font-medium text-gray-900 mb-1 text-sm">Event Documents</h3>
+                  <p className="text-xs text-gray-400 mb-3">Upload start lists, heat sheets, schedules, technical packages.</p>
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
+                    <p className="text-xs text-blue-700">Tip: For best swimmer lookup, request start lists in XLSX format from HY-TEK Meet Manager.</p>
+                  </div>
+                  {eventFiles[selectedEvent.id]?.length > 0 && (
+                    <div className="mb-4 space-y-2">
+                      {eventFiles[selectedEvent.id].map((file, i) => (
+                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                          <div>
+                            <p className="text-sm text-gray-700 font-medium">{file.name}</p>
+                            <p className="text-xs text-gray-400">{file.chunks} chunks</p>
+                          </div>
+                          <button onClick={() => handleDeleteEventFile(selectedEvent.id, file.name)} disabled={deletingEventFile === file.name} className="text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50">
+                            {deletingEventFile === file.name ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
                       ))}
                     </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-xs font-medium text-gray-700">Message</label>
-                      <span className={`text-xs ${noticeMessage.length > 450 ? 'text-orange-600' : 'text-gray-400'}`}>
-                        {noticeMessage.length} / 500
-                      </span>
+                  )}
+                  {eventUploadProgress && <div className="mb-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">{eventUploadProgress}</div>}
+                  <label className="cursor-pointer block">
+                    <div className={`w-full text-center border py-3 rounded-lg text-sm transition-colors ${eventUploading ? 'border-gray-200 text-gray-400' : 'border-green-200 text-green-600 hover:bg-green-50'}`}>
+                      {eventUploading ? 'Processing document with AI...' : '+ Upload Document (PDF, DOCX, XLSX, PPTX, TXT)'}
                     </div>
-                    <textarea
-                      value={noticeMessage}
-                      onChange={(e) => setNoticeMessage(e.target.value.slice(0, 500))}
-                      rows={2}
-                      placeholder="e.g. Session 3 delayed 30 minutes due to lightning. Heats will resume at 15:00."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 placeholder-gray-400 resize-y"
-                    />
+                    <input type="file" accept=".pdf,.txt,.docx,.xlsx,.pptx" className="hidden" disabled={eventUploading} onChange={(e) => handleEventUpload(e, selectedEvent)} />
+                  </label>
+                </div>
+
+                {/* Live Notices */}
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-medium text-gray-900 text-sm">Live Notices</h3>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${eventNotices.length >= 5 ? 'bg-red-100 text-red-700' : eventNotices.length >= 3 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {eventNotices.length} / 5 active
+                    </span>
                   </div>
-                  <button
-                    onClick={handlePushNotice}
-                    disabled={pushingNotice || !noticeMessage.trim() || eventNotices.length >= 5}
-                    className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {pushingNotice
-                      ? 'Pushing...'
-                      : eventNotices.length >= 5
-                        ? '⚠️ Max 5 active notices — clear one first'
-                        : '📢 Push Notice'}
-                  </button>
+                  <p className="text-xs text-gray-400 mb-4">Push real-time notices that appear as a scrolling ticker on the event chat page.</p>
+
+                  <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-4">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Category</label>
+                        <div className="flex flex-wrap gap-2">
+                          {NOTICE_CATEGORIES.map(cat => (
+                            <button key={cat.value} onClick={() => setNoticeCategory(cat.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${noticeCategory === cat.value ? `${cat.color} ring-2 ring-offset-1 ring-gray-300` : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${cat.dot}`}></span>
+                              {cat.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-xs font-medium text-gray-700">Message</label>
+                          <span className={`text-xs ${noticeMessage.length > 450 ? 'text-orange-600' : 'text-gray-400'}`}>{noticeMessage.length} / 500</span>
+                        </div>
+                        <textarea value={noticeMessage} onChange={(e) => setNoticeMessage(e.target.value.slice(0, 500))} rows={2} placeholder="e.g. Session 3 delayed 30 minutes due to lightning. Heats will resume at 15:00." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 placeholder-gray-400 resize-y" />
+                      </div>
+                      <button onClick={handlePushNotice} disabled={pushingNotice || !noticeMessage.trim() || eventNotices.length >= 5} className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {pushingNotice ? 'Pushing...' : eventNotices.length >= 5 ? 'Max 5 active notices — clear one first' : 'Push Notice'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {eventNotices.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+                      <p className="text-xs">No active notices. Push one above to show it live.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-gray-500 mb-2">Currently live:</p>
+                      {eventNotices.map((notice) => {
+                        const cat = getNoticeCategory(notice.category)
+                        return (
+                          <div key={notice.id} className={`border rounded-lg p-3 ${cat.color}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`inline-block w-2 h-2 rounded-full ${cat.dot}`}></span>
+                                  <span className="text-xs font-semibold uppercase tracking-wide">{cat.label}</span>
+                                  <span className="text-xs opacity-60">·</span>
+                                  <span className="text-xs opacity-60">{new Date(notice.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <p className="text-sm text-gray-800 break-words">{notice.message}</p>
+                              </div>
+                              <button onClick={() => handleClearNotice(notice.id)} disabled={clearingNotice === notice.id} className="text-xs px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium flex-shrink-0 disabled:opacity-50">
+                                {clearingNotice === notice.id ? 'Clearing...' : 'Clear'}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
+            )}
 
-              {/* Active Notices List */}
-              {eventNotices.length === 0 ? (
-                <div className="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-lg">
-                  <p className="text-2xl mb-2">📭</p>
-                  <p className="text-xs">No active notices. Push one above to show it live.</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-500 mb-2">Currently live:</p>
-                  {eventNotices.map((notice) => {
-                    const cat = getNoticeCategory(notice.category)
-                    return (
-                      <div key={notice.id} className={`border rounded-lg p-3 ${cat.color}`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`inline-block w-2 h-2 rounded-full ${cat.dot}`}></span>
-                              <span className="text-xs font-semibold uppercase tracking-wide">{cat.label}</span>
-                              <span className="text-xs opacity-60">·</span>
-                              <span className="text-xs opacity-60">{new Date(notice.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+            {/* ✅ ANALYTICS TAB */}
+            {eventInnerTab === 'analytics' && (
+              <div className="space-y-4">
+                {eventAnalyticsLoading ? (
+                  <div className="text-center py-12 text-gray-400">Loading analytics...</div>
+                ) : !eventAnalytics ? (
+                  <div className="text-center py-12 text-gray-400">No data yet.</div>
+                ) : (
+                  <>
+                    {/* Summary cards */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
+                        <div className="text-3xl font-bold text-green-600">{eventAnalytics.totalQuestions}</div>
+                        <div className="text-xs text-gray-400 mt-1">Total Questions</div>
+                      </div>
+                      <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
+                        <div className="text-3xl font-bold text-blue-600">{eventAnalytics.uniqueUsers}</div>
+                        <div className="text-xs text-gray-400 mt-1">Unique Users</div>
+                      </div>
+                      <div className="bg-white rounded-xl border border-gray-100 p-5 text-center">
+                        <div className="text-lg font-bold text-purple-600">RM {(eventAnalytics.totalCostUsd * RM_PER_USD).toFixed(4)}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">${eventAnalytics.totalCostUsd.toFixed(6)} USD</div>
+                        <div className="text-xs text-gray-400 mt-1">AI Cost</div>
+                      </div>
+                    </div>
+
+                    {/* Top 20 users */}
+                    {eventAnalytics.top20Users.length > 0 ? (
+                      <div className="bg-white rounded-xl border border-gray-100 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold text-gray-900">Top {Math.min(eventAnalytics.top20Users.length, 20)} Users</h3>
+                          <button onClick={() => loadEventAnalytics(selectedEvent.id)} className="text-xs text-blue-600 hover:text-blue-700">Refresh</button>
+                        </div>
+                        <div className="space-y-2">
+                          {eventAnalytics.top20Users.map((user, i) => (
+                            <div key={user.email} className="flex items-center gap-3">
+                              <span className={`text-xs font-bold w-6 text-center rounded-full py-0.5 ${i === 0 ? 'bg-yellow-100 text-yellow-700' : i === 1 ? 'bg-gray-100 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'text-gray-400'}`}>{i + 1}</span>
+                              <span className="text-sm text-gray-700 flex-1 truncate">{user.email}</span>
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{user.count} Q</span>
                             </div>
-                            <p className="text-sm text-gray-800 break-words">{notice.message}</p>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl border border-gray-100 p-8 text-center text-gray-400">
+                        <p className="text-sm">No questions asked yet for this event.</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ✅ CHAT LOG TAB */}
+            {eventInnerTab === 'chatlog' && (
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Event Chat Log</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{eventChatLogs.length} questions logged for this event</p>
+                  </div>
+                  <button onClick={() => loadEventChatLogs(selectedEvent.id)} className="text-xs text-blue-600 hover:text-blue-700">Refresh</button>
+                </div>
+
+                {/* Search */}
+                <div className="mb-4">
+                  <input type="text" value={eventLogKeyword} onChange={(e) => setEventLogKeyword(e.target.value)} placeholder="Search questions, answers, or users..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 placeholder-gray-400" />
+                </div>
+
+                {eventChatLogsLoading ? (
+                  <div className="text-center py-8 text-gray-400">Loading chat logs...</div>
+                ) : filteredEventChatLogs.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <p className="text-sm">{eventLogKeyword ? 'No results found.' : 'No questions asked yet for this event.'}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredEventChatLogs.map((log) => (
+                      <div key={log.id} className="border border-gray-100 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-500 font-medium">{log.user_email}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                              ${(log.cost_usd || 0).toFixed(6)}
+                            </span>
+                            <span className="text-xs text-gray-400">{new Date(log.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
+                        </div>
+                        <p className="text-sm font-medium text-gray-900 mb-2">Q: {log.question}</p>
+                        <ExpandableAnswer answer={log.answer} />
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-400">{log.tokens_input || 0} in · {log.tokens_output || 0} out tokens</span>
                           <button
-                            onClick={() => handleClearNotice(notice.id)}
-                            disabled={clearingNotice === notice.id}
-                            className="text-xs px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium flex-shrink-0 disabled:opacity-50"
+                            onClick={() => { setSelectedEventLog(log); setEventCorrectionText('') }}
+                            className="text-xs text-orange-600 hover:text-orange-700 font-medium"
                           >
-                            {clearingNotice === notice.id ? 'Clearing...' : 'Clear'}
+                            Add Correction
                           </button>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Event Correction Modal */}
+                {selectedEventLog && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl p-6 max-w-lg w-full">
+                      <h3 className="font-semibold text-gray-900 mb-4">Add Correction Note</h3>
+                      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-500 mb-1">Question:</p>
+                        <p className="text-sm text-gray-700">{selectedEventLog.question}</p>
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Correct information:</label>
+                        <textarea value={eventCorrectionText} onChange={(e) => setEventCorrectionText(e.target.value)} rows={4} placeholder="Type the correct answer or note..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={() => setSelectedEventLog(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+                        <button onClick={handleAddEventCorrection} disabled={savingEventCorrection || !eventCorrectionText.trim()} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                          {savingEventCorrection ? 'Saving...' : 'Save Correction'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1378,8 +1556,8 @@ export default function AdminPage() {
               <>
                 <textarea value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} rows={20} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700" />
                 <div className="flex items-center justify-between mt-4">
-                  <p className="text-xs text-gray-400">💡 Discipline-specific notes go in the Rulebooks tab</p>
-                  <button onClick={handleSavePrompt} disabled={promptLoading} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{promptSaved ? 'Saved! ✓' : 'Save Changes'}</button>
+                  <p className="text-xs text-gray-400">Discipline-specific notes go in the Rulebooks tab</p>
+                  <button onClick={handleSavePrompt} disabled={promptLoading} className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{promptSaved ? 'Saved!' : 'Save Changes'}</button>
                 </div>
               </>
             )}
@@ -1406,7 +1584,7 @@ export default function AdminPage() {
               })}
             </div>
             {logsLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredLogs.length === 0 ? (
-              <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">💬</p><p>No conversations found</p></div>
+              <div className="text-center py-12 text-gray-400"><p>No conversations found</p></div>
             ) : (
               <div className="space-y-4">
                 {filteredLogs.map((log) => (
@@ -1420,7 +1598,7 @@ export default function AdminPage() {
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">Q: {log.question}</p>
                     <ExpandableAnswer answer={log.answer} />
-                    <button onClick={() => { setSelectedLog(log); setCorrectionText('') }} className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium">✏️ Add Correction</button>
+                    <button onClick={() => { setSelectedLog(log); setCorrectionText('') }} className="mt-2 text-xs text-orange-600 hover:text-orange-700 font-medium">Add Correction</button>
                   </div>
                 ))}
               </div>
@@ -1449,7 +1627,7 @@ export default function AdminPage() {
               <button onClick={loadCorrections} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
             <div className="mb-4"><input type="text" value={correctionKeyword} onChange={(e) => setCorrectionKeyword(e.target.value)} placeholder="Search..." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 placeholder-gray-400" /></div>
-            {filteredCorrections.length === 0 ? <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">✏️</p><p>No corrections found</p></div> : (
+            {filteredCorrections.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No corrections found</p></div> : (
               <div className="space-y-4">
                 {filteredCorrections.map((c) => (
                   <div key={c.id} className="border border-gray-100 rounded-xl p-4">
@@ -1458,7 +1636,7 @@ export default function AdminPage() {
                       <div className="flex items-center gap-3"><span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span><button onClick={() => handleDeleteCorrection(c.id)} className="text-xs text-red-500 hover:text-red-600">Delete</button></div>
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">Q: {c.question}</p>
-                    <p className="text-sm text-green-700 bg-green-50 p-2 rounded-lg">✓ {c.correct_note}</p>
+                    <p className="text-sm text-green-700 bg-green-50 p-2 rounded-lg">{c.correct_note}</p>
                   </div>
                 ))}
               </div>
@@ -1474,17 +1652,16 @@ export default function AdminPage() {
               <button onClick={loadFeedback} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-green-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-green-600">👍 {totalLikes}</div><div className="text-xs text-gray-400 mt-1">Helpful</div></div>
-              <div className="bg-red-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-red-500">👎 {totalDislikes}</div><div className="text-xs text-gray-400 mt-1">Not Helpful</div></div>
+              <div className="bg-green-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-green-600">{totalLikes}</div><div className="text-xs text-gray-400 mt-1">Helpful</div></div>
+              <div className="bg-red-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-red-500">{totalDislikes}</div><div className="text-xs text-gray-400 mt-1">Not Helpful</div></div>
               <div className="bg-blue-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-blue-600">{satisfactionRate}%</div><div className="text-xs text-gray-400 mt-1">Satisfaction</div></div>
             </div>
-            {feedbackLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredFeedback.length === 0 ? <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">💬</p><p>No feedback found</p></div> : (
+            {feedbackLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : filteredFeedback.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No feedback found</p></div> : (
               <div className="space-y-4">
                 {filteredFeedback.map((f) => (
                   <div key={f.id} className={`border rounded-xl p-4 ${f.feedback === 'like' ? 'border-green-100 bg-green-50' : 'border-red-100 bg-red-50'}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">{f.feedback === 'like' ? '👍' : '👎'}</span>
                         <span className="text-xs text-gray-500">{DISCIPLINE_LABELS[f.discipline] || f.discipline}</span>
                         <span className="text-xs text-gray-400">{f.user_email}</span>
                       </div>
@@ -1507,7 +1684,7 @@ export default function AdminPage() {
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-48"><label className="block text-xs text-gray-400 mb-1">Email</label><input type="email" value={betaEmail} onChange={(e) => setBetaEmail(e.target.value)} placeholder="user@example.com" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400" /></div>
                 <div><label className="block text-xs text-gray-400 mb-1">Duration</label><select value={betaDays} onChange={(e) => setBetaDays(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white"><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></div>
-                <div className="flex items-end"><button onClick={handleGrantBeta} disabled={grantingBeta || !betaEmail.trim()} className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{grantingBeta ? 'Granting...' : '✅ Grant Beta'}</button></div>
+                <div className="flex items-end"><button onClick={handleGrantBeta} disabled={grantingBeta || !betaEmail.trim()} className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{grantingBeta ? 'Granting...' : 'Grant Beta'}</button></div>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-gray-100 p-6">
@@ -1515,7 +1692,7 @@ export default function AdminPage() {
                 <h2 className="font-semibold text-gray-900">Active Beta Users ({betaUsers.length})</h2>
                 <button onClick={loadBetaUsers} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
               </div>
-              {betaLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : betaUsers.length === 0 ? <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-4">🧪</p><p>No active beta users</p></div> : (
+              {betaLoading ? <div className="text-center py-8 text-gray-400">Loading...</div> : betaUsers.length === 0 ? <div className="text-center py-12 text-gray-400"><p>No active beta users</p></div> : (
                 <div className="space-y-4">
                   {betaUsers.map((u) => {
                     const expiry = new Date(u.current_period_end)
@@ -1526,7 +1703,7 @@ export default function AdminPage() {
                           <div>
                             <p className="text-sm font-medium text-gray-900">{u.user_email}</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">✅ {daysLeft}d left</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">{daysLeft}d left</span>
                               <span className="text-xs text-gray-400">Expires {expiry.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                             </div>
                           </div>
@@ -1605,7 +1782,7 @@ export default function AdminPage() {
                   <div className="bg-white rounded-xl border border-gray-100 p-4 text-center"><div className="text-2xl font-bold text-orange-600">{chatLogs.length}</div><div className="text-xs text-gray-400 mt-1">Total Questions</div></div>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-100 p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">🤖 AI Cost</h3>
+                  <h3 className="font-semibold text-gray-900 mb-4">AI Cost (Rules Chat)</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-purple-50 rounded-xl p-4"><p className="text-xs text-gray-400 mb-1">This Month</p><p className="text-2xl font-bold text-purple-700">RM {thisMonthCostRM.toFixed(4)}</p></div>
                     <div className="bg-gray-50 rounded-xl p-4"><p className="text-xs text-gray-400 mb-1">All Time</p><p className="text-2xl font-bold text-gray-700">RM {costRM.toFixed(4)}</p></div>
@@ -1615,7 +1792,7 @@ export default function AdminPage() {
                 {disciplineUsage.length > 0 && <div className="bg-white rounded-xl border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-4">Popular Disciplines</h3><SimpleBarChart data={disciplineUsage} /></div>}
                 {top10Users.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">🏆 Top 10 Users</h3>
+                    <h3 className="font-semibold text-gray-900 mb-4">Top 10 Users (Rules Chat)</h3>
                     <div className="space-y-2">
                       {top10Users.map(([email, count], i) => (
                         <div key={email} className="flex items-center gap-3">
@@ -1627,10 +1804,10 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
-                {countryData.length > 0 && <div className="bg-white rounded-xl border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-4">🌍 Users by Country</h3><SimpleBarChart data={countryData} /></div>}
+                {countryData.length > 0 && <div className="bg-white rounded-xl border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-4">Users by Country</h3><SimpleBarChart data={countryData} /></div>}
                 {recentActiveUsers.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
-                    <h3 className="font-semibold text-gray-900 mb-2">🕐 Last 10 Active Users</h3>
+                    <h3 className="font-semibold text-gray-900 mb-2">Last 10 Active Users</h3>
                     <p className="text-xs text-gray-400 mb-3">Includes rules chat + event AI activity</p>
                     <div className="space-y-2">
                       {recentActiveUsers.map((user) => (
