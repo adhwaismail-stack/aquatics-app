@@ -128,7 +128,7 @@ export default function Contact() {
   )
 }
 
-function FaqItem({ q, a }: { q: string; a: string }) {
+function FaqItem({ q, a }) {
   return (
     <div style={{ background: '#fafafa', border: '1px solid #eee', borderRadius: '8px', padding: '1rem 1.25rem' }}>
       <p style={{ fontWeight: '600', fontSize: '14px', color: '#03045e', margin: '0 0 6px' }}>{q}</p>
