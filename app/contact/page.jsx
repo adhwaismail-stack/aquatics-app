@@ -5,28 +5,60 @@ export default function Contact() {
         <div style={{ marginBottom: '2.5rem', borderBottom: '2px solid #0077b6', paddingBottom: '1.5rem' }}>
           <p style={{ fontSize: '13px', color: '#555', marginBottom: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>AquaRef · Support</p>
           <h1 style={{ fontSize: '2rem', fontWeight: '700', margin: '0 0 0.5rem', color: '#03045e' }}>Contact Us</h1>
-          <p style={{ fontSize: '15px', color: '#555', margin: 0 }}>We're here to help. Send us a message and we'll get back to you within 1–2 business days.</p>
+          <p style={{ fontSize: '15px', color: '#555', margin: 0 }}>We are here to help. Send us a message and we will get back to you within 1-2 business days.</p>
         </div>
 
+        {/* Contact cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '2.5rem' }}>
           <div style={{ background: '#f0f7ff', border: '1px solid #bdd7f0', borderRadius: '10px', padding: '1.25rem' }}>
-            <p style={{ fontSize: '12px', color: '#0077b6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Email</p>
+            <p style={{ fontSize: '12px', color: '#0077b6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>General Support</p>
             <a href="mailto:hello@aquaref.co" style={{ color: '#03045e', fontWeight: '600', fontSize: '15px', textDecoration: 'none' }}>hello@aquaref.co</a>
-            <p style={{ fontSize: '13px', color: '#777', margin: '6px 0 0' }}>General enquiries & support</p>
+            <p style={{ fontSize: '13px', color: '#777', margin: '6px 0 0' }}>Billing, technical issues, account help</p>
+          </div>
+          <div style={{ background: '#f5f0ff', border: '1px solid #d5c5f0', borderRadius: '10px', padding: '1.25rem' }}>
+            <p style={{ fontSize: '12px', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Partner Enquiries</p>
+            <a href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry" style={{ color: '#03045e', fontWeight: '600', fontSize: '15px', textDecoration: 'none' }}>hello@aquaref.co</a>
+            <p style={{ fontSize: '13px', color: '#777', margin: '6px 0 0' }}>Federations, clubs, schools, event organizers</p>
           </div>
           <div style={{ background: '#f0f7ff', border: '1px solid #bdd7f0', borderRadius: '10px', padding: '1.25rem' }}>
             <p style={{ fontSize: '12px', color: '#0077b6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Response Time</p>
-            <p style={{ color: '#03045e', fontWeight: '600', fontSize: '15px', margin: 0 }}>1–2 Business Days</p>
-            <p style={{ fontSize: '13px', color: '#777', margin: '6px 0 0' }}>Monday – Friday</p>
+            <p style={{ color: '#03045e', fontWeight: '600', fontSize: '15px', margin: 0 }}>1-2 Business Days</p>
+            <p style={{ fontSize: '13px', color: '#777', margin: '6px 0 0' }}>Monday to Friday</p>
+          </div>
+          <div style={{ background: '#f0fff4', border: '1px solid #bbf0cd', borderRadius: '10px', padding: '1.25rem' }}>
+            <p style={{ fontSize: '12px', color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Quick Answers</p>
+            <p style={{ color: '#03045e', fontWeight: '600', fontSize: '15px', margin: 0 }}>Ask AquaRef Assistant</p>
+            <p style={{ fontSize: '13px', color: '#777', margin: '6px 0 0' }}>Click the chat bubble on this page</p>
           </div>
         </div>
 
+        {/* FAQ */}
         <div style={{ marginBottom: '2.5rem' }}>
           <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#03045e', marginBottom: '1rem' }}>Frequently Asked Questions</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <FaqItem
+              q="What is AquaRef?"
+              a="AquaRef is a digital aquatics platform with two features: a Rules Assistant (AI-powered answers from official World Aquatics regulations) and an Event Hub (AI trained on your specific meet's documents — ask about heats, schedules, and more)."
+            />
+            <FaqItem
+              q="I scanned a QR code at a swimming meet. What do I do?"
+              a="You have been directed to an Event Hub for that meet. Sign up for a free account (no credit card needed) to get 5 free questions about the event — heats, lanes, schedules, and more."
+            />
+            <FaqItem
+              q="Can my federation, club, or school use AquaRef?"
+              a="Yes! We have a PARTNER plan for organizations of all sizes — from local clubs to national federations. It includes event management tools, live notices, and custom branding. Email hello@aquaref.co for a custom quote."
+            />
+            <FaqItem
+              q="Which plan is right for me?"
+              a="LITE (free) is great for casual users and parents at a single event. PRO (RM14.99/month) suits active officials and coaches. ELITE (RM39.99/month) is for high-level officials needing all disciplines and global event access. Ask the AquaRef Assistant (chat bubble below) for a personalized recommendation."
+            />
+            <FaqItem
+              q="Does AquaRef support Para Swimming?"
+              a="Yes! Para Swimming is our 8th discipline, powered by World Para Swimming (WPS) regulations under IPC. It is available on all plans."
+            />
+            <FaqItem
               q="How do I cancel my subscription?"
-              a="You can cancel anytime from your account dashboard via the Manage Subscription button. You'll retain access until the end of your billing period."
+              a="You can cancel anytime from your account dashboard via the My Plan menu. You will retain access until the end of your billing period."
             />
             <FaqItem
               q="Can I switch my discipline on the PRO plan?"
@@ -34,19 +66,20 @@ export default function Contact() {
             />
             <FaqItem
               q="Is AquaRef affiliated with World Aquatics?"
-              a="No. AquaRef is an independent service and is not affiliated with or endorsed by World Aquatics."
+              a="No. AquaRef is an independent service and is not affiliated with or endorsed by World Aquatics or World Para Swimming."
             />
             <FaqItem
               q="How accurate are the AI responses?"
-              a="Responses are based on uploaded World Aquatics rulebooks. Always verify with the official rulebook and your Meet Referee for authoritative decisions."
+              a="Responses are based on official uploaded World Aquatics rulebooks. Always verify with the official rulebook and your Meet Referee or Event Director for authoritative decisions."
             />
             <FaqItem
-              q="I forgot my password — how do I log in?"
-              a="AquaRef uses magic link login — no password needed. Just enter your email and we'll send you a secure login link."
+              q="I forgot my password. How do I log in?"
+              a="AquaRef uses magic link login — no password needed. Just enter your email and we will send you a secure login link."
             />
           </div>
         </div>
 
+        {/* Contact form */}
         <div style={{ background: '#fff', border: '1px solid #dde8f5', borderRadius: '12px', padding: '2rem' }}>
           <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#03045e', marginBottom: '1.5rem' }}>Send a Message</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -61,13 +94,16 @@ export default function Contact() {
               </div>
             </div>
             <div>
-              <label style={{ fontSize: '13px', fontWeight: '600', color: '#444', display: 'block', marginBottom: '6px' }}>Subject</label>
+              <label style={{ fontSize: '13px', fontWeight: '600', color: '#444', display: 'block', marginBottom: '6px' }}>Topic</label>
               <select style={{ width: '100%', padding: '10px 12px', border: '1px solid #ccc', borderRadius: '8px', fontSize: '14px', color: '#333', boxSizing: 'border-box', background: '#fff' }}>
                 <option value="">Select a topic</option>
-                <option value="billing">Billing & Subscription</option>
+                <option value="billing">Billing and Subscription</option>
                 <option value="technical">Technical Issue</option>
+                <option value="eventhub">Event Hub</option>
                 <option value="content">AI Response / Content</option>
                 <option value="account">Account Issue</option>
+                <option value="partner">Partnership / PARTNER Plan</option>
+                <option value="media">Media / Press</option>
                 <option value="other">Other</option>
               </select>
             </div>
@@ -92,7 +128,7 @@ export default function Contact() {
   )
 }
 
-function FaqItem({ q, a }) {
+function FaqItem({ q, a }: { q: string; a: string }) {
   return (
     <div style={{ background: '#fafafa', border: '1px solid #eee', borderRadius: '8px', padding: '1rem 1.25rem' }}>
       <p style={{ fontWeight: '600', fontSize: '14px', color: '#03045e', margin: '0 0 6px' }}>{q}</p>
