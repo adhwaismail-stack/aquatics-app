@@ -16,12 +16,23 @@ export default function LoginPage() {
     }
     setLoading(true)
     setError('')
+
+    // Check if user came from an event page — redirect back there after login
+    const savedRedirect = typeof window !== 'undefined'
+      ? localStorage.getItem('aquaref_redirect_after_auth')
+      : null
+
+    const redirectTo = savedRedirect
+      ? `${window.location.origin}${savedRedirect}`
+      : `${window.location.origin}/dashboard`
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-     emailRedirectTo: `${window.location.origin}/dashboard`
+        emailRedirectTo: redirectTo
       }
     })
+
     if (error) {
       setError(error.message)
       setLoading(false)
@@ -41,11 +52,11 @@ export default function LoginPage() {
               <polyline points="22,6 12,13 2,6"/>
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">Check your inbox! 📧</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">Check your inbox!</h1>
           <p className="text-gray-500 mb-2">We sent a magic login link to:</p>
           <p className="font-medium text-blue-600 mb-6">{email}</p>
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-left">
-            <p className="text-sm font-medium text-yellow-800 mb-2">⚠️ Can't find the email?</p>
+            <p className="text-sm font-medium text-yellow-800 mb-2">Cannot find the email?</p>
             <ul className="text-sm text-yellow-700 space-y-1">
               <li>• Check your <strong>Spam</strong> or <strong>Junk</strong> folder</li>
               <li>• The email is sent from <strong>Supabase Auth</strong></li>
@@ -56,7 +67,7 @@ export default function LoginPage() {
             Once we set up our custom email, you will receive emails from <strong>hello@aquaref.co</strong> instead.
           </p>
           <button onClick={() => setSent(false)} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-            ← Use a different email
+            Use a different email
           </button>
         </div>
       </div>
