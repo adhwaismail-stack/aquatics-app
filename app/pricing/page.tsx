@@ -66,52 +66,78 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-20 px-4">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="text-center mb-14">
-          <div className="flex items-center justify-center gap-2 mb-6">
+          <a href="/" className="inline-flex items-center justify-center gap-2 mb-6 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">A</span>
             </div>
             <span className="font-bold text-xl text-gray-900">AquaRef</span>
-          </div>
+          </a>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, honest pricing</h1>
-          <p className="text-xl text-gray-500">Start free. Upgrade when you're ready.</p>
+          <p className="text-xl text-gray-500">Start free. Upgrade when you&apos;re ready.</p>
           {userLoggedIn && (
             <div className="mt-4 inline-block bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
-              <p className="text-sm text-blue-700">✅ Logged in as <strong>{email}</strong></p>
+              <p className="text-sm text-blue-700">Logged in as <strong>{email}</strong></p>
             </div>
           )}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
 
           {/* LITE Plan */}
-          <div className="bg-white p-8 rounded-xl border border-gray-200 flex flex-col">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 flex flex-col">
             <div className="mb-6">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">For The Casual Observer</p>
-              <h3 className="font-bold text-2xl text-gray-900 mb-1">AquaRef LITE</h3>
-              <p className="text-gray-400 text-sm italic mb-4">Your "Just-In-Case" Safety Net</p>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">Casual</p>
+              <h3 className="font-bold text-2xl text-gray-900 mb-1">LITE</h3>
+              <p className="text-gray-400 text-sm italic mb-4">Your safety net</p>
               <div className="mb-2">
-                <span className="text-4xl font-bold text-gray-900">RM 0</span>
+                <span className="text-3xl font-bold text-gray-900">RM 0</span>
                 <span className="text-gray-400 text-sm">/month</span>
               </div>
-              <p className="text-xs text-gray-400">Free forever. No credit card needed.</p>
+              <p className="text-xs text-gray-400">Free forever. No credit card.</p>
             </div>
 
-            <ul className="space-y-3 mb-8 flex-1">
-              {[
-                '5 Questions per month',
-                '1 Chosen Discipline (30-day lock)',
-                'Official WA 2025-29 Rule Citations',
-                '90+ Language Support',
-                'Instant AI Rule Search',
-                'Web & Mobile Access',
-                'Verification Disclaimer included',
-              ].map((f, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-gray-600">
-                  <span className="text-green-500">✓</span>{f}
-                </li>
-              ))}
+            <ul className="space-y-3 mb-8 flex-1 text-sm">
+              <li>
+                <p className="font-semibold text-gray-700 mb-1">Rules Chat</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-gray-600">
+                    <span className="text-green-500 mt-0.5">&#10003;</span>
+                    <span>5 questions per month</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-gray-600">
+                    <span className="text-green-500 mt-0.5">&#10003;</span>
+                    <span>1 chosen discipline (30-day lock)</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-gray-700 mb-1">Event Chat</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-gray-600">
+                    <span className="text-green-500 mt-0.5">&#10003;</span>
+                    <span>5 questions per event</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-gray-600">
+                    <span className="text-green-500 mt-0.5">&#10003;</span>
+                    <span>Events in your country only</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-gray-700 mb-1">Other</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-gray-600">
+                    <span className="text-green-500 mt-0.5">&#10003;</span>
+                    <span>90+ language support</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-gray-600">
+                    <span className="text-green-500 mt-0.5">&#10003;</span>
+                    <span>Web &amp; mobile access</span>
+                  </li>
+                </ul>
+              </li>
             </ul>
 
             {showEmail === 'lite' && !userLoggedIn && (
@@ -131,7 +157,7 @@ export default function PricingPage() {
                 onClick={() => router.push('/dashboard')}
                 className="w-full border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
               >
-                Go to Dashboard →
+                Go to Dashboard
               </button>
             ) : (
               <button
@@ -144,35 +170,61 @@ export default function PricingPage() {
           </div>
 
           {/* PRO Plan */}
-          <div className="bg-blue-400 p-8 rounded-xl flex flex-col relative">
+          <div className="bg-blue-400 p-6 rounded-xl flex flex-col relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <span className="bg-white text-blue-600 text-xs px-4 py-1 rounded-full font-semibold shadow-sm">Most Popular</span>
             </div>
             <div className="mb-6">
-              <p className="text-xs font-medium text-blue-100 uppercase tracking-widest mb-2">The Dedicated Specialist</p>
-              <h3 className="font-bold text-2xl text-white mb-1">AquaRef PRO</h3>
-              <p className="text-blue-100 text-sm italic mb-4">The standard for professional officials and coaches</p>
+              <p className="text-xs font-medium text-blue-100 uppercase tracking-widest mb-2">Specialist</p>
+              <h3 className="font-bold text-2xl text-white mb-1">PRO</h3>
+              <p className="text-blue-100 text-sm italic mb-4">For active officials &amp; coaches</p>
               <div className="mb-2">
-                <span className="text-4xl font-bold text-white">RM 14.99</span>
+                <span className="text-3xl font-bold text-white">RM 14.99</span>
                 <span className="text-blue-100 text-sm">/month</span>
               </div>
               <p className="text-xs text-blue-100">7-day free trial. Cancel anytime.</p>
             </div>
 
-            <ul className="space-y-3 mb-8 flex-1">
-              {[
-                '50 Questions per day',
-                '1 Chosen Discipline (30-day lock)',
-                'Switch discipline once every 30 days',
-                'Official WA 2025-29 Rule Citations',
-                '90+ Language Support',
-                'Ad-Free Experience',
-                'Standard Email Support',
-              ].map((f, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-white">
-                  <span className="text-blue-100">✓</span>{f}
-                </li>
-              ))}
+            <ul className="space-y-3 mb-8 flex-1 text-sm">
+              <li>
+                <p className="font-semibold text-white mb-1">Rules Chat</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-white">
+                    <span className="text-blue-100 mt-0.5">&#10003;</span>
+                    <span>50 questions per day</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-white">
+                    <span className="text-blue-100 mt-0.5">&#10003;</span>
+                    <span>1 discipline (switch every 30 days)</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-white mb-1">Event Chat</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-white">
+                    <span className="text-blue-100 mt-0.5">&#10003;</span>
+                    <span>50 questions per day per event</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-white">
+                    <span className="text-blue-100 mt-0.5">&#10003;</span>
+                    <span>Events in your country only</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-white mb-1">Other</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-white">
+                    <span className="text-blue-100 mt-0.5">&#10003;</span>
+                    <span>90+ language support</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-white">
+                    <span className="text-blue-100 mt-0.5">&#10003;</span>
+                    <span>Standard email support</span>
+                  </li>
+                </ul>
+              </li>
             </ul>
 
             {showEmail === 'pro' && !userLoggedIn && (
@@ -203,32 +255,62 @@ export default function PricingPage() {
           </div>
 
           {/* ELITE Plan */}
-          <div className="bg-slate-800 p-8 rounded-xl flex flex-col">
+          <div className="bg-slate-800 p-6 rounded-xl flex flex-col">
             <div className="mb-6">
-              <p className="text-xs font-medium text-yellow-400 uppercase tracking-widest mb-2">The Global Authority</p>
-              <h3 className="font-bold text-2xl text-white mb-1">AquaRef ELITE</h3>
-              <p className="text-slate-400 text-sm italic mb-4">Total access for high-level Referees and multi-sport Officials</p>
+              <p className="text-xs font-medium text-yellow-400 uppercase tracking-widest mb-2">Authority</p>
+              <h3 className="font-bold text-2xl text-white mb-1">ELITE</h3>
+              <p className="text-slate-400 text-sm italic mb-4">All disciplines, all events</p>
               <div className="mb-2">
-                <span className="text-4xl font-bold text-white">RM 39.99</span>
+                <span className="text-3xl font-bold text-white">RM 39.99</span>
                 <span className="text-slate-400 text-sm">/month</span>
               </div>
               <p className="text-xs text-slate-400">7-day free trial. Cancel anytime.</p>
             </div>
 
-            <ul className="space-y-3 mb-8 flex-1">
-              {[
-                'UNLIMITED Questions',
-                'ALL 7 Disciplines included',
-                'Instant Discipline Switching',
-                'Official WA 2025-29 Rule Citations',
-                '90+ Language Support',
-                'Priority VIP Support',
-                'Early Access to new features',
-              ].map((f, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                  <span className="text-yellow-400">✓</span>{f}
-                </li>
-              ))}
+            <ul className="space-y-3 mb-8 flex-1 text-sm">
+              <li>
+                <p className="font-semibold text-white mb-1">Rules Chat</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-slate-300">
+                    <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                    <span>Unlimited questions</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-slate-300">
+                    <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                    <span>All 8 disciplines</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-slate-300">
+                    <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                    <span>Instant discipline switching</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-white mb-1">Event Chat</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-slate-300">
+                    <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                    <span>Unlimited questions per event</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-slate-300">
+                    <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                    <span>Events from ALL countries</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-white mb-1">Other</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2 text-slate-300">
+                    <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                    <span>Priority VIP support</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-slate-300">
+                    <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                    <span>Early access to new features</span>
+                  </li>
+                </ul>
+              </li>
             </ul>
 
             {showEmail === 'elite' && !userLoggedIn && (
@@ -258,11 +340,112 @@ export default function PricingPage() {
             </button>
           </div>
 
+          {/* PARTNER Plan */}
+          <div className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-xl flex flex-col relative text-white">
+            <div className="absolute -top-3 right-4">
+              <span className="bg-yellow-400 text-slate-900 text-xs px-3 py-1 rounded-full font-semibold shadow-sm">Custom</span>
+            </div>
+            <div className="mb-6">
+              <p className="text-xs font-medium text-purple-200 uppercase tracking-widest mb-2">Organization</p>
+              <h3 className="font-bold text-2xl text-white mb-1">PARTNER</h3>
+              <p className="text-purple-200 text-sm italic mb-4">For federations, clubs, schools &amp; event organizers</p>
+              <div className="mb-2">
+                <span className="text-2xl font-bold text-white">Custom</span>
+                <span className="text-purple-200 text-sm"> pricing</span>
+              </div>
+              <p className="text-xs text-purple-200">Tailored to your organization.</p>
+            </div>
+
+            <ul className="space-y-3 mb-8 flex-1 text-sm">
+              <li>
+                <p className="font-semibold text-white mb-1">Everything in ELITE</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                    <span>For all members of your organization</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-white mb-1">Event Management</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                    <span>Manage your own events</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                    <span>Push live notices during meets</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                    <span>QR codes for pool-deck distribution</span>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <p className="font-semibold text-white mb-1">Branding &amp; Support</p>
+                <ul className="space-y-1 ml-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                    <span>Custom branding on event pages</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                    <span>Dedicated support</span>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+
+            
+              href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry"
+              className="block w-full text-center bg-white text-purple-700 py-3 rounded-lg font-medium hover:bg-purple-50"
+            >
+              Contact Sales
+            </a>
+          </div>
+
         </div>
 
         <p className="text-center text-sm text-gray-400 mt-8">
           No charge for 7 days on paid plans. Cancel anytime before trial ends. LITE plan is free forever.
         </p>
+
+        {/* Who is PARTNER for? — Helper section below the cards */}
+        <div className="mt-12 bg-white rounded-2xl border border-gray-200 p-8 max-w-4xl mx-auto">
+          <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">Is the PARTNER plan right for you?</h3>
+          <p className="text-sm text-gray-500 text-center mb-6">
+            We work with organizations of all sizes — from local clubs to national federations.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="p-4">
+              <p className="font-semibold text-gray-700 text-sm mb-1">Federations</p>
+              <p className="text-xs text-gray-500">National &amp; regional governing bodies</p>
+            </div>
+            <div className="p-4">
+              <p className="font-semibold text-gray-700 text-sm mb-1">State Associations</p>
+              <p className="text-xs text-gray-500">State-level swimming bodies</p>
+            </div>
+            <div className="p-4">
+              <p className="font-semibold text-gray-700 text-sm mb-1">Clubs &amp; Schools</p>
+              <p className="text-xs text-gray-500">Swim clubs &amp; school programs</p>
+            </div>
+            <div className="p-4">
+              <p className="font-semibold text-gray-700 text-sm mb-1">Event Organizers</p>
+              <p className="text-xs text-gray-500">Independent meet hosts</p>
+            </div>
+          </div>
+          <div className="mt-6 text-center">
+            
+              href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry"
+              className="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-purple-700"
+            >
+              Get in touch
+            </a>
+          </div>
+        </div>
+
       </div>
     </div>
   )

@@ -57,64 +57,140 @@ export default function Home() {
       {/* Hero */}
       <section className="text-center px-8 py-24 max-w-4xl mx-auto">
         <div className="inline-block bg-blue-50 text-blue-700 text-sm font-medium px-4 py-1 rounded-full mb-6">
-          World Aquatics Official Rules Assistant
+          Built for Officials, Coaches, Swimmers and Parents
         </div>
         <h1 className="text-5xl font-bold text-gray-900 leading-tight mb-6">
-          World Aquatics Rules at<br />
-          <span className="text-blue-600">Your Fingertips</span>
+          The digital backbone of<br />
+          <span className="text-blue-600">aquatics.</span>
         </h1>
         <p className="text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-          AI-powered rules assistant for Technical Officials, coaches and parents.
-          Instant answers from official World Aquatics Regulations only.
-          No guessing. No internet. Just the rules.
+          Real-time event AI. Official rules assistant. Live updates.
+          All in one place.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a href="/login" className="bg-green-500 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-green-600">
-            🆓 Get Started Free
+            Get Started Free
           </a>
-          <a href="/pricing" className="bg-blue-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-blue-700">
-            See Pricing
-          </a>
-          <a href="#features" className="border border-gray-200 text-gray-700 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-50">
-            Learn More
+          <a href="#pricing" className="bg-blue-600 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-blue-700">
+            View Plans
           </a>
         </div>
-        <p className="text-sm text-gray-400 mt-4">Free forever on LITE · No credit card needed · Cancel anytime on paid plans.</p>
+        <p className="text-sm text-gray-400 mt-4">Free forever on LITE. No credit card needed. Cancel anytime on paid plans.</p>
+      </section>
+
+      {/* Two Main Features — Rules & Event Hub */}
+      <section id="features" className="bg-gray-50 px-8 py-20">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">Two powerful tools in one platform</h2>
+          <p className="text-center text-gray-500 mb-14 text-lg">Everything you need, from training to the pool deck</p>
+
+          <div className="grid md:grid-cols-2 gap-6">
+
+            {/* Rules Assistant */}
+            <div className="bg-white rounded-2xl border border-blue-100 p-8 shadow-sm">
+              <div className="inline-block bg-blue-100 text-blue-700 text-xs font-semibold uppercase tracking-wide px-3 py-1 rounded-full mb-4">
+                Rules Assistant
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Every rule, instantly</h3>
+              <p className="text-gray-500 text-sm leading-relaxed mb-5">
+                AI-powered assistant trained strictly on official World Aquatics and World Para Swimming regulations.
+              </p>
+              <ul className="space-y-2 text-sm text-gray-700">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 font-bold mt-0.5">&#10003;</span>
+                  <span>8 disciplines: Swimming, Water Polo, Diving, Open Water, Artistic, High Diving, Masters, Para Swimming</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 font-bold mt-0.5">&#10003;</span>
+                  <span>Every answer cites the exact rule number (e.g. SW 7.6, WP 21.3)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 font-bold mt-0.5">&#10003;</span>
+                  <span>Ask in any of 90+ languages, get answers in the same language</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 font-bold mt-0.5">&#10003;</span>
+                  <span>Always up to date with latest regulation changes</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Event Hub */}
+            <div className="bg-white rounded-2xl border border-green-100 p-8 shadow-sm relative">
+              <div className="absolute -top-3 right-6">
+                <span className="bg-green-600 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-sm">NEW</span>
+              </div>
+              <div className="inline-block bg-green-100 text-green-700 text-xs font-semibold uppercase tracking-wide px-3 py-1 rounded-full mb-4">
+                Event Hub
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">AI for your meet</h3>
+              <p className="text-gray-500 text-sm leading-relaxed mb-5">
+                Upload your event documents and turn them into a live AI assistant for everyone at the meet.
+              </p>
+              <ul className="space-y-2 text-sm text-gray-700">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold mt-0.5">&#10003;</span>
+                  <span>Ask about heats, lanes, start times, officials, schedules</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold mt-0.5">&#10003;</span>
+                  <span>Live notices for schedule changes, call room alerts, announcements</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold mt-0.5">&#10003;</span>
+                  <span>QR codes for pool-deck distribution to officials, coaches, parents</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600 font-bold mt-0.5">&#10003;</span>
+                  <span>AI reads live updates first, so information is always current</span>
+                </li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* Who It's For */}
+      <section className="bg-white px-8 py-20">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">Built for everyone on deck</h2>
+          <p className="text-center text-gray-500 mb-14 text-lg">From the Technical Official to the parent in the stands</p>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-sm mb-3">1</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Officials</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">Never miss a rule. Be ready for any dispute with instant citations.</p>
+            </div>
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-sm mb-3">2</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Coaches</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">Find your swimmers&apos; heats, lanes, and times in seconds.</p>
+            </div>
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-sm mb-3">3</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Swimmers &amp; Parents</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">Understand the schedule, DQ calls, and event updates instantly.</p>
+            </div>
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-sm mb-3">4</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Partners</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">Federations, state associations, clubs, schools and event organizers.</p>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Multilingual Banner */}
       <section className="bg-blue-600 px-8 py-12">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-blue-200 text-sm font-medium mb-2">🌍 Available in 90+ Languages</p>
+          <p className="text-blue-200 text-sm font-medium mb-2">Available in 90+ Languages</p>
           <h2 className="text-2xl font-bold text-white mb-3">Ask in your language, get answers in your language</h2>
           <p className="text-blue-200 mb-6">Whether you speak Bahasa Malaysia, Arabic, Chinese, Japanese, French or any other language — AquaRef answers in the same language you ask.</p>
           <div className="flex flex-wrap justify-center gap-2 text-sm text-blue-200">
             {['Bahasa Malaysia', 'English', 'العربية', '中文', '日本語', 'Français', 'Español', 'Deutsch', '한국어'].map((lang, i) => (
               <span key={i} className="bg-blue-500 px-3 py-1 rounded-full">{lang}</span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section id="features" className="bg-gray-50 px-8 py-20">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">Built for the pool deck</h2>
-          <p className="text-center text-gray-500 mb-14 text-lg">Everything a Technical Official, coach or parent needs</p>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { icon: "📖", title: "Regulations Only", desc: "Answers strictly from official World Aquatics Regulations. No internet, no guessing, no hallucinations." },
-              { icon: "🌍", title: "90+ Languages", desc: "Ask in any of 90+ languages and get answers in that same language. No language barrier for officials worldwide." },
-              { icon: "🔢", title: "Rule Citations", desc: "Every answer includes the exact rule number — SW 7.6, WP 21.3. Always verifiable." },
-              { icon: "⚡", title: "Instant Answers", desc: "Get answers in seconds. Perfect for quick checks during competition preparation." },
-              { icon: "🏊", title: "8 Disciplines", desc: "Swimming, Water Polo, Open Water, Artistic Swimming, Diving, High Diving, Masters and Para Swimming." },
-              { icon: "🔒", title: "Always Current", desc: "Regulations updated by admin whenever World Aquatics releases new rules. Always accurate." }
-            ].map((f, i) => (
-              <div key={i} className="bg-white p-6 rounded-xl border border-gray-100">
-                <div className="text-3xl mb-4">{f.icon}</div>
-                <h3 className="font-semibold text-gray-900 mb-2">{f.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
-              </div>
             ))}
           </div>
         </div>
@@ -161,49 +237,71 @@ export default function Home() {
             })}
           </div>
 
-          {/* Para Swimming footnote */}
           <p className="text-xs text-gray-400 mt-6 text-center">
             * Para Swimming rules are governed by World Para Swimming (WPS) under the International Paralympic Committee (IPC), independent of World Aquatics.
           </p>
         </div>
       </section>
 
-      {/* LITE CTA Banner */}
-      <section className="bg-green-50 border-y border-green-100 px-8 py-12">
-        <div className="max-w-3xl mx-auto text-center">
-          <p className="text-green-700 text-sm font-medium mb-2">🆓 Free forever — no credit card needed</p>
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">Start with AquaRef LITE today</h2>
-          <p className="text-gray-500 mb-2">Get 5 free questions per month on your chosen discipline.</p>
-          <p className="text-gray-400 text-sm mb-6">Sign up in 30 seconds · No credit card · Upgrade anytime</p>
-          <a href="/login" className="inline-block bg-green-500 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-600">
-            Get Started Free →
-          </a>
+      {/* How it works */}
+      <section className="bg-gray-50 px-8 py-20">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">How it works</h2>
+          <p className="text-center text-gray-500 mb-14 text-lg">Get started in under 60 seconds</p>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-xl">1</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Sign up free</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">Create your account in 30 seconds. No credit card required.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-xl">2</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Pick your discipline or event</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">Choose a discipline for rules chat, or scan an event QR to access the Event Hub.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-xl">3</div>
+              <h3 className="font-semibold text-gray-900 mb-2">Ask anything</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">Type your question in any language and get instant, verifiable answers.</p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="bg-gray-50 px-8 py-20">
-        <div className="max-w-5xl mx-auto">
+      <section id="pricing" className="bg-white px-8 py-20">
+        <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">Simple, honest pricing</h2>
-          <p className="text-center text-gray-500 mb-14 text-lg">Start free. Upgrade when you're ready.</p>
+          <p className="text-center text-gray-500 mb-14 text-lg">Start free. Upgrade when you&apos;re ready.</p>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
 
             {/* LITE */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200 flex flex-col">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">For The Casual Observer</p>
-              <h3 className="font-bold text-xl text-gray-900 mb-1">AquaRef LITE</h3>
-              <p className="text-gray-400 text-xs italic mb-4">Your "Just-In-Case" Safety Net</p>
+            <div className="bg-white p-6 rounded-xl border border-gray-200 flex flex-col">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-2">Casual</p>
+              <h3 className="font-bold text-xl text-gray-900 mb-1">LITE</h3>
+              <p className="text-gray-400 text-xs italic mb-4">Your safety net</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-gray-900">RM 0</span>
+                <span className="text-3xl font-bold text-gray-900">RM 0</span>
                 <span className="text-gray-400 text-sm">/month</span>
               </div>
-              <ul className="space-y-2 mb-8 flex-1">
-                {['5 Questions per month', '1 Discipline (30-day lock)', 'Official WA Rule Citations', '90+ Language Support', 'Web & Mobile Access'].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-gray-600">
-                    <span className="text-green-500">✓</span>{f}
-                  </li>
-                ))}
+              <ul className="space-y-2 mb-6 flex-1 text-sm">
+                <li className="flex items-start gap-2 text-gray-600">
+                  <span className="text-green-500 mt-0.5">&#10003;</span>
+                  <span><strong>Rules Chat:</strong> 5 Q/month, 1 discipline</span>
+                </li>
+                <li className="flex items-start gap-2 text-gray-600">
+                  <span className="text-green-500 mt-0.5">&#10003;</span>
+                  <span><strong>Event Chat:</strong> 5 Q per event</span>
+                </li>
+                <li className="flex items-start gap-2 text-gray-600">
+                  <span className="text-green-500 mt-0.5">&#10003;</span>
+                  <span>Events in your country only</span>
+                </li>
+                <li className="flex items-start gap-2 text-gray-600">
+                  <span className="text-green-500 mt-0.5">&#10003;</span>
+                  <span>90+ languages</span>
+                </li>
               </ul>
               <a href="/login" className="block w-full text-center border border-green-500 text-green-600 py-3 rounded-lg font-medium hover:bg-green-50">
                 Get Started Free
@@ -211,47 +309,112 @@ export default function Home() {
             </div>
 
             {/* PRO */}
-            <div className="bg-blue-400 p-8 rounded-xl flex flex-col relative">
+            <div className="bg-blue-400 p-6 rounded-xl flex flex-col relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <span className="bg-white text-blue-600 text-xs px-4 py-1 rounded-full font-semibold shadow-sm">Most Popular</span>
               </div>
-              <p className="text-xs font-medium text-blue-100 uppercase tracking-widest mb-2">The Dedicated Specialist</p>
-              <h3 className="font-bold text-xl text-white mb-1">AquaRef PRO</h3>
-              <p className="text-blue-100 text-xs italic mb-4">For professional officials and coaches</p>
+              <p className="text-xs font-medium text-blue-100 uppercase tracking-widest mb-2">Specialist</p>
+              <h3 className="font-bold text-xl text-white mb-1">PRO</h3>
+              <p className="text-blue-100 text-xs italic mb-4">For active officials</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-white">RM 14.99</span>
+                <span className="text-3xl font-bold text-white">RM 14.99</span>
                 <span className="text-blue-100 text-sm">/month</span>
               </div>
-              <ul className="space-y-2 mb-8 flex-1">
-                {['50 Questions per day', '1 Discipline (switch every 30 days)', 'Official WA Rule Citations', '90+ Language Support', 'Ad-Free Experience', 'Standard Email Support'].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-white">
-                    <span className="text-blue-100">✓</span>{f}
-                  </li>
-                ))}
+              <ul className="space-y-2 mb-6 flex-1 text-sm">
+                <li className="flex items-start gap-2 text-white">
+                  <span className="text-blue-100 mt-0.5">&#10003;</span>
+                  <span><strong>Rules Chat:</strong> 50 Q/day, 1 discipline</span>
+                </li>
+                <li className="flex items-start gap-2 text-white">
+                  <span className="text-blue-100 mt-0.5">&#10003;</span>
+                  <span><strong>Event Chat:</strong> 50 Q/day per event</span>
+                </li>
+                <li className="flex items-start gap-2 text-white">
+                  <span className="text-blue-100 mt-0.5">&#10003;</span>
+                  <span>Events in your country only</span>
+                </li>
+                <li className="flex items-start gap-2 text-white">
+                  <span className="text-blue-100 mt-0.5">&#10003;</span>
+                  <span>Switch discipline every 30 days</span>
+                </li>
               </ul>
               <a href="/pricing" className="block w-full text-center bg-white text-blue-500 py-3 rounded-lg font-medium hover:bg-blue-50">
-                Start 7-Day Free Trial
+                Start 7-Day Trial
               </a>
             </div>
 
             {/* ELITE */}
-            <div className="bg-slate-800 p-8 rounded-xl flex flex-col">
-              <p className="text-xs font-medium text-yellow-400 uppercase tracking-widest mb-2">The Global Authority</p>
-              <h3 className="font-bold text-xl text-white mb-1">AquaRef ELITE</h3>
-              <p className="text-slate-400 text-xs italic mb-4">For high-level Referees and multi-sport Officials</p>
+            <div className="bg-slate-800 p-6 rounded-xl flex flex-col">
+              <p className="text-xs font-medium text-yellow-400 uppercase tracking-widest mb-2">Authority</p>
+              <h3 className="font-bold text-xl text-white mb-1">ELITE</h3>
+              <p className="text-slate-400 text-xs italic mb-4">All disciplines, all events</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-white">RM 39.99</span>
+                <span className="text-3xl font-bold text-white">RM 39.99</span>
                 <span className="text-slate-400 text-sm">/month</span>
               </div>
-              <ul className="space-y-2 mb-8 flex-1">
-                {['UNLIMITED Questions', 'ALL 8 Disciplines', 'Instant Discipline Switching', 'Official WA Rule Citations', '90+ Language Support', 'Priority VIP Support', 'Early Access to new features'].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                    <span className="text-yellow-400">✓</span>{f}
-                  </li>
-                ))}
+              <ul className="space-y-2 mb-6 flex-1 text-sm">
+                <li className="flex items-start gap-2 text-slate-300">
+                  <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                  <span><strong>Rules Chat:</strong> Unlimited, all 8 disciplines</span>
+                </li>
+                <li className="flex items-start gap-2 text-slate-300">
+                  <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                  <span><strong>Event Chat:</strong> Unlimited</span>
+                </li>
+                <li className="flex items-start gap-2 text-slate-300">
+                  <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                  <span>Events from ALL countries</span>
+                </li>
+                <li className="flex items-start gap-2 text-slate-300">
+                  <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                  <span>Priority VIP support</span>
+                </li>
+                <li className="flex items-start gap-2 text-slate-300">
+                  <span className="text-yellow-400 mt-0.5">&#10003;</span>
+                  <span>Early access to new features</span>
+                </li>
               </ul>
               <a href="/pricing" className="block w-full text-center bg-yellow-400 text-slate-900 py-3 rounded-lg font-medium hover:bg-yellow-300">
-                Start 7-Day Free Trial
+                Start 7-Day Trial
+              </a>
+            </div>
+
+            {/* PARTNER */}
+            <div className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-xl flex flex-col relative text-white">
+              <div className="absolute -top-3 right-4">
+                <span className="bg-yellow-400 text-slate-900 text-xs px-3 py-1 rounded-full font-semibold shadow-sm">Custom</span>
+              </div>
+              <p className="text-xs font-medium text-purple-200 uppercase tracking-widest mb-2">Organization</p>
+              <h3 className="font-bold text-xl text-white mb-1">PARTNER</h3>
+              <p className="text-purple-200 text-xs italic mb-4">For federations, clubs, schools and event organizers</p>
+              <div className="mb-6">
+                <span className="text-2xl font-bold text-white">Custom</span>
+                <span className="text-purple-200 text-sm"> pricing</span>
+              </div>
+              <ul className="space-y-2 mb-6 flex-1 text-sm">
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                  <span>Everything in ELITE for all your members</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                  <span>Manage your own events</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                  <span>Push live notices during meets</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                  <span>Custom branding on event pages</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-300 mt-0.5">&#10003;</span>
+                  <span>Dedicated support</span>
+                </li>
+              </ul>
+              <a href="mailto:hello@aquaref.co?subject=AquaRef%20Partner%20Plan%20Inquiry" className="block w-full text-center bg-white text-purple-700 py-3 rounded-lg font-medium hover:bg-purple-50">
+                Contact Sales
               </a>
             </div>
 
@@ -260,6 +423,18 @@ export default function Home() {
           <p className="text-center text-sm text-gray-400 mt-8">
             No charge for 7 days on paid plans. Cancel anytime. LITE is free forever.
           </p>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="bg-green-50 border-y border-green-100 px-8 py-16">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-green-700 text-sm font-medium mb-2">Free forever. No credit card needed.</p>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Start using AquaRef today</h2>
+          <p className="text-gray-500 mb-6">Join officials, coaches, swimmers and parents getting instant answers.</p>
+          <a href="/login" className="inline-block bg-green-500 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-600">
+            Get Started Free
+          </a>
         </div>
       </section>
 
