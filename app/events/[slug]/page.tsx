@@ -59,6 +59,50 @@ const NOTICE_STYLES: Record<string, { dot: string, label: string }> = {
   schedule: { dot: 'bg-yellow-500', label: 'Schedule' },
 }
 
+// Sample questions shown on the preview page by discipline
+const SAMPLE_QUESTIONS: Record<string, string[]> = {
+  swimming: [
+    'When does Lane 4 swim the 100m freestyle?',
+    'Which heat is my swimmer in?',
+    'What time does Session 3 start?',
+  ],
+  waterpolo: [
+    'What time is the Malaysia vs Singapore match?',
+    'Which pool is the gold medal match at?',
+    'Who are the referees for today?',
+  ],
+  artistic: [
+    'When is the solo technical routine?',
+    'Who is in the duet final?',
+    'What time does free combination start?',
+  ],
+  diving: [
+    'When does the 10m platform final start?',
+    'Who is in the synchronised 3m springboard?',
+    'What are the divers\' qualifying scores?',
+  ],
+  highdiving: [
+    'When does the 27m high dive start?',
+    'Who are the officials for today?',
+    'What time is the awards ceremony?',
+  ],
+  masters: [
+    'When does the 50–59 age group swim?',
+    'Which heat is my swimmer in?',
+    'What time does session 2 start?',
+  ],
+  openwater: [
+    'What time does the 5km race start?',
+    'What is the water temperature today?',
+    'Who are the safety officials?',
+  ],
+  paraswimming: [
+    'When does the S5 100m freestyle start?',
+    'Which lane is my swimmer in?',
+    'What time does session 2 begin?',
+  ],
+}
+
 const countryToFlag = (countryName: string): string => {
   const countries: Record<string, string> = {
     'Malaysia': '🇲🇾', 'Singapore': '🇸🇬', 'Indonesia': '🇮🇩', 'Thailand': '🇹🇭',
@@ -77,6 +121,7 @@ export default function EventChatPage() {
   const [event, setEvent] = useState<AquaEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -93,7 +138,7 @@ export default function EventChatPage() {
 
   useEffect(() => {
     loadEvent()
-    loadUser()
+    checkAuth()
     if (typeof navigator !== 'undefined' && 'share' in navigator) {
       setNativeShareSupported(true)
     }
@@ -130,9 +175,18 @@ export default function EventChatPage() {
     if (data) setNotices(data)
   }
 
-  const loadUser = async () => {
+  const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
+    if (!user) {
+      setIsLoggedIn(false)
+      // Save the current URL so we can redirect back after signup/login
+      if (typeof window !== 'undefined') {
+        const currentPath = `/events/${slug}${window.location.search}`
+        localStorage.setItem('aquaref_redirect_after_auth', currentPath)
+      }
+      return
+    }
+    setIsLoggedIn(true)
     setUserEmail(user.email || '')
     const { data: sub } = await supabase
       .from('user_subscriptions')
@@ -232,7 +286,7 @@ export default function EventChatPage() {
     }
   }
 
-  if (loading) {
+  if (loading || isLoggedIn === null) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -257,6 +311,148 @@ export default function EventChatPage() {
     )
   }
 
+  // 🆕 LOGGED-OUT USER → Event preview / landing page
+  if (!isLoggedIn && event) {
+    const sampleQs = SAMPLE_QUESTIONS[event.discipline] || SAMPLE_QUESTIONS.swimming
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-green-50 flex flex-col">
+        {/* Top navbar */}
+        <div className="bg-white border-b border-gray-100 px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
+              <span className="font-bold text-xl text-gray-900">AquaRef</span>
+            </a>
+            <a href="/login" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              Already a member? Log in →
+            </a>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
+          {/* Event poster */}
+          {event.poster_url && (
+            <div className="mb-6 rounded-2xl overflow-hidden shadow-lg border border-gray-200">
+              <img
+                src={event.poster_url}
+                alt={event.name}
+                className="w-full object-cover"
+                style={{ aspectRatio: '1200/630' }}
+              />
+            </div>
+          )}
+
+          {/* Event header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium mb-4">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              Live Event
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+              Welcome to<br />{event.name}
+            </h1>
+            <p className="text-gray-500 text-sm">
+              {countryToFlag(event.country)} {event.country} · {event.location} · {DISCIPLINE_LABELS[event.discipline] || event.discipline}
+              {event.start_date && (
+                <>
+                  {' · '}
+                  {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                  {event.end_date ? ` — ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                </>
+              )}
+            </p>
+          </div>
+
+          {/* Value proposition */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 md:p-8 shadow-sm mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">
+              Get instant AI answers about this event
+            </h2>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Perfect for officials, coaches, swimmers, and parents.
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Example questions you can ask:</p>
+              {sampleQs.map((q, i) => (
+                <div key={i} className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-100 rounded-xl px-4 py-3 flex items-start gap-3">
+                  <span className="text-blue-500 text-lg flex-shrink-0">❝</span>
+                  <p className="text-sm text-gray-700 italic">{q}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-6">
+              <p className="text-sm text-green-900 font-semibold text-center mb-1">
+                🆓 Get 5 FREE questions for this event
+              </p>
+              <p className="text-xs text-green-700 text-center">
+                Sign up in seconds — no credit card required.
+              </p>
+            </div>
+
+            {/* CTA buttons */}
+            <div className="space-y-3">
+              
+                href="/login"
+                className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl text-base font-semibold text-center block transition-colors shadow-sm hover:shadow-md"
+              >
+                Sign Up Free — Ask 5 Questions →
+              </a>
+              
+                href="/login"
+                className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium text-center block hover:bg-gray-50 transition-colors"
+              >
+                Already have an account? Log in
+              </a>
+            </div>
+          </div>
+
+          {/* How it works */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+            <h3 className="font-semibold text-gray-900 text-sm mb-4 text-center">How it works</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2 font-bold">1</div>
+                <p className="text-xs text-gray-600">Sign up with your email</p>
+              </div>
+              <div>
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2 font-bold">2</div>
+                <p className="text-xs text-gray-600">Ask any question about the event</p>
+              </div>
+              <div>
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2 font-bold">3</div>
+                <p className="text-xs text-gray-600">Get instant, accurate answers</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing link */}
+          <div className="text-center">
+            <a href="/pricing" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              View all plans & pricing →
+            </a>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-xs text-gray-400">
+              For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.
+            </p>
+          </div>
+        </footer>
+      </div>
+    )
+  }
+
+  // ✅ LOGGED-IN USER → Full event chat (existing behavior)
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <style jsx>{`
