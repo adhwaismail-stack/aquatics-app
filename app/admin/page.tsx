@@ -345,6 +345,9 @@ export default function AdminPage() {
   })
   const [creatingAnnouncement, setCreatingAnnouncement] = useState(false)
   const [announcementThumbnailUploading, setAnnouncementThumbnailUploading] = useState<string | null>(null)
+  const [editingAnnouncement, setEditingAnnouncement] = useState<string | null>(null)
+  const [editAnnouncementForm, setEditAnnouncementForm] = useState({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false })
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false)
 
   // Registrations state
   const [registrations, setRegistrations] = useState<any[]>([])
@@ -1687,89 +1690,178 @@ export default function AdminPage() {
               <div className="space-y-3">
                 {announcements.map(ann => (
                   <div key={ann.id} className={`bg-white border rounded-xl p-5 ${ann.is_active ? 'border-orange-200' : 'border-gray-100'}`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4 flex-1">
-                        {/* Thumbnail */}
-                        <div className="flex-shrink-0">
-                          {ann.thumbnail_url ? (
-                            <img src={ann.thumbnail_url} alt="" className="w-20 h-12 rounded-lg object-cover border border-gray-100" />
-                          ) : (
-                            <div className="w-20 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center flex-shrink-0">
-                              <span className="text-white font-bold text-xs">AquaRef</span>
+                    {editingAnnouncement === ann.id ? (
+                      /* ✅ EDIT MODE */
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold text-gray-900">Editing: {ann.title}</p>
+                          <button onClick={() => setEditingAnnouncement(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                        </div>
+
+                        {/* Thumbnail upload in edit mode */}
+                        <div>
+                          <p className="text-xs font-medium text-gray-700 mb-2">Thumbnail Image</p>
+                          <div className="flex items-center gap-4">
+                            {ann.thumbnail_url ? (
+                              <img src={ann.thumbnail_url} alt="" className="w-24 h-14 rounded-lg object-cover border border-gray-100" />
+                            ) : (
+                              <div className="w-24 h-14 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
+                                <span className="text-white font-bold text-xs">AquaRef</span>
+                              </div>
+                            )}
+                            <label className="cursor-pointer">
+                              <div className="text-xs text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg hover:bg-orange-50 font-medium">
+                                {announcementThumbnailUploading === ann.id ? 'Uploading...' : ann.thumbnail_url ? 'Replace Image' : 'Upload Image'}
+                              </div>
+                              <input type="file" accept=".jpg,.jpeg,.png" className="hidden" disabled={announcementThumbnailUploading !== null}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  if (file.size > 2 * 1024 * 1024) { alert('Image must be under 2MB'); return }
+                                  setAnnouncementThumbnailUploading(ann.id)
+                                  try {
+                                    const ext = file.name.split('.').pop()
+                                    const fileName = `announcements/${ann.id}/thumb_${Date.now()}.${ext}`
+                                    const { data: signedData, error: signedError } = await supabase.storage.from('events').createSignedUploadUrl(fileName)
+                                    if (signedError || !signedData) throw new Error('Could not create upload URL')
+                                    const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+                                    if (!uploadResponse.ok) throw new Error('Upload failed')
+                                    const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(fileName)
+                                    await supabase.from('announcements').update({ thumbnail_url: publicUrl }).eq('id', ann.id)
+                                    loadAnnouncements()
+                                  } catch (err) { alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown')) }
+                                  setAnnouncementThumbnailUploading(null)
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+                            {ann.thumbnail_url && (
+                              <button onClick={async () => {
+                                await supabase.from('announcements').update({ thumbnail_url: null }).eq('id', ann.id)
+                                loadAnnouncements()
+                              }} className="text-xs text-red-500 hover:text-red-600">Remove</button>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">Recommended: 1200x630px, JPG or PNG, max 2MB</p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+                          <input type="text" value={editAnnouncementForm.title} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                          <textarea value={editAnnouncementForm.description} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, description: e.target.value }))} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 resize-y" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">URL</label>
+                          <input type="text" value={editAnnouncementForm.url} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, url: e.target.value }))} placeholder="/atlet/mssns-2026 or https://..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Target Country</label>
+                            <select value={editAnnouncementForm.country} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, country: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-white">
+                              <option value="all">All Countries</option>
+                              {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
+                            </select>
+                          </div>
+                          <div className="flex items-end">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input type="checkbox" checked={editAnnouncementForm.open_new_tab} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, open_new_tab: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500" />
+                              <span className="text-sm text-gray-700">Open in new tab</span>
+                            </label>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => setEditingAnnouncement(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+                          <button
+                            onClick={async () => {
+                              if (!editAnnouncementForm.title || !editAnnouncementForm.url) { alert('Title and URL are required.'); return }
+                              setSavingAnnouncement(true)
+                              await supabase.from('announcements').update({
+                                title: editAnnouncementForm.title.trim(),
+                                description: editAnnouncementForm.description.trim(),
+                                url: editAnnouncementForm.url.trim(),
+                                country: editAnnouncementForm.country,
+                                open_new_tab: editAnnouncementForm.open_new_tab,
+                              }).eq('id', ann.id)
+                              setSavingAnnouncement(false)
+                              setEditingAnnouncement(null)
+                              loadAnnouncements()
+                            }}
+                            disabled={savingAnnouncement}
+                            className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
+                          >
+                            {savingAnnouncement ? 'Saving...' : 'Save Changes'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* ✅ VIEW MODE */
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className="flex-shrink-0">
+                            {ann.thumbnail_url ? (
+                              <img src={ann.thumbnail_url} alt="" className="w-20 h-12 rounded-lg object-cover border border-gray-100" />
+                            ) : (
+                              <div className="w-20 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
+                                <span className="text-white font-bold text-xs">AquaRef</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <p className="font-semibold text-gray-900 text-sm">{ann.title}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${ann.is_active ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                                {ann.is_active ? 'Active' : 'Inactive'}
+                              </span>
                             </div>
-                          )}
-                          <label className="cursor-pointer block mt-1">
-                            <p className="text-xs text-center text-gray-400 hover:text-orange-500">
-                              {announcementThumbnailUploading === ann.id ? 'Uploading...' : 'Upload image'}
-                            </p>
-                            <input
-                              type="file"
-                              accept=".jpg,.jpeg,.png"
-                              className="hidden"
-                              disabled={announcementThumbnailUploading !== null}
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0]
-                                if (!file) return
-                                if (file.size > 2 * 1024 * 1024) { alert('Image must be under 2MB'); return }
-                                setAnnouncementThumbnailUploading(ann.id)
-                                try {
-                                  const ext = file.name.split('.').pop()
-                                  const fileName = `announcements/${ann.id}/thumb_${Date.now()}.${ext}`
-                                  const { data: signedData, error: signedError } = await supabase.storage.from('events').createSignedUploadUrl(fileName)
-                                  if (signedError || !signedData) throw new Error('Could not create upload URL')
-                                  const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-                                  if (!uploadResponse.ok) throw new Error('Upload failed')
-                                  const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(fileName)
-                                  await supabase.from('announcements').update({ thumbnail_url: publicUrl }).eq('id', ann.id)
-                                  loadAnnouncements()
-                                } catch (err) { alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown')) }
-                                setAnnouncementThumbnailUploading(null)
-                                e.target.value = ''
-                              }}
-                            />
-                          </label>
-                        </div>
-
-                        {/* Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <p className="font-semibold text-gray-900 text-sm">{ann.title}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${ann.is_active ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                              {ann.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-                          {ann.description && <p className="text-xs text-gray-500 mb-1">{ann.description}</p>}
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <span className="text-xs text-gray-400 font-mono truncate">{ann.url}</span>
-                            <span className="text-xs text-gray-400">{countryToFlag(ann.country)} {ann.country}</span>
-                            {ann.open_new_tab && <span className="text-xs text-gray-400">Opens new tab</span>}
+                            {ann.description && <p className="text-xs text-gray-500 mb-1">{ann.description}</p>}
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-xs text-gray-400 font-mono truncate">{ann.url}</span>
+                              <span className="text-xs text-gray-400">{countryToFlag(ann.country)} {ann.country}</span>
+                              {ann.open_new_tab && <span className="text-xs text-gray-400">Opens new tab</span>}
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingAnnouncement(ann.id)
+                              setEditAnnouncementForm({
+                                title: ann.title,
+                                description: ann.description || '',
+                                url: ann.url,
+                                country: ann.country,
+                                open_new_tab: ann.open_new_tab
+                              })
+                            }}
+                            className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await supabase.from('announcements').update({ is_active: !ann.is_active }).eq('id', ann.id)
+                              loadAnnouncements()
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${ann.is_active ? 'border-orange-200 text-orange-600 hover:bg-orange-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
+                          >
+                            {ann.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Delete this announcement?')) return
+                              await supabase.from('announcements').delete().eq('id', ann.id)
+                              loadAnnouncements()
+                            }}
+                            className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={async () => {
-                            await supabase.from('announcements').update({ is_active: !ann.is_active }).eq('id', ann.id)
-                            loadAnnouncements()
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${ann.is_active ? 'border-orange-200 text-orange-600 hover:bg-orange-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
-                        >
-                          {ann.is_active ? 'Deactivate' : 'Activate'}
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (!confirm('Delete this announcement?')) return
-                            await supabase.from('announcements').delete().eq('id', ann.id)
-                            loadAnnouncements()
-                          }}
-                          className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
