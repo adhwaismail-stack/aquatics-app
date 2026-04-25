@@ -324,6 +324,12 @@ export default function AdminPage() {
   const qrSvgRef = useRef<SVGSVGElement>(null)
   const [copiedUrl, setCopiedUrl] = useState(false)
 
+  // Registrations state
+  const [registrations, setRegistrations] = useState<any[]>([])
+  const [registrationsLoading, setRegistrationsLoading] = useState(false)
+  const [regSearch, setRegSearch] = useState('')
+  const [deletingAllReg, setDeletingAllReg] = useState(false)
+
   // ✅ NEW: Event inner tab state
   const [eventInnerTab, setEventInnerTab] = useState<'overview' | 'analytics' | 'chatlog'>('overview')
 
@@ -477,6 +483,17 @@ export default function AdminPage() {
       .eq('is_active', true)
       .order('created_at', { ascending: false })
     if (data) setEventNotices(data)
+  }
+
+  // Load registrations
+  const loadRegistrations = async () => {
+    setRegistrationsLoading(true)
+    const { data } = await supabase
+      .from('swimmer_profiles')
+      .select('*, swimmer_pbs(*)')
+      .order('created_at', { ascending: false })
+    if (data) setRegistrations(data)
+    setRegistrationsLoading(false)
   }
 
   // ✅ NEW: Load event analytics
@@ -754,6 +771,7 @@ export default function AdminPage() {
     if (activeTab === 'beta users') loadBetaUsers()
     if (activeTab === 'analytics') { loadAnalytics(); loadFeedback(); loadSubscribers(); loadChatLogs() }
     if (activeTab === 'events') loadEvents()
+    if (activeTab === 'registrations') loadRegistrations()
   }, [activeTab])
 
   const handleSavePrompt = async () => {
@@ -973,7 +991,7 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['rulebooks', 'events', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
+          {['rulebooks', 'events', 'registrations', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
             <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
@@ -1544,6 +1562,157 @@ export default function AdminPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Registrations tab */}
+        {activeTab === 'registrations' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Borang Maklumat Atlet — MSSNS 2026</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">{registrations.length} atlet didaftarkan</p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={loadRegistrations} className="text-xs text-blue-600 hover:text-blue-700 px-3 py-1.5 border border-blue-200 rounded-lg">Refresh</button>
+                  <button
+                    onClick={() => {
+                      const filtered = registrations.filter(r => {
+                        if (!regSearch) return true
+                        const kw = regSearch.toLowerCase()
+                        return r.swimmer_name?.toLowerCase().includes(kw) ||
+                          r.school_club?.toLowerCase().includes(kw) ||
+                          r.district?.toLowerCase().includes(kw) ||
+                          r.parent_name?.toLowerCase().includes(kw)
+                      })
+                      const headers = ['Nama Atlet', 'Tarikh Lahir', 'Jantina', 'Sekolah/Kelab', 'Daerah', 'Nama Ibu Bapa', 'Hubungan', 'No. Telefon', 'Emel', 'PB 1 Acara', 'PB 1 Masa', 'PB 1 Pertandingan', 'PB 2 Acara', 'PB 2 Masa', 'PB 2 Pertandingan', 'PB 3 Acara', 'PB 3 Masa', 'PB 3 Pertandingan', 'Tarikh Daftar']
+                      const rows = filtered.map(r => {
+                        const pbs = r.swimmer_pbs || []
+                        return [
+                          r.swimmer_name || '',
+                          r.date_of_birth || '',
+                          r.gender || '',
+                          r.school_club || '',
+                          r.district || '',
+                          r.parent_name || '',
+                          r.parent_relationship || '',
+                          r.parent_phone || '',
+                          r.parent_email || '',
+                          pbs[0]?.event_name || '', pbs[0]?.time || '', pbs[0]?.competition_or_training || '',
+                          pbs[1]?.event_name || '', pbs[1]?.time || '', pbs[1]?.competition_or_training || '',
+                          pbs[2]?.event_name || '', pbs[2]?.time || '', pbs[2]?.competition_or_training || '',
+                          new Date(r.created_at).toLocaleDateString('en-MY')
+                        ]
+                      })
+                      const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+                      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+                      const url = URL.createObjectURL(blob)
+                      const link = document.createElement('a')
+                      link.href = url
+                      link.download = `mssns-2026-atlet-${new Date().toISOString().split('T')[0]}.csv`
+                      link.click()
+                      URL.revokeObjectURL(url)
+                    }}
+                    className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 font-medium"
+                  >
+                    Export Excel (CSV)
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Padam SEMUA data pendaftaran? Tindakan ini tidak boleh dibatalkan.')) return
+                      setDeletingAllReg(true)
+                      await supabase.from('swimmer_pbs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+                      await supabase.from('swimmer_profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+                      setRegistrations([])
+                      setDeletingAllReg(false)
+                      alert('Semua data telah dipadam.')
+                    }}
+                    disabled={deletingAllReg || registrations.length === 0}
+                    className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
+                  >
+                    {deletingAllReg ? 'Memadam...' : 'Padam Semua'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={regSearch}
+                  onChange={e => setRegSearch(e.target.value)}
+                  placeholder="Cari nama atlet, sekolah, daerah, ibu bapa..."
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-700 placeholder-gray-400"
+                />
+              </div>
+
+              {registrationsLoading ? (
+                <div className="text-center py-8 text-gray-400">Memuatkan...</div>
+              ) : registrations.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-sm">Tiada pendaftaran lagi.</p>
+                  <p className="text-xs mt-1">Kongsi pautan: <strong>aquaref.co/atlet/mssns-2026</strong></p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {registrations
+                    .filter(r => {
+                      if (!regSearch) return true
+                      const kw = regSearch.toLowerCase()
+                      return r.swimmer_name?.toLowerCase().includes(kw) ||
+                        r.school_club?.toLowerCase().includes(kw) ||
+                        r.district?.toLowerCase().includes(kw) ||
+                        r.parent_name?.toLowerCase().includes(kw)
+                    })
+                    .map((r) => (
+                      <div key={r.id} className="border border-gray-100 rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <p className="font-semibold text-gray-900 text-sm">{r.swimmer_name}</p>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">{r.gender}</span>
+                              <span className="text-xs text-gray-400">{r.district}</span>
+                            </div>
+                            <p className="text-xs text-gray-500">{r.school_club}</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Ibu Bapa: {r.parent_name} ({r.parent_relationship}) · {r.parent_phone} · {r.parent_email}
+                            </p>
+                            {r.swimmer_pbs && r.swimmer_pbs.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {r.swimmer_pbs.map((pb: any, i: number) => (
+                                  <span key={i} className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-100">
+                                    {pb.event_name}: {pb.time}
+                                    {pb.competition_or_training ? ` (${pb.competition_or_training})` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                            <p className="text-xs text-gray-400">{new Date(r.created_at).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+              <p className="text-sm font-medium text-blue-900 mb-1">Pautan Borang</p>
+              <p className="text-xs text-blue-700 mb-2">Kongsi pautan ini dengan ibu bapa / penjaga atlet MSSNS 2026:</p>
+              <div className="flex gap-2">
+                <input type="text" value="https://aquaref.co/atlet/mssns-2026" readOnly className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-xs bg-white text-gray-700 font-mono" />
+                <button
+                  onClick={() => navigator.clipboard.writeText('https://aquaref.co/atlet/mssns-2026')}
+                  className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 font-medium whitespace-nowrap"
+                >
+                  Salin
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
