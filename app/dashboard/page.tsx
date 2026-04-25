@@ -120,6 +120,11 @@ export default function DashboardPage() {
 
       if (sub.plan === 'lite' && !sub.selected_discipline && sub.full_name) { window.location.href = '/choose-discipline'; return }
 
+      // Clear any post-auth redirect (used after QR scan signup)
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('aquaref_redirect_after_auth')
+      }
+
       setSubscription(sub)
       setUserCountry(sub.country)
 
