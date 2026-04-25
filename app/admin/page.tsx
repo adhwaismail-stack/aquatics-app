@@ -118,6 +118,18 @@ interface EventNotice {
   updated_at: string
 }
 
+interface Announcement {
+  id: string
+  title: string
+  description: string
+  url: string
+  country: string
+  is_active: boolean
+  open_new_tab: boolean
+  thumbnail_url: string | null
+  created_at: string
+}
+
 interface EventChatLog {
   id: string
   event_id: string
@@ -324,6 +336,16 @@ export default function AdminPage() {
   const qrSvgRef = useRef<SVGSVGElement>(null)
   const [copiedUrl, setCopiedUrl] = useState(false)
 
+  // Announcements state
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false)
+  const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false)
+  const [newAnnouncement, setNewAnnouncement] = useState({
+    title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false
+  })
+  const [creatingAnnouncement, setCreatingAnnouncement] = useState(false)
+  const [announcementThumbnailUploading, setAnnouncementThumbnailUploading] = useState<string | null>(null)
+
   // Registrations state
   const [registrations, setRegistrations] = useState<any[]>([])
   const [registrationsLoading, setRegistrationsLoading] = useState(false)
@@ -483,6 +505,14 @@ export default function AdminPage() {
       .eq('is_active', true)
       .order('created_at', { ascending: false })
     if (data) setEventNotices(data)
+  }
+
+  // Load announcements
+  const loadAnnouncements = async () => {
+    setAnnouncementsLoading(true)
+    const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
+    if (data) setAnnouncements(data)
+    setAnnouncementsLoading(false)
   }
 
   // Load registrations
@@ -772,6 +802,7 @@ export default function AdminPage() {
     if (activeTab === 'analytics') { loadAnalytics(); loadFeedback(); loadSubscribers(); loadChatLogs() }
     if (activeTab === 'events') loadEvents()
     if (activeTab === 'registrations') loadRegistrations()
+    if (activeTab === 'announcements') loadAnnouncements()
   }, [activeTab])
 
   const handleSavePrompt = async () => {
@@ -991,8 +1022,8 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['rulebooks', 'events', 'registrations', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
-            <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+          {['rulebooks', 'events', 'announcements', 'registrations', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
+            <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : tab === 'registrations' ? 'bg-purple-600 text-white' : tab === 'announcements' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
           ))}
@@ -1560,6 +1591,187 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Announcements tab */}
+        {activeTab === 'announcements' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-900">Announcements</h2>
+                <p className="text-sm text-gray-400 mt-0.5">Cards shown in the user dashboard alongside events. Country-targeted and toggleable.</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={loadAnnouncements} className="text-sm text-orange-600 hover:text-orange-700">Refresh</button>
+                <button onClick={() => setShowCreateAnnouncement(true)} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600">+ New Announcement</button>
+              </div>
+            </div>
+
+            {/* Create form */}
+            {showCreateAnnouncement && (
+              <div className="bg-white rounded-xl border border-orange-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">New Announcement</h3>
+                  <button onClick={() => setShowCreateAnnouncement(false)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                    <input type="text" value={newAnnouncement.title} onChange={e => setNewAnnouncement(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g. Borang Maklumat Atlet — MSSNS 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea value={newAnnouncement.description} onChange={e => setNewAnnouncement(prev => ({ ...prev, description: e.target.value }))} rows={2} placeholder="Short description shown on the card" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 resize-y" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">URL * <span className="text-gray-400 font-normal">(internal: /atlet/mssns-2026 or external: https://...)</span></label>
+                    <input type="text" value={newAnnouncement.url} onChange={e => setNewAnnouncement(prev => ({ ...prev, url: e.target.value }))} placeholder="/atlet/mssns-2026 or https://example.com" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Target Country</label>
+                      <select value={newAnnouncement.country} onChange={e => setNewAnnouncement(prev => ({ ...prev, country: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-white">
+                        <option value="all">All Countries</option>
+                        {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={newAnnouncement.open_new_tab} onChange={e => setNewAnnouncement(prev => ({ ...prev, open_new_tab: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500" />
+                        <span className="text-sm text-gray-700">Open in new tab</span>
+                      </label>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!newAnnouncement.title || !newAnnouncement.url) { alert('Title and URL are required.'); return }
+                      setCreatingAnnouncement(true)
+                      const { error } = await supabase.from('announcements').insert({
+                        title: newAnnouncement.title.trim(),
+                        description: newAnnouncement.description.trim(),
+                        url: newAnnouncement.url.trim(),
+                        country: newAnnouncement.country,
+                        is_active: false,
+                        open_new_tab: newAnnouncement.open_new_tab,
+                        thumbnail_url: null
+                      })
+                      if (error) { alert('Error: ' + error.message) }
+                      else {
+                        setNewAnnouncement({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false })
+                        setShowCreateAnnouncement(false)
+                        loadAnnouncements()
+                      }
+                      setCreatingAnnouncement(false)
+                    }}
+                    disabled={creatingAnnouncement || !newAnnouncement.title || !newAnnouncement.url}
+                    className="w-full py-3 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    {creatingAnnouncement ? 'Creating...' : 'Create Announcement'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* List */}
+            {announcementsLoading ? (
+              <div className="text-center py-8 text-gray-400">Loading...</div>
+            ) : announcements.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-100 p-12 text-center text-gray-400">
+                <p className="font-medium text-gray-500 mb-2">No announcements yet</p>
+                <button onClick={() => setShowCreateAnnouncement(true)} className="text-sm text-orange-500 hover:text-orange-600 font-medium">Create your first announcement</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {announcements.map(ann => (
+                  <div key={ann.id} className={`bg-white border rounded-xl p-5 ${ann.is_active ? 'border-orange-200' : 'border-gray-100'}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 flex-1">
+                        {/* Thumbnail */}
+                        <div className="flex-shrink-0">
+                          {ann.thumbnail_url ? (
+                            <img src={ann.thumbnail_url} alt="" className="w-20 h-12 rounded-lg object-cover border border-gray-100" />
+                          ) : (
+                            <div className="w-20 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white font-bold text-xs">AquaRef</span>
+                            </div>
+                          )}
+                          <label className="cursor-pointer block mt-1">
+                            <p className="text-xs text-center text-gray-400 hover:text-orange-500">
+                              {announcementThumbnailUploading === ann.id ? 'Uploading...' : 'Upload image'}
+                            </p>
+                            <input
+                              type="file"
+                              accept=".jpg,.jpeg,.png"
+                              className="hidden"
+                              disabled={announcementThumbnailUploading !== null}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                if (file.size > 2 * 1024 * 1024) { alert('Image must be under 2MB'); return }
+                                setAnnouncementThumbnailUploading(ann.id)
+                                try {
+                                  const ext = file.name.split('.').pop()
+                                  const fileName = `announcements/${ann.id}/thumb_${Date.now()}.${ext}`
+                                  const { data: signedData, error: signedError } = await supabase.storage.from('events').createSignedUploadUrl(fileName)
+                                  if (signedError || !signedData) throw new Error('Could not create upload URL')
+                                  const uploadResponse = await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+                                  if (!uploadResponse.ok) throw new Error('Upload failed')
+                                  const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(fileName)
+                                  await supabase.from('announcements').update({ thumbnail_url: publicUrl }).eq('id', ann.id)
+                                  loadAnnouncements()
+                                } catch (err) { alert('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown')) }
+                                setAnnouncementThumbnailUploading(null)
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <p className="font-semibold text-gray-900 text-sm">{ann.title}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${ann.is_active ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {ann.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          {ann.description && <p className="text-xs text-gray-500 mb-1">{ann.description}</p>}
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="text-xs text-gray-400 font-mono truncate">{ann.url}</span>
+                            <span className="text-xs text-gray-400">{countryToFlag(ann.country)} {ann.country}</span>
+                            {ann.open_new_tab && <span className="text-xs text-gray-400">Opens new tab</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={async () => {
+                            await supabase.from('announcements').update({ is_active: !ann.is_active }).eq('id', ann.id)
+                            loadAnnouncements()
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${ann.is_active ? 'border-orange-200 text-orange-600 hover:bg-orange-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
+                        >
+                          {ann.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Delete this announcement?')) return
+                            await supabase.from('announcements').delete().eq('id', ann.id)
+                            loadAnnouncements()
+                          }}
+                          className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
