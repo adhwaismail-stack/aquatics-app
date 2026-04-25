@@ -513,13 +513,8 @@ export default function DashboardPage() {
                       {ann.thumbnail_url ? (
                         <img src={ann.thumbnail_url} alt={ann.title} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
                       ) : (
-                        <div className="w-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center" style={{ aspectRatio: '1200/630' }}>
-                          <div className="text-center px-4">
-                            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2">
-                              <span className="text-blue-600 font-bold text-sm">A</span>
-                            </div>
-                            <span className="text-white font-bold text-sm">AquaRef</span>
-                          </div>
+                        <div className="w-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center px-6" style={{ aspectRatio: '1200/630' }}>
+                          <span className="text-white font-bold text-base text-center leading-snug">{ann.title}</span>
                         </div>
                       )}
                       <div className="p-3">
