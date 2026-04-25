@@ -24,6 +24,17 @@ interface UserSubscription {
   country: string | null
 }
 
+interface Announcement {
+  id: string
+  title: string
+  description: string
+  url: string
+  country: string
+  is_active: boolean
+  open_new_tab: boolean
+  thumbnail_url: string | null
+}
+
 interface AquaEvent {
   id: string
   name: string
@@ -84,6 +95,7 @@ export default function DashboardPage() {
   const [userCountry, setUserCountry] = useState<string | null>(null)
   const [noticeCounts, setNoticeCounts] = useState<Record<string, number>>({})
   const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
 
   useEffect(() => {
     const getUser = async () => {
@@ -138,6 +150,15 @@ export default function DashboardPage() {
         setAllEvents(eventsData)
         await loadNoticeCounts(eventsData.map(e => e.id))
       }
+
+      // Fetch active announcements for user's country
+      const { data: announcementsData } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_active', true)
+        .or(`country.eq.all,country.eq.${sub.country || 'Malaysia'}`)
+        .order('created_at', { ascending: false })
+      if (announcementsData) setAnnouncements(announcementsData)
 
       if (isElite) {
         const savedFilter = localStorage.getItem('aquaref_elite_country_filter')
@@ -477,6 +498,48 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-400 mb-2 md:hidden">Swipe to see more</p>
                 )}
                 <div className="carousel-scroll flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4">
+                  {announcements.map((ann) => (
+                    <div
+                      key={ann.id}
+                      className="flex-shrink-0 w-[280px] md:w-[320px] snap-start bg-white rounded-xl border border-orange-100 overflow-hidden hover:border-orange-300 hover:shadow-md transition-all cursor-pointer"
+                      onClick={() => {
+                        if (ann.open_new_tab) {
+                          window.open(ann.url.startsWith('http') ? ann.url : `https://aquaref.co${ann.url}`, '_blank')
+                        } else {
+                          window.location.href = ann.url
+                        }
+                      }}
+                    >
+                      {ann.thumbnail_url ? (
+                        <img src={ann.thumbnail_url} alt={ann.title} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
+                      ) : (
+                        <div className="w-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center" style={{ aspectRatio: '1200/630' }}>
+                          <div className="text-center px-4">
+                            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mx-auto mb-2">
+                              <span className="text-blue-600 font-bold text-sm">A</span>
+                            </div>
+                            <span className="text-white font-bold text-sm">AquaRef</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 mr-2 min-w-0">
+                            <h3 className="font-semibold text-gray-900 text-sm truncate">{ann.title}</h3>
+                            {ann.description && (
+                              <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{ann.description}</p>
+                            )}
+                          </div>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 flex-shrink-0">Info</span>
+                        </div>
+                        <div className="flex items-center justify-end">
+                          <button className="text-xs bg-orange-500 text-white px-3 py-1 rounded-lg hover:bg-orange-600 font-medium">
+                            {ann.open_new_tab ? 'Buka →' : 'Lihat →'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                   {events.map((event) => {
                     const noticeCount = noticeCounts[event.id] || 0
                     return (
