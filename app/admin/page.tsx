@@ -1705,8 +1705,8 @@ export default function AdminPage() {
                             {ann.thumbnail_url ? (
                               <img src={ann.thumbnail_url} alt="" className="w-24 h-14 rounded-lg object-cover border border-gray-100" />
                             ) : (
-                              <div className="w-24 h-14 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
-                                <span className="text-white font-bold text-xs">AquaRef</span>
+                              <div className="w-24 h-14 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-1">
+                                <span className="text-white font-bold text-xs text-center leading-tight line-clamp-2">{ann.title}</span>
                               </div>
                             )}
                             <label className="cursor-pointer">
@@ -1804,8 +1804,8 @@ export default function AdminPage() {
                             {ann.thumbnail_url ? (
                               <img src={ann.thumbnail_url} alt="" className="w-20 h-12 rounded-lg object-cover border border-gray-100" />
                             ) : (
-                              <div className="w-20 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
-                                <span className="text-white font-bold text-xs">AquaRef</span>
+                              <div className="w-20 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-1">
+                                <span className="text-white font-bold text-xs text-center leading-tight line-clamp-2">{ann.title}</span>
                               </div>
                             )}
                           </div>
