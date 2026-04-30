@@ -474,13 +474,14 @@ export default function AdminPage() {
     if (usageData) setDailyUsage(usageData)
     const { data: tokenData } = await supabase.from('chat_logs').select('input_tokens, output_tokens, created_at').not('input_tokens', 'is', null)
     if (tokenData) setTokenLogs(tokenData)
-    const { data: chatActive } = await supabase.from('chat_logs').select('user_email, created_at').order('created_at', { ascending: false }).limit(50)
-    const { data: eventActive } = await supabase.from('event_usage').select('user_email, updated_at').order('updated_at', { ascending: false }).limit(50)
-    const allActivity: Record<string, string> = {}
-    chatActive?.forEach((l: any) => { if (!allActivity[l.user_email] || new Date(l.created_at) > new Date(allActivity[l.user_email])) allActivity[l.user_email] = l.created_at })
-    eventActive?.forEach((l: any) => { if (!allActivity[l.user_email] || new Date(l.updated_at) > new Date(allActivity[l.user_email])) allActivity[l.user_email] = l.updated_at })
-    const sorted = Object.entries(allActivity).sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime()).slice(0, 10).map(([email, created_at]) => ({ email, created_at }))
-    setRecentActiveUsers(sorted)
+ const { data: recentSubs } = await supabase
+      .from('user_subscriptions')
+      .select('user_email, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10)
+    if (recentSubs) {
+      setRecentActiveUsers(recentSubs.map((s: any) => ({ email: s.user_email, created_at: s.created_at })))
+    }
     setAnalyticsLoading(false)
   }
 
@@ -2280,8 +2281,8 @@ export default function AdminPage() {
                 {countryData.length > 0 && <div className="bg-white rounded-xl border border-gray-100 p-6"><h3 className="font-semibold text-gray-900 mb-4">Users by Country</h3><SimpleBarChart data={countryData} /></div>}
                 {recentActiveUsers.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-100 p-6">
-                    <h3 className="font-semibold text-gray-900 mb-2">Last 10 Active Users</h3>
-                    <p className="text-xs text-gray-400 mb-3">Includes rules chat + event AI activity</p>
+                  <h3 className="font-semibold text-gray-900 mb-2">Last 10 Signups</h3>
+                    <p className="text-xs text-gray-400 mb-3">Most recent accounts created</p>
                     <div className="space-y-2">
                       {recentActiveUsers.map((user) => (
                         <div key={user.email} className="flex items-center justify-between">
