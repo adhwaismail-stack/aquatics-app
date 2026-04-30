@@ -347,9 +347,7 @@ setDailyLimit(10)
                 <div
                   className={`h-2 rounded-full transition-all ${isParaSwimming ? 'bg-purple-600' : 'bg-blue-600'}`}
                   style={{
-                    width: plan === 'lite'
-       `${Math.min(((10 - monthlyRemaining) / 10) * 100, 100)}%`
-                      : `${Math.min((usage / dailyLimit) * 100, 100)}%`
+           width: plan === 'lite' ? `${Math.min(((10 - monthlyRemaining) / 10) * 100, 100)}%` : `${Math.min((usage / dailyLimit) * 100, 100)}%`
                   }}
                 />
               </div>
