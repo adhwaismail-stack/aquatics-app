@@ -288,11 +288,11 @@ export default function Home() {
               <ul className="space-y-2 mb-6 flex-1 text-sm">
                 <li className="flex items-start gap-2 text-gray-600">
                   <span className="text-green-500 mt-0.5">&#10003;</span>
-                  <span><strong>Rules Chat:</strong> 5 Q/month, 1 discipline</span>
+                  <span><strong>Rules Chat:</strong> 10 Q/month, 1 discipline</span>
                 </li>
                 <li className="flex items-start gap-2 text-gray-600">
                   <span className="text-green-500 mt-0.5">&#10003;</span>
-                  <span><strong>Event Chat:</strong> 5 Q per event</span>
+                  <span><strong>Event Chat:</strong> 10 Q per event</span>
                 </li>
                 <li className="flex items-start gap-2 text-gray-600">
                   <span className="text-green-500 mt-0.5">&#10003;</span>
