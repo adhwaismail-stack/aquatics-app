@@ -353,7 +353,8 @@ export default function AdminPage() {
   const [registrations, setRegistrations] = useState<any[]>([])
   const [registrationsLoading, setRegistrationsLoading] = useState(false)
   const [regSearch, setRegSearch] = useState('')
-  const [deletingAllReg, setDeletingAllReg] = useState(false)
+const [deletingAllReg, setDeletingAllReg] = useState(false)
+  const [showRegPreview, setShowRegPreview] = useState(false)
 
   // ✅ NEW: Event inner tab state
   const [eventInnerTab, setEventInnerTab] = useState<'overview' | 'analytics' | 'chatlog'>('overview')
@@ -1880,9 +1881,9 @@ export default function AdminPage() {
                   <p className="text-xs text-gray-400 mt-0.5">{registrations.length} atlet didaftarkan</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <button onClick={loadRegistrations} className="text-xs text-blue-600 hover:text-blue-700 px-3 py-1.5 border border-blue-200 rounded-lg">Refresh</button>
-                  <button
-                    onClick={() => {
+                <button onClick={loadRegistrations} className="text-xs text-blue-600 hover:text-blue-700 px-3 py-1.5 border border-blue-200 rounded-lg">Refresh</button>
+                  <button onClick={() => setShowRegPreview(true)} disabled={registrations.length === 0} className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50">Preview Jadual</button>
+                  <button onClick={() => {
                       const filtered = registrations.filter(r => {
                         if (!regSearch) return true
                         const kw = regSearch.toLowerCase()
@@ -1891,22 +1892,26 @@ export default function AdminPage() {
                           r.district?.toLowerCase().includes(kw) ||
                           r.parent_name?.toLowerCase().includes(kw)
                       })
-                      const headers = ['Nama Atlet', 'Tarikh Lahir', 'Jantina', 'Sekolah/Kelab', 'Daerah', 'Nama Ibu Bapa', 'Hubungan', 'No. Telefon', 'Emel', 'PB 1 Acara', 'PB 1 Masa', 'PB 1 Pertandingan', 'PB 2 Acara', 'PB 2 Masa', 'PB 2 Pertandingan', 'PB 3 Acara', 'PB 3 Masa', 'PB 3 Pertandingan', 'Tarikh Daftar']
+                const headers = ['Nama Atlet', 'No. IC', 'Tarikh Lahir', 'Jantina', 'No. Telefon Atlet', 'Nama Sekolah', 'Alamat Sekolah', 'Nama Kelab', 'Daerah', 'Nama Ibu Bapa / Penjaga', 'Hubungan', 'No. Telefon', 'Emel', 'PB 1 Acara', 'PB 1 Masa', 'PB 1 Kejohanan', 'PB 1 Tahun', 'PB 2 Acara', 'PB 2 Masa', 'PB 2 Kejohanan', 'PB 2 Tahun', 'PB 3 Acara', 'PB 3 Masa', 'PB 3 Kejohanan', 'PB 3 Tahun', 'Tarikh Daftar']
                       const rows = filtered.map(r => {
                         const pbs = r.swimmer_pbs || []
                         return [
                           r.swimmer_name || '',
+                          r.ic_number || '',
                           r.date_of_birth || '',
                           r.gender || '',
-                          r.school_club || '',
+                          r.swimmer_phone || '',
+                          r.school_name || r.school_club || '',
+                          r.school_address || '',
+                          r.club_name || '',
                           r.district || '',
                           r.parent_name || '',
                           r.parent_relationship || '',
                           r.parent_phone || '',
                           r.parent_email || '',
-                          pbs[0]?.event_name || '', pbs[0]?.time || '', pbs[0]?.competition_or_training || '',
-                          pbs[1]?.event_name || '', pbs[1]?.time || '', pbs[1]?.competition_or_training || '',
-                          pbs[2]?.event_name || '', pbs[2]?.time || '', pbs[2]?.competition_or_training || '',
+                          pbs[0]?.event_name || '', pbs[0]?.time || '', pbs[0]?.nama_kejohanan || pbs[0]?.competition_or_training || '', pbs[0]?.tahun || '',
+                          pbs[1]?.event_name || '', pbs[1]?.time || '', pbs[1]?.nama_kejohanan || pbs[1]?.competition_or_training || '', pbs[1]?.tahun || '',
+                          pbs[2]?.event_name || '', pbs[2]?.time || '', pbs[2]?.nama_kejohanan || pbs[2]?.competition_or_training || '', pbs[2]?.tahun || '',
                           new Date(r.created_at).toLocaleDateString('en-MY')
                         ]
                       })
@@ -2004,6 +2009,96 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+
+     {/* Preview Table Modal */}
+            {showRegPreview && (
+              <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex flex-col">
+                <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Preview Jadual — MSSNS 2026</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{registrations.length} atlet · Skrol kanan untuk lihat semua kolum</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const headers = ['Nama Atlet', 'No. IC', 'Tarikh Lahir', 'Jantina', 'No. Telefon Atlet', 'Nama Sekolah', 'Alamat Sekolah', 'Nama Kelab', 'Daerah', 'Nama Ibu Bapa / Penjaga', 'Hubungan', 'No. Telefon', 'Emel', 'PB 1 Acara', 'PB 1 Masa', 'PB 1 Kejohanan', 'PB 1 Tahun', 'PB 2 Acara', 'PB 2 Masa', 'PB 2 Kejohanan', 'PB 2 Tahun', 'PB 3 Acara', 'PB 3 Masa', 'PB 3 Kejohanan', 'PB 3 Tahun', 'Tarikh Daftar']
+                        const rows = registrations.map(r => {
+                          const pbs = r.swimmer_pbs || []
+                          return [
+                            r.swimmer_name || '', r.ic_number || '', r.date_of_birth || '', r.gender || '', r.swimmer_phone || '',
+                            r.school_name || r.school_club || '', r.school_address || '', r.club_name || '', r.district || '',
+                            r.parent_name || '', r.parent_relationship || '', r.parent_phone || '', r.parent_email || '',
+                            pbs[0]?.event_name || '', pbs[0]?.time || '', pbs[0]?.nama_kejohanan || '', pbs[0]?.tahun || '',
+                            pbs[1]?.event_name || '', pbs[1]?.time || '', pbs[1]?.nama_kejohanan || '', pbs[1]?.tahun || '',
+                            pbs[2]?.event_name || '', pbs[2]?.time || '', pbs[2]?.nama_kejohanan || '', pbs[2]?.tahun || '',
+                            new Date(r.created_at).toLocaleDateString('en-MY')
+                          ]
+                        })
+                        const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+                        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+                        const url = URL.createObjectURL(blob)
+                        const link = document.createElement('a')
+                        link.href = url
+                        link.download = `mssns-2026-atlet-${new Date().toISOString().split('T')[0]}.csv`
+                        link.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                      className="text-xs bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium"
+                    >
+                      Export CSV
+                    </button>
+                    <button onClick={() => setShowRegPreview(false)} className="text-xs bg-gray-100 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-200 font-medium">Tutup</button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto p-4">
+                  <table className="min-w-full text-xs border-collapse bg-white rounded-xl overflow-hidden shadow">
+                    <thead className="bg-purple-600 text-white sticky top-0">
+                      <tr>
+                        {['#', 'Nama Atlet', 'No. IC', 'Tarikh Lahir', 'Jantina', 'Tel. Atlet', 'Nama Sekolah', 'Alamat Sekolah', 'Kelab', 'Daerah', 'Ibu Bapa', 'Hubungan', 'Tel. IB', 'Emel', 'PB1 Acara', 'PB1 Masa', 'PB1 Kejohanan', 'PB1 Tahun', 'PB2 Acara', 'PB2 Masa', 'PB2 Kejohanan', 'PB2 Tahun', 'PB3 Acara', 'PB3 Masa', 'PB3 Kejohanan', 'PB3 Tahun', 'Tarikh Daftar'].map((h, i) => (
+                          <th key={i} className="px-3 py-2 text-left font-semibold whitespace-nowrap border-r border-purple-500 last:border-r-0">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registrations.map((r, idx) => {
+                        const pbs = r.swimmer_pbs || []
+                        return (
+                          <tr key={r.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-400 font-medium">{idx + 1}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 font-medium text-gray-900 whitespace-nowrap">{r.swimmer_name}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{r.ic_number || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{r.date_of_birth || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{r.gender || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{r.swimmer_phone || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap max-w-[150px] truncate">{r.school_name || r.school_club || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 max-w-[200px] truncate">{r.school_address || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{r.club_name || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{r.district || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{r.parent_name || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{r.parent_relationship || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{r.parent_phone || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{r.parent_email || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{pbs[0]?.event_name || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{pbs[0]?.time || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{pbs[0]?.nama_kejohanan || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{pbs[0]?.tahun || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{pbs[1]?.event_name || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{pbs[1]?.time || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{pbs[1]?.nama_kejohanan || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{pbs[1]?.tahun || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{pbs[2]?.event_name || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{pbs[2]?.time || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600 whitespace-nowrap">{pbs[2]?.nama_kejohanan || '—'}</td>
+                            <td className="px-3 py-2 border-r border-gray-100 text-gray-600">{pbs[2]?.tahun || '—'}</td>
+                            <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{new Date(r.created_at).toLocaleDateString('en-MY')}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
               <p className="text-sm font-medium text-blue-900 mb-1">Pautan Borang</p>
