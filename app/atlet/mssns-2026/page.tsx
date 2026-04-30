@@ -23,34 +23,44 @@ const SWIM_EVENTS = [
   'Lain-lain'
 ]
 
+const YEARS = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() - i))
+
 interface PBEntry {
+  nama_kejohanan: string
+  tahun: string
   event_name: string
   time: string
-  competition_or_training: string
-  date_achieved: string
 }
 
 interface SwimmerEntry {
   swimmer_name: string
+  ic_number: string
   date_of_birth: string
   gender: string
-  school_club: string
+  swimmer_phone: string
+  school_name: string
+  school_address: string
+  club_name: string
   district: string
   pbs: PBEntry[]
 }
 
 const emptyPB = (): PBEntry => ({
+  nama_kejohanan: '',
+  tahun: '',
   event_name: '',
-  time: '',
-  competition_or_training: '',
-  date_achieved: ''
+  time: ''
 })
 
 const emptySwimmer = (): SwimmerEntry => ({
   swimmer_name: '',
+  ic_number: '',
   date_of_birth: '',
   gender: '',
-  school_club: '',
+  swimmer_phone: '',
+  school_name: '',
+  school_address: '',
+  club_name: '',
   district: '',
   pbs: []
 })
@@ -133,16 +143,18 @@ export default function AtletRegistrationPage() {
   }
 
   const validateForm = () => {
-    if (!parentName.trim()) return 'Sila masukkan nama ibu bapa / penjaga.'
+    if (!parentName.trim()) return 'Sila masukkan nama penuh.'
     if (!parentRelationship) return 'Sila pilih hubungan.'
     if (!parentPhone.trim()) return 'Sila masukkan nombor telefon.'
     if (!isLoggedIn && !parentEmail.trim()) return 'Sila masukkan emel.'
     for (let i = 0; i < swimmers.length; i++) {
       const s = swimmers[i]
       if (!s.swimmer_name.trim()) return `Atlet ${i + 1}: Sila masukkan nama atlet.`
+      if (!s.ic_number.trim()) return `Atlet ${i + 1}: Sila masukkan nombor IC.`
       if (!s.date_of_birth) return `Atlet ${i + 1}: Sila masukkan tarikh lahir.`
       if (!s.gender) return `Atlet ${i + 1}: Sila pilih jantina.`
-      if (!s.school_club.trim()) return `Atlet ${i + 1}: Sila masukkan sekolah / kelab.`
+      if (!s.school_name.trim()) return `Atlet ${i + 1}: Sila masukkan nama sekolah.`
+      if (!s.school_address.trim()) return `Atlet ${i + 1}: Sila masukkan alamat sekolah.`
       if (!s.district) return `Atlet ${i + 1}: Sila pilih daerah.`
     }
     if (!consent) return 'Sila bersetuju dengan syarat pengumpulan data.'
@@ -194,9 +206,14 @@ export default function AtletRegistrationPage() {
             parent_relationship: parentRelationship,
             parent_phone: parentPhone.trim(),
             swimmer_name: swimmer.swimmer_name.trim(),
+            ic_number: swimmer.ic_number.trim(),
             date_of_birth: swimmer.date_of_birth,
             gender: swimmer.gender,
-            school_club: swimmer.school_club.trim(),
+            swimmer_phone: swimmer.swimmer_phone.trim() || null,
+            school_name: swimmer.school_name.trim(),
+            school_address: swimmer.school_address.trim(),
+            school_club: swimmer.school_name.trim(),
+            club_name: swimmer.club_name.trim() || null,
             district: swimmer.district,
             event_slug: 'mssns-2026'
           })
@@ -213,8 +230,10 @@ export default function AtletRegistrationPage() {
                 swimmer_id: profile.id,
                 event_name: pb.event_name,
                 time: pb.time,
-                competition_or_training: pb.competition_or_training || null,
-                date_achieved: pb.date_achieved || null
+                nama_kejohanan: pb.nama_kejohanan || null,
+                tahun: pb.tahun || null,
+                competition_or_training: pb.nama_kejohanan || null,
+                date_achieved: null
               }))
             )
           }
@@ -331,10 +350,10 @@ export default function AtletRegistrationPage() {
           </p>
         </div>
 
-        {/* Section 1 — Parent */}
+        {/* Section 1 — Pengisi Borang */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-4 shadow-sm">
-          <h2 className="font-semibold text-gray-900 mb-4 text-sm uppercase tracking-wide text-blue-700">
-            Bahagian 1 — Maklumat Ibu Bapa / Penjaga
+          <h2 className="font-semibold text-blue-700 mb-4 text-sm uppercase tracking-wide">
+            Bahagian 1 — Maklumat Ibu Bapa / Penjaga / Atlet
           </h2>
           <div className="space-y-4">
             <div>
@@ -342,9 +361,10 @@ export default function AtletRegistrationPage() {
               <input type="text" value={parentName} onChange={e => setParentName(e.target.value)} placeholder="Nama penuh seperti dalam kad pengenalan" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hubungan <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hubungan dengan Atlet <span className="text-red-500">*</span></label>
               <select value={parentRelationship} onChange={e => setParentRelationship(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
                 <option value="">-- Pilih --</option>
+                <option value="Sendiri">Sendiri (Atlet mengisi sendiri)</option>
                 <option value="Bapa">Bapa</option>
                 <option value="Ibu">Ibu</option>
                 <option value="Penjaga">Penjaga</option>
@@ -369,7 +389,7 @@ export default function AtletRegistrationPage() {
           {swimmers.map((swimmer, si) => (
             <div key={si} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-gray-900 text-sm uppercase tracking-wide text-blue-700">
+                <h2 className="font-semibold text-blue-700 text-sm uppercase tracking-wide">
                   Bahagian 2 — Maklumat Atlet {swimmers.length > 1 ? `#${si + 1}` : ''}
                 </h2>
                 {swimmers.length > 1 && (
@@ -380,6 +400,11 @@ export default function AtletRegistrationPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nama Penuh Atlet <span className="text-red-500">*</span></label>
                   <input type="text" value={swimmer.swimmer_name} onChange={e => updateSwimmer(si, 'swimmer_name', e.target.value)} placeholder="Nama penuh atlet" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">No. Kad Pengenalan (IC) <span className="text-red-500">*</span></label>
+                  <input type="text" value={swimmer.ic_number} onChange={e => updateSwimmer(si, 'ic_number', e.target.value)} placeholder="cth: 050101-14-1234" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                  <p className="text-xs text-gray-400 mt-1">Maklumat IC dilindungi dan hanya digunakan untuk tujuan pemantauan PANS.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -396,8 +421,20 @@ export default function AtletRegistrationPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sekolah / Kelab <span className="text-red-500">*</span></label>
-                  <input type="text" value={swimmer.school_club} onChange={e => updateSwimmer(si, 'school_club', e.target.value)} placeholder="cth: SMK Seremban 2 / Kelab Renang NS" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">No. Telefon Atlet</label>
+                  <input type="tel" value={swimmer.swimmer_phone} onChange={e => updateSwimmer(si, 'swimmer_phone', e.target.value)} placeholder="cth: 0123456789 (tidak wajib)" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nama Penuh Sekolah <span className="text-red-500">*</span></label>
+                  <input type="text" value={swimmer.school_name} onChange={e => updateSwimmer(si, 'school_name', e.target.value)} placeholder="cth: Sekolah Menengah Kebangsaan Seremban 2" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Alamat Penuh Sekolah <span className="text-red-500">*</span></label>
+                  <textarea value={swimmer.school_address} onChange={e => updateSwimmer(si, 'school_address', e.target.value)} placeholder="cth: Jalan Rahang, 70300 Seremban, Negeri Sembilan" rows={3} className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 resize-y" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nama Kelab Renang</label>
+                  <input type="text" value={swimmer.club_name} onChange={e => updateSwimmer(si, 'club_name', e.target.value)} placeholder="cth: Kelab Renang Seremban (tidak wajib)" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Daerah <span className="text-red-500">*</span></label>
@@ -412,48 +449,51 @@ export default function AtletRegistrationPage() {
               <div className="mt-6 pt-5 border-t border-gray-100">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Rekod Peribadi Terbaik (PB)</p>
+                    <p className="text-sm font-medium text-gray-700">Pencapaian Terbaik</p>
                     <p className="text-xs text-gray-400">Tidak wajib — sehingga 5 rekod</p>
                   </div>
                   {swimmer.pbs.length < 5 && (
                     <button onClick={() => addPB(si)} className="text-xs text-blue-600 hover:text-blue-700 font-medium px-3 py-1.5 border border-blue-200 rounded-lg hover:bg-blue-50">
-                      + Tambah PB
+                      + Tambah Pencapaian
                     </button>
                   )}
                 </div>
 
                 {swimmer.pbs.length === 0 ? (
                   <div className="text-center py-4 border border-dashed border-gray-200 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-2">Tiada PB ditambah lagi</p>
-                    <button onClick={() => addPB(si)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Tambah PB pertama</button>
+                    <p className="text-xs text-gray-400 mb-2">Tiada pencapaian ditambah lagi</p>
+                    <button onClick={() => addPB(si)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Tambah pencapaian pertama</button>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {swimmer.pbs.map((pb, pi) => (
                       <div key={pi} className="bg-gray-50 rounded-xl p-4 relative">
                         <button onClick={() => removePB(si, pi)} className="absolute top-3 right-3 text-xs text-red-400 hover:text-red-600">Buang</button>
-                        <p className="text-xs font-medium text-gray-600 mb-3">PB #{pi + 1}</p>
+                        <p className="text-xs font-medium text-gray-600 mb-3">Pencapaian #{pi + 1}</p>
                         <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Nama Kejohanan</label>
+                            <input type="text" value={pb.nama_kejohanan} onChange={e => updatePB(si, pi, 'nama_kejohanan', e.target.value)} placeholder="cth: MSNS Negeri Sembilan 2024" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Tahun</label>
+                              <select value={pb.tahun} onChange={e => updatePB(si, pi, 'tahun', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
+                                <option value="">-- Tahun --</option>
+                                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Masa <span className="text-red-500">*</span></label>
+                              <input type="text" value={pb.time} onChange={e => updatePB(si, pi, 'time', e.target.value)} placeholder="cth: 1:02.45" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                            </div>
+                          </div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Acara <span className="text-red-500">*</span></label>
                             <select value={pb.event_name} onChange={e => updatePB(si, pi, 'event_name', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
                               <option value="">-- Pilih Acara --</option>
                               {SWIM_EVENTS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
                             </select>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Masa <span className="text-red-500">*</span></label>
-                              <input type="text" value={pb.time} onChange={e => updatePB(si, pi, 'time', e.target.value)} placeholder="cth: 1:02.45" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Tarikh Dicapai</label>
-                              <input type="date" value={pb.date_achieved} onChange={e => updatePB(si, pi, 'date_achieved', e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">Pertandingan / Latihan</label>
-                            <input type="text" value={pb.competition_or_training} onChange={e => updatePB(si, pi, 'competition_or_training', e.target.value)} placeholder="cth: MSNS 2024 / Latihan" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
                           </div>
                         </div>
                       </div>
@@ -477,8 +517,7 @@ export default function AtletRegistrationPage() {
             <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-0.5 flex-shrink-0 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
             <span className="text-xs text-gray-600 leading-relaxed">
               Saya bersetuju maklumat ini dikumpul bagi pihak <strong>Persatuan Akuatik Negeri Sembilan (PANS)</strong> untuk tujuan pemantauan atlet. Data ini akan dipadam selepas diserahkan kepada PANS. Dengan menghantar borang ini, saya juga bersetuju untuk mencipta akaun AquaRef LITE secara percuma.{' '}
-              <a href="/terms-of-service" className="text-blue-600 underline" target="_blank">Terma Perkhidmatan</a>{' '}
-              dan{' '}
+              <a href="/terms-of-service" className="text-blue-600 underline" target="_blank">Terma Perkhidmatan</a>{' '}dan{' '}
               <a href="/privacy-policy" className="text-blue-600 underline" target="_blank">Dasar Privasi</a>.
             </span>
           </label>
@@ -489,11 +528,7 @@ export default function AtletRegistrationPage() {
             </div>
           )}
 
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full py-4 bg-blue-600 text-white rounded-xl text-base font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={handleSubmit} disabled={submitting} className="w-full py-4 bg-blue-600 text-white rounded-xl text-base font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {submitting ? 'Menghantar...' : 'Hantar Maklumat'}
           </button>
 
@@ -512,9 +547,7 @@ export default function AtletRegistrationPage() {
 
       <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-8">
         <div className="max-w-2xl mx-auto text-center">
-          <p className="text-xs text-gray-400">
-            AquaRef · Untuk rujukan sahaja. Sentiasa sahkan dengan pegawai bertauliah.
-          </p>
+          <p className="text-xs text-gray-400">AquaRef · Untuk rujukan sahaja. Sentiasa sahkan dengan pegawai bertauliah.</p>
         </div>
       </footer>
     </div>
