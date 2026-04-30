@@ -104,7 +104,7 @@ export default function PricingPage() {
                 <ul className="space-y-1 ml-2">
                   <li className="flex items-start gap-2 text-gray-600">
                     <span className="text-green-500 mt-0.5">&#10003;</span>
-                    <span>5 questions per month</span>
+                    <span>10 questions per month</span>
                   </li>
                   <li className="flex items-start gap-2 text-gray-600">
                     <span className="text-green-500 mt-0.5">&#10003;</span>
@@ -117,7 +117,7 @@ export default function PricingPage() {
                 <ul className="space-y-1 ml-2">
                   <li className="flex items-start gap-2 text-gray-600">
                     <span className="text-green-500 mt-0.5">&#10003;</span>
-                    <span>5 questions per event</span>
+                    <span>10 questions per event</span>
                   </li>
                   <li className="flex items-start gap-2 text-gray-600">
                     <span className="text-green-500 mt-0.5">&#10003;</span>
