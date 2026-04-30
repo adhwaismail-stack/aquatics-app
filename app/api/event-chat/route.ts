@@ -52,11 +52,11 @@ export async function POST(request: NextRequest) {
     // LITE: 5 questions total per event (lifetime)
     if (plan === 'lite') {
       const questionCount = meetPass?.question_count || 0
-      if (questionCount >= 5) {
+      if (questionCount >= 10) {
         return NextResponse.json(
           {
             error: 'event_limit_reached',
-            message: `You've reached your 5 free questions for this event. Upgrade to PRO for 50 questions/day, or ELITE for unlimited questions + all 8 disciplines + priority support.`,
+            message: `You've reached your 10 free questions for this event. Upgrade to PRO for 50 questions/day, or ELITE for unlimited questions + all 8 disciplines + priority support.`,
             upgradeUrl: '/pricing'
           },
           { status: 429 }
@@ -330,7 +330,7 @@ Respond with: "I can only answer questions about ${eventName}. For World Aquatic
     let remainingQuestions = null
     if (plan === 'lite') {
       const newCount = (meetPass?.question_count || 0) + 1
-      remainingQuestions = Math.max(0, 5 - newCount)
+      remainingQuestions = Math.max(0, 10 - newCount)
     } else if (plan === 'pro') {
       remainingQuestions = Math.max(0, 50 - (questionsToday + 1))
     }
