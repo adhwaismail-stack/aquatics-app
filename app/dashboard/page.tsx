@@ -254,7 +254,7 @@ export default function DashboardPage() {
   const getQuestionsPerDay = () => {
     if (subscription?.plan === 'elite') return 'Unlimited'
     if (subscription?.plan === 'pro') return '50'
-    if (subscription?.plan === 'lite') return '5'
+    if (subscription?.plan === 'lite') return '10'
     if (subscription?.plan === 'all_disciplines') return '200'
     return '50'
   }
@@ -262,8 +262,8 @@ export default function DashboardPage() {
   const getEventQuestionLabel = () => {
     if (subscription?.plan === 'elite' || subscription?.plan === 'all_disciplines') return 'Unlimited'
     if (subscription?.plan === 'pro') return '50/day'
-    if (subscription?.plan === 'lite') return '5 free questions'
-    return '5 free questions'
+    if (subscription?.plan === 'lite') return '10 free questions'
+    return '10 free questions'
   }
 
   const handleDisciplineClick = (disciplineId: string) => { if (canAccessDiscipline(disciplineId)) window.location.href = `/chat/${disciplineId}` }
@@ -404,7 +404,7 @@ export default function DashboardPage() {
 
         {subscription?.plan === 'lite' && (
           <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-4 flex items-center justify-between">
-            <div><p className="text-sm font-medium text-green-900">AquaRef LITE — Free Forever</p><p className="text-xs text-green-600 mt-0.5">5 questions/month · 1 discipline</p></div>
+            <div><p className="text-sm font-medium text-green-900">AquaRef LITE — Free Forever</p><p className="text-xs text-green-600 mt-0.5">10 questions/month · 1 discipline</p></div>
             <button onClick={() => { window.location.href = '/pricing' }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700">Upgrade</button>
           </div>
         )}

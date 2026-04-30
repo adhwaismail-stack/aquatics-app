@@ -59,11 +59,11 @@ export async function POST(request: NextRequest) {
       const resetDateStr = resetDate.toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })
       const daysUntilReset = Math.ceil((resetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
-      if (monthlyCount >= 5) {
+if (monthlyCount >= 10) {
         return NextResponse.json(
           {
             error: `monthly_limit_reached`,
-            message: `You've used all 5 free questions this month. Your quota resets in ${daysUntilReset} day${daysUntilReset !== 1 ? 's' : ''} on ${resetDateStr}. Upgrade to PRO for 50 questions per day!`,
+            message: `You've used all 10 free questions this month. Your quota resets in ${daysUntilReset} day${daysUntilReset !== 1 ? 's' : ''} on ${resetDateStr}. Upgrade to PRO for 50 questions per day!`,
             resetDate: resetDateStr,
             daysUntilReset,
             upgradeUrl: '/pricing'
