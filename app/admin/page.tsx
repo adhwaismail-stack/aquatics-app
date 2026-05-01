@@ -1242,6 +1242,29 @@ const [deletingAllReg, setDeletingAllReg] = useState(false)
             {/* ✅ OVERVIEW TAB */}
             {eventInnerTab === 'overview' && (
               <div className="space-y-4">
+           {/* Chat Toggle */}
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900 text-sm">Event AI Chat</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {selectedEvent.chat_enabled === false ? 'Chat is OFF — users see download page instead' : 'Chat is ON — users can ask questions'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const newValue = selectedEvent.chat_enabled === false ? true : false
+                        await supabase.from('events').update({ chat_enabled: newValue }).eq('id', selectedEvent.id)
+                        setSelectedEvent({ ...selectedEvent, chat_enabled: newValue })
+                        await loadEvents()
+                      }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${selectedEvent.chat_enabled === false ? 'bg-green-600 text-white border-green-600 hover:bg-green-700' : 'border-orange-200 text-orange-600 hover:bg-orange-50'}`}
+                    >
+                      {selectedEvent.chat_enabled === false ? 'Enable Chat' : 'Disable Chat'}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Poster Upload */}
                 <div className="bg-white rounded-xl border border-gray-100 p-5">
                   <h3 className="font-medium text-gray-900 mb-1 text-sm">Event Poster</h3>
