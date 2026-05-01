@@ -89,8 +89,8 @@ export default function ChatPage({ params }: { params: Promise<{ discipline: str
 
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        window.location.href = '/login'
+       if (!user) {
+        setUser(null)
         return
       }
       setUser(user)
@@ -303,6 +303,137 @@ setDailyLimit(10)
     !content.toLowerCase().startsWith("you've used all") &&
     !content.toLowerCase().startsWith("you've just used") &&
     !content.toLowerCase().startsWith("upgrade to pro")
+
+// Non-logged-in preview page
+  if (!user) {
+    const sampleQs = getSampleQuestions()
+    const accentColor = isParaSwimming ? 'purple' : 'blue'
+    const bgFrom = isParaSwimming ? 'from-purple-50' : 'from-blue-50'
+    const btnBg = isParaSwimming ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'
+    const badgeBg = isParaSwimming ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+    const borderColor = isParaSwimming ? 'border-purple-100' : 'border-blue-100'
+
+    return (
+      <div className={`min-h-screen bg-gradient-to-b ${bgFrom} via-white to-gray-50 flex flex-col`}>
+        <div className="bg-white border-b border-gray-100 px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">A</span>
+              </div>
+              <span className="font-bold text-xl text-gray-900">AquaRef</span>
+            </a>
+            <a href="/login" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              Already a member? Log in
+            </a>
+          </div>
+        </div>
+
+        <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
+          <div className="text-center mb-8">
+            <div className={`inline-flex items-center gap-2 ${badgeBg} px-3 py-1 rounded-full text-xs font-medium mb-4`}>
+              {isParaSwimming ? '🏅' : '🏊'} {disciplineNames[discipline]} Rules
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+              {disciplineNames[discipline]} Rules Assistant
+            </h1>
+            <p className="text-gray-500 text-sm max-w-md mx-auto">
+              {isParaSwimming
+                ? 'Instant AI answers from official World Para Swimming (WPS) regulations. Available in 90+ languages.'
+                : `Instant AI answers from official World Aquatics ${disciplineCodes[discipline]}. Available in 90+ languages.`}
+            </p>
+            {isParaSwimming && (
+              <div className="mt-3 inline-block bg-purple-50 border border-purple-200 rounded-lg px-4 py-2">
+                <p className="text-xs text-purple-700">Governed by <strong>World Para Swimming (WPS)</strong> under IPC</p>
+              </div>
+            )}
+          </div>
+
+          <div className={`bg-white rounded-2xl border ${borderColor} p-6 md:p-8 shadow-sm mb-6`}>
+            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">
+              Ask any {disciplineNames[discipline]} rules question
+            </h2>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Perfect for Technical Officials, coaches, swimmers and parents.
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                Example questions:
+              </p>
+              {sampleQs.map((q, i) => (
+                <div key={i} className={`bg-gradient-to-r ${isParaSwimming ? 'from-purple-50 to-blue-50 border-purple-100' : 'from-blue-50 to-green-50 border-blue-100'} border rounded-xl px-4 py-3 flex items-start gap-3`}>
+                  <span className={`${isParaSwimming ? 'text-purple-500' : 'text-blue-500'} text-lg flex-shrink-0`}>{'"'}</span>
+                  <p className="text-sm text-gray-700 italic">{q}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className={`${isParaSwimming ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'} border rounded-xl p-4 mb-6`}>
+              <p className={`text-sm font-semibold text-center mb-1 ${isParaSwimming ? 'text-purple-900' : 'text-blue-900'}`}>
+                Get 10 FREE questions per month
+              </p>
+              <p className={`text-xs text-center ${isParaSwimming ? 'text-purple-700' : 'text-blue-700'}`}>
+                Sign up in seconds — no credit card required.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <a href="/login" className={`w-full py-4 ${btnBg} text-white rounded-xl text-base font-semibold text-center block transition-colors shadow-sm hover:shadow-md`}>
+                Sign Up Free — Ask {disciplineNames[discipline]} Rules
+              </a>
+              <a href="/login" className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium text-center block hover:bg-gray-50 transition-colors">
+                Already have an account? Log in
+              </a>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+            <h3 className="font-semibold text-gray-900 text-sm mb-4 text-center">How it works</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+              <div>
+                <div className={`w-10 h-10 ${isParaSwimming ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'} rounded-full flex items-center justify-center mx-auto mb-2 font-bold`}>1</div>
+                <p className="text-xs text-gray-600">Sign up with your email</p>
+              </div>
+              <div>
+                <div className={`w-10 h-10 ${isParaSwimming ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'} rounded-full flex items-center justify-center mx-auto mb-2 font-bold`}>2</div>
+                <p className="text-xs text-gray-600">Ask any {disciplineNames[discipline]} rules question</p>
+              </div>
+              <div>
+                <div className={`w-10 h-10 ${isParaSwimming ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'} rounded-full flex items-center justify-center mx-auto mb-2 font-bold`}>3</div>
+                <p className="text-xs text-gray-600">Get instant answers with rule citations</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+            <h3 className="font-semibold text-gray-900 text-sm mb-3 text-center">All 8 disciplines available</h3>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {['Swimming', 'Water Polo', 'Artistic Swimming', 'Diving', 'High Diving', 'Masters', 'Open Water', 'Para Swimming'].map((d, i) => (
+                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full">{d}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="text-center">
+            <a href="/pricing" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              View all plans and pricing →
+            </a>
+          </div>
+        </div>
+
+        <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-xs text-gray-400">
+              {isParaSwimming
+                ? 'Answers based on World Para Swimming (WPS) Regulations only. Always verify with your Meet Referee.'
+                : 'Answers based on official World Aquatics Regulations only. Always verify with your Meet Referee.'}
+            </p>
+          </div>
+        </footer>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
