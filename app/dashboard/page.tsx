@@ -46,7 +46,8 @@ interface AquaEvent {
   start_date: string
   end_date: string
   is_active: boolean
-  poster_url?: string
+poster_url?: string
+  state?: string | null
 }
 
 const DISCIPLINE_LABELS: Record<string, string> = {
@@ -59,6 +60,13 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   openwater: 'Open Water',
   paraswimming: 'Para Swimming',
 }
+
+const MALAYSIA_STATES = [
+  'Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan',
+  'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah',
+  'Sarawak', 'Selangor', 'Terengganu', 'Kuala Lumpur',
+  'Labuan', 'Putrajaya'
+]
 
 const countryToFlag = (countryName: string): string => {
   const countries: Record<string, string> = {
@@ -95,7 +103,8 @@ export default function DashboardPage() {
   const [userCountry, setUserCountry] = useState<string | null>(null)
   const [noticeCounts, setNoticeCounts] = useState<Record<string, number>>({})
 const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [stateFilter, setStateFilter] = useState<string>('all')
   const carouselRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -159,7 +168,7 @@ const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
 
       const isElite = sub.plan === 'elite' || sub.plan === 'all_disciplines'
 
-      let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
+let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
       if (!isElite && sub.country) eventsQuery = eventsQuery.eq('country', sub.country)
       const { data: eventsData } = await eventsQuery.order('start_date', { ascending: true })
 
@@ -292,12 +301,17 @@ const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
     localStorage.setItem('aquaref_elite_country_filter', value)
   }
 
-  const events = (() => {
-    if (!isElite) return allEvents
-    if (eliteCountryFilter === 'all') return allEvents
-    if (eliteCountryFilter === 'home' && userCountry) return allEvents.filter(e => e.country === userCountry)
-    return allEvents.filter(e => e.country === eliteCountryFilter)
+const events = (() => {
+    let filtered = allEvents
+    if (isElite) {
+      if (eliteCountryFilter === 'home' && userCountry) filtered = filtered.filter(e => e.country === userCountry)
+      else if (eliteCountryFilter !== 'all') filtered = filtered.filter(e => e.country === eliteCountryFilter)
+    }
+    if (stateFilter !== 'all') filtered = filtered.filter(e => e.state === stateFilter)
+    return filtered
   })()
+
+  const availableStates = [...new Set(allEvents.filter(e => e.state).map(e => e.state as string))].sort()
 
   const availableCountries = [...new Set(allEvents.map(e => e.country))].sort()
 
@@ -490,6 +504,18 @@ const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
                 </div>
               )}
             </div>
+
+         {availableStates.length > 0 && (
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-xs text-gray-400">State:</span>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => setStateFilter('all')} className={`text-xs px-3 py-1 rounded-full font-medium border transition-colors ${stateFilter === 'all' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}>All</button>
+                  {availableStates.map(state => (
+                    <button key={state} onClick={() => setStateFilter(state)} className={`text-xs px-3 py-1 rounded-full font-medium border transition-colors ${stateFilter === state ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}>{state}</button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {!isElite && subscription?.plan !== undefined && (
               <div className="mb-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-100 rounded-lg px-3 py-2 flex items-center justify-between flex-wrap gap-2">
