@@ -130,7 +130,9 @@ interface Announcement {
   open_new_tab: boolean
 thumbnail_url: string | null
   created_at: string
-  state?: string | null
+state?: string | null
+  slug?: string | null
+  content?: string | null
 }
 
 interface EventChatLog {
@@ -351,12 +353,12 @@ const [editForm, setEditForm] = useState({
   const [announcementsLoading, setAnnouncementsLoading] = useState(false)
   const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false)
 const [newAnnouncement, setNewAnnouncement] = useState({
-    title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: ''
+    title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: '', slug: '', content: ''
   })
   const [creatingAnnouncement, setCreatingAnnouncement] = useState(false)
   const [announcementThumbnailUploading, setAnnouncementThumbnailUploading] = useState<string | null>(null)
   const [editingAnnouncement, setEditingAnnouncement] = useState<string | null>(null)
- const [editAnnouncementForm, setEditAnnouncementForm] = useState({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: '' })
+ const [editAnnouncementForm, setEditAnnouncementForm] = useState({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: '', slug: '', content: '' })
   const [savingAnnouncement, setSavingAnnouncement] = useState(false)
 
   // Registrations state
@@ -1691,16 +1693,29 @@ if (activeTab === 'announcements') loadAnnouncements()
                   <button onClick={() => setShowCreateAnnouncement(false)} className="text-gray-400 hover:text-gray-600 text-sm">Cancel</button>
                 </div>
                 <div className="space-y-4">
-                  <div>
+                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                    <input type="text" value={newAnnouncement.title} onChange={e => setNewAnnouncement(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g. Borang Maklumat Atlet — MSSNS 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
+                    <input type="text" value={newAnnouncement.title} onChange={e => {
+                      const title = e.target.value
+                      const slug = title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 60)
+                      setNewAnnouncement(prev => ({ ...prev, title, slug }))
+                    }} placeholder="e.g. Borang Maklumat Atlet — MSSNS 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                     <textarea value={newAnnouncement.description} onChange={e => setNewAnnouncement(prev => ({ ...prev, description: e.target.value }))} rows={2} placeholder="Short description shown on the card" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 resize-y" />
                   </div>
+       {newAnnouncement.slug && (
+                    <div className="bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
+                      <p className="text-xs text-gray-500">Auto page URL: <span className="font-mono font-medium text-orange-700">aquaref.co/announcements/{newAnnouncement.slug}</span></p>
+                    </div>
+                  )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">URL * <span className="text-gray-400 font-normal">(internal: /atlet/mssns-2026 or external: https://...)</span></label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Content <span className="text-gray-400 font-normal">(shown on the announcement page)</span></label>
+                    <textarea value={newAnnouncement.content} onChange={e => setNewAnnouncement(prev => ({ ...prev, content: e.target.value }))} rows={6} placeholder="Write the full announcement here. This appears on the dedicated announcement page." className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 resize-y" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">URL <span className="text-gray-400 font-normal">(leave blank to use auto page)</span></label>
                     <input type="text" value={newAnnouncement.url} onChange={e => setNewAnnouncement(prev => ({ ...prev, url: e.target.value }))} placeholder="/atlet/mssns-2026 or https://example.com" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1729,10 +1744,13 @@ if (activeTab === 'announcements') loadAnnouncements()
                     onClick={async () => {
                       if (!newAnnouncement.title || !newAnnouncement.url) { alert('Title and URL are required.'); return }
                       setCreatingAnnouncement(true)
+              const autoUrl = `/announcements/${newAnnouncement.slug}`
                       const { error } = await supabase.from('announcements').insert({
                         title: newAnnouncement.title.trim(),
                         description: newAnnouncement.description.trim(),
-                        url: newAnnouncement.url.trim(),
+                        content: newAnnouncement.content.trim() || null,
+                        url: newAnnouncement.url.trim() || autoUrl,
+                        slug: newAnnouncement.slug || null,
                         country: newAnnouncement.country,
                         state: newAnnouncement.state || null,
                         is_active: false,
@@ -1741,7 +1759,7 @@ if (activeTab === 'announcements') loadAnnouncements()
                       })
                       if (error) { alert('Error: ' + error.message) }
                       else {
-                    setNewAnnouncement({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: '' })
+                 setNewAnnouncement({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: '', slug: '', content: '' })
                         setShowCreateAnnouncement(false)
                         loadAnnouncements()
                       }
@@ -1831,6 +1849,10 @@ if (activeTab === 'announcements') loadAnnouncements()
                           <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
                           <textarea value={editAnnouncementForm.description} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, description: e.target.value }))} rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 resize-y" />
                         </div>
+                       <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Full Content <span className="text-gray-400 font-normal">(shown on announcement page)</span></label>
+                          <textarea value={editAnnouncementForm.content || ''} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, content: e.target.value }))} rows={5} placeholder="Write the full announcement content here..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 resize-y" />
+                        </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">URL</label>
                           <input type="text" value={editAnnouncementForm.url} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, url: e.target.value }))} placeholder="/atlet/mssns-2026 or https://..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
@@ -1863,9 +1885,10 @@ if (activeTab === 'announcements') loadAnnouncements()
                             onClick={async () => {
                               if (!editAnnouncementForm.title || !editAnnouncementForm.url) { alert('Title and URL are required.'); return }
                               setSavingAnnouncement(true)
-                              await supabase.from('announcements').update({
+              await supabase.from('announcements').update({
                                 title: editAnnouncementForm.title.trim(),
                                 description: editAnnouncementForm.description.trim(),
+                                content: editAnnouncementForm.content?.trim() || null,
                                 url: editAnnouncementForm.url.trim(),
                                 country: editAnnouncementForm.country,
                                 state: editAnnouncementForm.state || null,
@@ -1903,8 +1926,9 @@ if (activeTab === 'announcements') loadAnnouncements()
                               </span>
                             </div>
                             {ann.description && <p className="text-xs text-gray-500 mb-1">{ann.description}</p>}
-                            <div className="flex items-center gap-3 flex-wrap">
+                           <div className="flex items-center gap-3 flex-wrap">
                               <span className="text-xs text-gray-400 font-mono truncate">{ann.url}</span>
+                              {ann.slug && <span className="text-xs text-orange-500 font-mono">aquaref.co/announcements/{ann.slug}</span>}
                               <span className="text-xs text-gray-400">{countryToFlag(ann.country)} {ann.country}</span>
                               {ann.open_new_tab && <span className="text-xs text-gray-400">Opens new tab</span>}
                             </div>
@@ -1914,10 +1938,12 @@ if (activeTab === 'announcements') loadAnnouncements()
                           <button
                             onClick={() => {
                               setEditingAnnouncement(ann.id)
-                     setEditAnnouncementForm({
+            setEditAnnouncementForm({
                                 title: ann.title,
                                 description: ann.description || '',
+                                content: ann.content || '',
                                 url: ann.url,
+                                slug: ann.slug || '',
                                 country: ann.country,
                                 open_new_tab: ann.open_new_tab,
                                 state: ann.state || ''
@@ -2230,7 +2256,7 @@ if (activeTab === 'announcements') loadAnnouncements()
                   </div>
                 ))}
               </div>
-            )}
+            )}  
           </div>
         )}
 
