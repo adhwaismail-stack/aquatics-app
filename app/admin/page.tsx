@@ -189,6 +189,13 @@ const COUNTRIES = [
   'Pakistan', 'Bangladesh', 'Sri Lanka',
 ]
 
+const MALAYSIA_STATES = [
+  'Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan',
+  'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah',
+  'Sarawak', 'Selangor', 'Terengganu', 'Kuala Lumpur',
+  'Labuan', 'Putrajaya'
+]
+
 const countryToFlag = (countryName: string): string => {
   const countries: Record<string, string> = {
     'Malaysia': '🇲🇾', 'Singapore': '🇸🇬', 'Indonesia': '🇮🇩', 'Thailand': '🇹🇭',
@@ -1195,7 +1202,10 @@ setEditForm({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">State / Region <span className="text-gray-400 font-normal">(optional)</span></label>
-                <input type="text" value={newEvent.state} onChange={(e) => setNewEvent(prev => ({ ...prev, state: e.target.value }))} placeholder="e.g. Negeri Sembilan, Selangor, Johor" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+               <select value={newEvent.state} onChange={(e) => setNewEvent(prev => ({ ...prev, state: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 bg-white">
+                  <option value="">— Select state —</option>
+                  {MALAYSIA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1353,7 +1363,10 @@ setEditForm({
                       </div>
                      <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">State / Region <span className="text-gray-400 font-normal">(optional)</span></label>
-                        <input type="text" value={editForm.state || ''} onChange={(e) => setEditForm(prev => ({ ...prev, state: e.target.value }))} placeholder="e.g. Negeri Sembilan" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                   <select value={editForm.state || ''} onChange={(e) => setEditForm(prev => ({ ...prev, state: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
+                          <option value="">— Select state —</option>
+                          {MALAYSIA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
