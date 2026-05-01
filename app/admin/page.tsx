@@ -379,7 +379,9 @@ const [deletingAllReg, setDeletingAllReg] = useState(false)
   const [selectedEventLog, setSelectedEventLog] = useState<EventChatLog | null>(null)
   const [eventCorrectionText, setEventCorrectionText] = useState('')
   const [savingEventCorrection, setSavingEventCorrection] = useState(false)
-  const [eventLogKeyword, setEventLogKeyword] = useState('')
+const [eventLogKeyword, setEventLogKeyword] = useState('')
+  const [userMessages, setUserMessages] = useState<{ id: string, user_email: string, message: string, created_at: string }[]>([])
+  const [messagesLoading, setMessagesLoading] = useState(false)
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -523,6 +525,13 @@ const [deletingAllReg, setDeletingAllReg] = useState(false)
   }
 
   // Load announcements
+const loadMessages = async () => {
+    setMessagesLoading(true)
+    const { data } = await supabase.from('user_messages').select('*').order('created_at', { ascending: false })
+    if (data) setUserMessages(data)
+    setMessagesLoading(false)
+  }
+
   const loadAnnouncements = async () => {
     setAnnouncementsLoading(true)
     const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
@@ -828,7 +837,8 @@ setEditForm({
     if (activeTab === 'analytics') { loadAnalytics(); loadFeedback(); loadSubscribers(); loadChatLogs() }
     if (activeTab === 'events') loadEvents()
     if (activeTab === 'registrations') loadRegistrations()
-    if (activeTab === 'announcements') loadAnnouncements()
+if (activeTab === 'announcements') loadAnnouncements()
+    if (activeTab === 'messages') loadMessages()
   }, [activeTab])
 
   const handleSavePrompt = async () => {
@@ -1048,7 +1058,7 @@ setEditForm({
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['rulebooks', 'events', 'announcements', 'registrations', 'system prompt', 'chat logs', 'corrections', 'feedback', 'beta users', 'subscribers', 'analytics'].map((tab) => (
+        {['rulebooks', 'events', 'announcements', 'registrations', 'system prompt', 'chat logs', 'corrections', 'feedback', 'messages', 'beta users', 'subscribers', 'analytics'].map((tab) => (
             <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : tab === 'registrations' ? 'bg-purple-600 text-white' : tab === 'announcements' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
@@ -2188,6 +2198,39 @@ setEditForm({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+  {/* Messages tab */}
+        {activeTab === 'messages' && (
+          <div className="bg-white rounded-xl border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-semibold text-gray-900">User Messages</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{userMessages.length} messages received</p>
+              </div>
+              <button onClick={loadMessages} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
+            </div>
+            {messagesLoading ? (
+              <div className="text-center py-8 text-gray-400">Loading...</div>
+            ) : userMessages.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-2xl mb-2">💬</p>
+                <p className="text-sm">No messages yet. Share the feedback button with your users!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {userMessages.map((msg) => (
+                  <div key={msg.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{msg.user_email}</span>
+                      <span className="text-xs text-gray-400">{new Date(msg.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{msg.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

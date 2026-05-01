@@ -104,7 +104,11 @@ export default function DashboardPage() {
   const [noticeCounts, setNoticeCounts] = useState<Record<string, number>>({})
 const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
 const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [stateFilter, setStateFilter] = useState<string>('all')
+const [stateFilter, setStateFilter] = useState<string>('all')
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState('')
+  const [sendingFeedback, setSendingFeedback] = useState(false)
+  const [feedbackSent, setFeedbackSent] = useState(false)
   const carouselRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -346,6 +350,7 @@ const events = (() => {
             {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && !isExpired() && (
               <button onClick={() => { window.location.href = '/choose-discipline' }} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Switch Discipline</button>
             )}
+           <button onClick={() => { setShowFeedbackModal(true); setFeedbackSent(false); setFeedbackMessage('') }} className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">💬 Feedback</button>
             <button onClick={() => setShowPlanModal(true)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">My Plan</button>
             <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
           </div>
@@ -369,6 +374,66 @@ const events = (() => {
               <div className="pt-2 border-t border-gray-100"><p>Sincerely,</p><p className="font-semibold text-gray-900 mt-1">Adhwa</p></div>
             </div>
             <button onClick={handleDismissBetaWelcome} className="w-full mt-6 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700">Got it, thanks!</button>
+          </div>
+        </div>
+      )}
+
+{showFeedbackModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg text-gray-900">Send Feedback</h3>
+              <button onClick={() => setShowFeedbackModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            {feedbackSent ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">🙏</div>
+                <p className="font-semibold text-gray-900 mb-1">Thank you!</p>
+                <p className="text-sm text-gray-500">Your feedback has been received. We read every message.</p>
+                <button onClick={() => setShowFeedbackModal(false)} className="mt-6 w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Close</button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 mb-4">Share your thoughts, suggestions, or report any issues. We read every message.</p>
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-3 bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-400">From:</span>
+                    <span className="text-xs text-gray-700 font-medium">{user?.email}</span>
+                  </div>
+                  <textarea
+                    value={feedbackMessage}
+                    onChange={(e) => setFeedbackMessage(e.target.value)}
+                    rows={5}
+                    placeholder="Type your message here..."
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 placeholder-gray-400 resize-none"
+                  />
+                  <p className="text-xs text-gray-400 mt-1 text-right">{feedbackMessage.length} / 1000</p>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowFeedbackModal(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+                  <button
+                    onClick={async () => {
+                      if (!feedbackMessage.trim()) return
+                      setSendingFeedback(true)
+                      try {
+                        await supabase.from('user_messages').insert({
+                          user_email: user?.email,
+                          message: feedbackMessage.trim().slice(0, 1000)
+                        })
+                        setFeedbackSent(true)
+                      } catch {
+                        alert('Something went wrong. Please try again.')
+                      }
+                      setSendingFeedback(false)
+                    }}
+                    disabled={sendingFeedback || !feedbackMessage.trim()}
+                    className="flex-1 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {sendingFeedback ? 'Sending...' : 'Send Message'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
