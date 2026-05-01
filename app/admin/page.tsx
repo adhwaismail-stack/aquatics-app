@@ -627,10 +627,19 @@ const [deletingAllReg, setDeletingAllReg] = useState(false)
     setClearingNotice(null)
   }
 
-  const handleDeleteEventFile = async (eventId: string, fileName: string) => {
+const handleDeleteEventFile = async (eventId: string, fileName: string) => {
     if (!confirm(`Delete "${fileName}"?`)) return
     setDeletingEventFile(fileName)
     try {
+      // Delete from storage
+      const { data: storageFiles } = await supabase.storage.from('events').list(eventId)
+      if (storageFiles) {
+        const match = storageFiles.find(f => fileName.includes(f.name) || f.name.includes(fileName.replace(/^\d+_/, '')))
+        if (match) {
+          await supabase.storage.from('events').remove([`${eventId}/${match.name}`])
+        }
+      }
+      // Delete from chunks
       await supabase.from('event_chunks').delete().eq('event_id', eventId).eq('source_file', fileName)
       await loadEventFiles(eventId)
     } catch { alert('Failed to delete file.') }
