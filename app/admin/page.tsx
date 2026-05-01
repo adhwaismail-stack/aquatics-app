@@ -128,8 +128,9 @@ interface Announcement {
   country: string
   is_active: boolean
   open_new_tab: boolean
-  thumbnail_url: string | null
+thumbnail_url: string | null
   created_at: string
+  state?: string | null
 }
 
 interface EventChatLog {
@@ -349,13 +350,13 @@ const [editForm, setEditForm] = useState({
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [announcementsLoading, setAnnouncementsLoading] = useState(false)
   const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false)
-  const [newAnnouncement, setNewAnnouncement] = useState({
-    title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false
+const [newAnnouncement, setNewAnnouncement] = useState({
+    title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: ''
   })
   const [creatingAnnouncement, setCreatingAnnouncement] = useState(false)
   const [announcementThumbnailUploading, setAnnouncementThumbnailUploading] = useState<string | null>(null)
   const [editingAnnouncement, setEditingAnnouncement] = useState<string | null>(null)
-  const [editAnnouncementForm, setEditAnnouncementForm] = useState({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false })
+ const [editAnnouncementForm, setEditAnnouncementForm] = useState({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: '' })
   const [savingAnnouncement, setSavingAnnouncement] = useState(false)
 
   // Registrations state
@@ -1707,6 +1708,13 @@ setEditForm({
                       </label>
                     </div>
                   </div>
+          <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">State / Region <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <select value={newAnnouncement.state} onChange={e => setNewAnnouncement(prev => ({ ...prev, state: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-white">
+                      <option value="">— All states —</option>
+                      {MALAYSIA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
                   <button
                     onClick={async () => {
                       if (!newAnnouncement.title || !newAnnouncement.url) { alert('Title and URL are required.'); return }
@@ -1716,13 +1724,14 @@ setEditForm({
                         description: newAnnouncement.description.trim(),
                         url: newAnnouncement.url.trim(),
                         country: newAnnouncement.country,
+                        state: newAnnouncement.state || null,
                         is_active: false,
                         open_new_tab: newAnnouncement.open_new_tab,
                         thumbnail_url: null
                       })
                       if (error) { alert('Error: ' + error.message) }
                       else {
-                        setNewAnnouncement({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false })
+                    setNewAnnouncement({ title: '', description: '', url: '', country: 'Malaysia', open_new_tab: false, state: '' })
                         setShowCreateAnnouncement(false)
                         loadAnnouncements()
                       }
@@ -1831,6 +1840,13 @@ setEditForm({
                             </label>
                           </div>
                         </div>
+        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">State / Region <span className="text-gray-400 font-normal">(optional)</span></label>
+                          <select value={editAnnouncementForm.state || ''} onChange={e => setEditAnnouncementForm(prev => ({ ...prev, state: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-white">
+                            <option value="">— All states —</option>
+                            {MALAYSIA_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
                         <div className="flex gap-2">
                           <button onClick={() => setEditingAnnouncement(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
                           <button
@@ -1842,6 +1858,7 @@ setEditForm({
                                 description: editAnnouncementForm.description.trim(),
                                 url: editAnnouncementForm.url.trim(),
                                 country: editAnnouncementForm.country,
+                                state: editAnnouncementForm.state || null,
                                 open_new_tab: editAnnouncementForm.open_new_tab,
                               }).eq('id', ann.id)
                               setSavingAnnouncement(false)
@@ -1887,12 +1904,13 @@ setEditForm({
                           <button
                             onClick={() => {
                               setEditingAnnouncement(ann.id)
-                              setEditAnnouncementForm({
+                     setEditAnnouncementForm({
                                 title: ann.title,
                                 description: ann.description || '',
                                 url: ann.url,
                                 country: ann.country,
-                                open_new_tab: ann.open_new_tab
+                                open_new_tab: ann.open_new_tab,
+                                state: ann.state || ''
                               })
                             }}
                             className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50"

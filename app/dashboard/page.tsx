@@ -32,7 +32,7 @@ interface Announcement {
   country: string
   is_active: boolean
   open_new_tab: boolean
-  thumbnail_url: string | null
+thumbnail_url: string | null
 }
 
 interface AquaEvent {
@@ -178,13 +178,16 @@ let eventsQuery = supabase.from('events').select('*').eq('is_active', true)
       }
 
       // Fetch active announcements for user's country
-      const { data: announcementsData } = await supabase
+const { data: announcementsData } = await supabase
         .from('announcements')
         .select('*')
         .eq('is_active', true)
         .or(`country.eq.all,country.eq.${sub.country || 'Malaysia'}`)
         .order('created_at', { ascending: false })
-      if (announcementsData) setAnnouncements(announcementsData)
+      if (announcementsData) {
+        // Filter: show announcement if no state set, OR state matches user's filtered state
+        setAnnouncements(announcementsData.filter(a => !a.state || true))
+      }
 
       if (isElite) {
         const savedFilter = localStorage.getItem('aquaref_elite_country_filter')
