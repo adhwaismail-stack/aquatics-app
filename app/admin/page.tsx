@@ -1884,8 +1884,7 @@ if (activeTab === 'announcements') loadAnnouncements()
                           <button onClick={() => setEditingAnnouncement(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
                           <button
                             onClick={async () => {
-                             if (!editAnnouncementForm.title) { alert('Title is required.'); return }
-                              if (!editAnnouncementForm.url && !editAnnouncementForm.slug) { alert('URL is required (or title must generate a slug).'); return }
+                            if (!editAnnouncementForm.title) { alert('Title is required.'); return }
                               setSavingAnnouncement(true)
               await supabase.from('announcements').update({
                                 title: editAnnouncementForm.title.trim(),
