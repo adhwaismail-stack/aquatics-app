@@ -620,10 +620,15 @@ const events = (() => {
                       key={ann.id}
                       className="flex-shrink-0 w-[280px] md:w-[320px] snap-start bg-white rounded-xl border border-orange-100 overflow-hidden hover:border-orange-300 hover:shadow-md transition-all cursor-pointer"
                       onClick={() => {
+const resolvedUrl = ann.url.startsWith('http')
+                          ? ann.url
+                          : ann.url.startsWith('/')
+                          ? ann.url
+                          : `/${ann.url}`
                         if (ann.open_new_tab) {
-                          window.open(ann.url.startsWith('http') ? ann.url : `https://aquaref.co${ann.url}`, '_blank')
+                          window.open(resolvedUrl, '_blank')
                         } else {
-                          window.location.href = ann.url
+                          window.location.href = resolvedUrl
                         }
                       }}
                     >
