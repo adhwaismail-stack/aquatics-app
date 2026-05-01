@@ -467,6 +467,35 @@ const loadEvent = async () => {
             </div>
           </div>
 
+    <div className="bg-white rounded-2xl border border-blue-100 p-6 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">A</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm">AquaRef Swimming Rules Assistant</h3>
+                <p className="text-xs text-gray-400">Official World Aquatics SW Rules · 90+ languages</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Got a question about swimming rules? Ask about DQs, false starts, turns, strokes and more — answered instantly from official World Aquatics regulations.
+            </p>
+            <div className="space-y-2 mb-4">
+              {[
+                'What is the rule for a false start?',
+                'Is a one-hand touch legal for breaststroke turn?',
+                'Can a swimmer be DQ for an early turn?'
+              ].map((q, i) => (
+                <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  <p className="text-xs text-gray-600 italic">&ldquo;{q}&rdquo;</p>
+                </div>
+              ))}
+            </div>
+            <a href="/login" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors">
+              Sign Up Free — Ask Swimming Rules Too
+            </a>
+          </div>
+
           <div className="text-center">
             <a href="/pricing" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
               View all plans and pricing
@@ -722,6 +751,9 @@ const loadEvent = async () => {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+    <a href="/chat/swimming" className="text-sm px-4 py-2.5 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 font-medium transition-all hidden md:block">
+                SW Rules
+              </a>
               <button onClick={() => setShareModalOpen(true)} className="text-sm px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-all shadow-sm hover:shadow-md" title="Share this event">
                 Share Event
               </button>
@@ -864,6 +896,15 @@ const loadEvent = async () => {
               </button>
             </div>
           )}
+<div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-blue-900"> Swimming Rules Assistant</p>
+              <p className="text-xs text-blue-600 mt-0.5">Ask about DQs, false starts, stroke rules and more</p>
+            </div>
+            <a href="/chat/swimming" className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 font-medium whitespace-nowrap flex-shrink-0">
+              Ask Rules →
+            </a>
+          </div>
           <p className="text-xs text-gray-400 mt-2 text-center">
             Answers based on uploaded event documents only. Always verify with the Meet Referee or Event Director.
           </p>
