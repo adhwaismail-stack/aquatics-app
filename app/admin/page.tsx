@@ -105,7 +105,8 @@ interface AquaEvent {
   is_active: boolean
   created_at: string
   poster_url?: string
-  chat_enabled?: boolean
+chat_enabled?: boolean
+  state?: string | null
 }
 
 interface EventNotice {
@@ -303,9 +304,9 @@ export default function AdminPage() {
   const [eventsLoading, setEventsLoading] = useState(false)
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<AquaEvent | null>(null)
-  const [newEvent, setNewEvent] = useState({
+const [newEvent, setNewEvent] = useState({
     name: '', slug: '', description: '', discipline: 'swimming',
-    country: 'Malaysia', location: '', start_date: '', end_date: ''
+    country: 'Malaysia', location: '', start_date: '', end_date: '', state: ''
   })
   const [creatingEvent, setCreatingEvent] = useState(false)
   const [eventUploading, setEventUploading] = useState(false)
@@ -326,8 +327,8 @@ export default function AdminPage() {
 
   // Edit Event Details state
   const [editingDetails, setEditingDetails] = useState(false)
-  const [editForm, setEditForm] = useState({
-    name: '', slug: '', discipline: '', country: '', location: '', start_date: '', end_date: ''
+const [editForm, setEditForm] = useState({
+    name: '', slug: '', discipline: '', country: '', location: '', start_date: '', end_date: '', state: ''
   })
   const [savingDetails, setSavingDetails] = useState(false)
   const [slugWarningShown, setSlugWarningShown] = useState(false)
@@ -689,7 +690,7 @@ const handleDeleteEventFile = async (eventId: string, fileName: string) => {
 
   const handleStartEdit = () => {
     if (!selectedEvent) return
-    setEditForm({
+setEditForm({
       name: selectedEvent.name,
       slug: selectedEvent.slug,
       discipline: selectedEvent.discipline,
@@ -697,6 +698,7 @@ const handleDeleteEventFile = async (eventId: string, fileName: string) => {
       location: selectedEvent.location,
       start_date: selectedEvent.start_date || '',
       end_date: selectedEvent.end_date || '',
+      state: selectedEvent.state || '',
     })
     setSlugWarningShown(false)
     setEditingDetails(true)
@@ -727,7 +729,7 @@ const handleDeleteEventFile = async (eventId: string, fileName: string) => {
     setSavingDetails(true)
     const { error } = await supabase
       .from('events')
-      .update({
+.update({
         name: editForm.name.trim(),
         slug: cleanSlug,
         discipline: editForm.discipline,
@@ -735,6 +737,7 @@ const handleDeleteEventFile = async (eventId: string, fileName: string) => {
         location: editForm.location.trim(),
         start_date: editForm.start_date || null,
         end_date: editForm.end_date || null,
+        state: editForm.state?.trim() || null,
       })
       .eq('id', selectedEvent.id)
 
@@ -884,7 +887,7 @@ const handleDeleteEventFile = async (eventId: string, fileName: string) => {
     const { data, error } = await supabase.from('events').insert({ ...newEvent, slug, is_active: false }).select().single()
     if (error) { alert('Error creating event: ' + error.message) }
     else {
-      setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', country: 'Malaysia', location: '', start_date: '', end_date: '' })
+ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', country: 'Malaysia', location: '', start_date: '', end_date: '', state: '' })
       setShowCreateEvent(false)
       await loadEvents()
       if (data) openEventManagement(data)
@@ -1186,9 +1189,13 @@ const handleDeleteEventFile = async (eventId: string, fileName: string) => {
                   </select>
                 </div>
               </div>
-              <div>
+           <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                 <input type="text" value={newEvent.location} onChange={(e) => setNewEvent(prev => ({ ...prev, location: e.target.value }))} placeholder="e.g. Bukit Jalil Aquatic Centre" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">State / Region <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input type="text" value={newEvent.state} onChange={(e) => setNewEvent(prev => ({ ...prev, state: e.target.value }))} placeholder="e.g. Negeri Sembilan, Selangor, Johor" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1340,9 +1347,13 @@ const handleDeleteEventFile = async (eventId: string, fileName: string) => {
                           </select>
                         </div>
                       </div>
-                      <div>
+     <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
                         <input type="text" value={editForm.location} onChange={(e) => setEditForm(prev => ({ ...prev, location: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                      </div>
+                     <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">State / Region <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <input type="text" value={editForm.state || ''} onChange={(e) => setEditForm(prev => ({ ...prev, state: e.target.value }))} placeholder="e.g. Negeri Sembilan" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
