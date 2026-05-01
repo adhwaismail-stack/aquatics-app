@@ -213,27 +213,20 @@ const loadEvent = async () => {
         content: `Welcome to the **${data.name}** AI Assistant.\n\nI can help you find information about this event — including schedules, heat lists, start times, officials, and more.\n\nWhat would you like to know?`
       }])
 
-      // Load downloadable files
-      const { data: chunks } = await supabase
-        .from('event_chunks')
-        .select('source_file')
-        .eq('event_id', data.id)
-      if (chunks) {
-        const seen = new Set<string>()
+// Load downloadable files directly from storage
+      const { data: storageFiles } = await supabase.storage
+        .from('events')
+        .list(data.id, { limit: 50 })
+      if (storageFiles) {
         const files: { name: string, url: string, originalName: string }[] = []
-        chunks.forEach((c: { source_file: string }) => {
-          const path = c.source_file
-          if (!seen.has(path)) {
-            seen.add(path)
-   const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(path)
-            const parts = path.split('/')
-            const rawName = parts[parts.length - 1]
-            const originalName = rawName.replace(/^\d+_/, '')
-            const encodedUrl = parts.map((seg, i) => i === parts.length - 1 ? encodeURIComponent(seg) : seg).join('/')
-            const finalUrl = publicUrl.substring(0, publicUrl.lastIndexOf('/') + 1) + encodeURIComponent(rawName)
-            files.push({ name: path, url: finalUrl, originalName })
-          }
-        })
+        storageFiles
+          .filter(f => !f.name.startsWith('.') && f.name !== 'poster' && !f.name.includes('poster_'))
+          .forEach(f => {
+            const path = `${data.id}/${f.name}`
+            const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(path)
+            const originalName = f.name.replace(/^\d+_/, '')
+            files.push({ name: path, url: publicUrl, originalName })
+          })
         setEventFiles(files)
       }
     }
