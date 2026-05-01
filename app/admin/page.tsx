@@ -1742,7 +1742,8 @@ if (activeTab === 'announcements') loadAnnouncements()
                   </div>
                   <button
                     onClick={async () => {
-                      if (!newAnnouncement.title || !newAnnouncement.url) { alert('Title and URL are required.'); return }
+                   if (!newAnnouncement.title) { alert('Title is required.'); return }
+                      if (!newAnnouncement.url && !newAnnouncement.slug) { alert('URL is required (or title must generate a slug).'); return }
                       setCreatingAnnouncement(true)
               const autoUrl = `/announcements/${newAnnouncement.slug}`
                       const { error } = await supabase.from('announcements').insert({
@@ -1883,7 +1884,8 @@ if (activeTab === 'announcements') loadAnnouncements()
                           <button onClick={() => setEditingAnnouncement(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
                           <button
                             onClick={async () => {
-                              if (!editAnnouncementForm.title || !editAnnouncementForm.url) { alert('Title and URL are required.'); return }
+                             if (!editAnnouncementForm.title) { alert('Title is required.'); return }
+                              if (!editAnnouncementForm.url && !editAnnouncementForm.slug) { alert('URL is required (or title must generate a slug).'); return }
                               setSavingAnnouncement(true)
               await supabase.from('announcements').update({
                                 title: editAnnouncementForm.title.trim(),
