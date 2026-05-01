@@ -1,4 +1,3 @@
-import { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
 const BASE_URL = 'https://aquaref.co'
@@ -10,7 +9,7 @@ const supabase = createClient(
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
-  // ─── 1. Static public pages ───────────────────────────────────────
+  // 1. Static public pages
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${BASE_URL}`,
@@ -56,26 +55,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ]
 
-  // ─── 2. Discipline landing pages ──────────────────────────────────
+  // 2. Public discipline landing pages (SEO)
   const disciplines = [
     'swimming',
-    'waterpolo',
-    'artistic',
+    'water-polo',
+    'open-water',
+    'artistic-swimming',
     'diving',
-    'highdiving',
-    'masters',
-    'openwater',
-    'paraswimming',
+    'high-diving',
+    'masters-swimming',
+    'para-swimming',
   ]
 
   const disciplinePages: MetadataRoute.Sitemap = disciplines.map((d) => ({
-    url: `${BASE_URL}/chat/${d}`,
+    url: `${BASE_URL}/${d}`,
     lastModified: new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.8,
+    changeFrequency: 'weekly' as const,
+    priority: 0.9,
   }))
 
-  // ─── 3. Active event pages ────────────────────────────────────────
+  // 3. Active event pages
   let eventPages: MetadataRoute.Sitemap = []
   try {
     const { data: events } = await supabase
@@ -94,7 +93,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Silently skip if DB unavailable during build
   }
 
-  // ─── 4. Active announcement pages ────────────────────────────────
+  // 4. Active announcement pages
   let announcementPages: MetadataRoute.Sitemap = []
   try {
     const { data: announcements } = await supabase
@@ -116,11 +115,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Silently skip if DB unavailable during build
   }
 
-  // ─── 5. Future: programmatic Q&A pages ───────────────────────────
-  // When ready, fetch from a `qa_pages` table and add here:
-  // const qaPages = await fetchQAPages()
+  // 5. Future: programmatic Q&A pages
+  // When ready, fetch from a `qa_pages` table and add here.
 
-  // ─── Combine all ──────────────────────────────────────────────────
+  // Combine all
   return [
     ...staticPages,
     ...disciplinePages,
