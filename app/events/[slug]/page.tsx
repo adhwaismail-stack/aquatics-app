@@ -560,6 +560,32 @@ const loadEvent = async () => {
             </p>
           </div>
 
+  {/* Swimming Rules Assistant card */}
+          <div className="bg-white rounded-2xl border border-blue-100 p-6 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">A</span>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm">AquaRef Swimming Rules Assistant</h3>
+                <p className="text-xs text-gray-400">Official World Aquatics SW Rules · 90+ languages</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Ada soalan tentang peraturan renang? Tanya tentang DQ, false start, pusingan, gaya renang dan lebih lagi — dijawab terus dari peraturan rasmi World Aquatics.
+            </p>
+            <div className="space-y-2 mb-4">
+              {['Apakah peraturan false start?', 'Adakah sentuhan satu tangan sah untuk pusingan breaststroke?', 'Bolehkah perenang kena DQ kerana pusingan awal?'].map((q, i) => (
+                <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  <p className="text-xs text-gray-600 italic">&ldquo;{q}&rdquo;</p>
+                </div>
+              ))}
+            </div>
+            <a href="/chat/swimming" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors">
+              Tanya Peraturan Renang →
+            </a>
+          </div>
+
           {eventFiles.length > 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
               <h3 className="font-semibold text-gray-900 mb-1">Dokumen Tersedia</h3>
