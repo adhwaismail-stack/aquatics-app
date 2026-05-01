@@ -35,9 +35,14 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
   const [announcement, setAnnouncement] = useState<Announcement | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
     const load = async () => {
+      // Check auth
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsLoggedIn(!!user)
+
       const { data } = await supabase
         .from('announcements')
         .select('*')
@@ -76,13 +81,17 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-gray-50 flex flex-col">
       <div className="bg-white border-b border-gray-100 px-6 py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 hover:opacity-80">
+          <a href={isLoggedIn ? '/dashboard' : '/'} className="flex items-center gap-2 hover:opacity-80">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">A</span>
             </div>
             <span className="font-bold text-xl text-gray-900">AquaRef</span>
           </a>
-          <a href="/login" className="text-sm text-blue-600 hover:text-blue-700 font-medium">Log in →</a>
+          {isLoggedIn ? (
+            <a href="/dashboard" className="text-sm text-blue-600 hover:text-blue-700 font-medium">Dashboard →</a>
+          ) : (
+            <a href="/login" className="text-sm text-blue-600 hover:text-blue-700 font-medium">Log in →</a>
+          )}
         </div>
       </div>
 
@@ -120,6 +129,7 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
           <div className="flex-1 h-px bg-gray-200"></div>
         </div>
 
+        {/* Discipline cards */}
         <div className="bg-white rounded-2xl border border-blue-100 p-6 mb-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -130,9 +140,10 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
               <p className="text-xs text-gray-400">Instant AI answers from official World Aquatics regulations</p>
             </div>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
             {disciplines.map(d => (
-              <a key={d.id} href={`/chat/${d.id}`} className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 hover:bg-blue-100 hover:border-blue-300 transition-all group">
+              <a key={d.id} href={isLoggedIn ? `/chat/${d.id}` : '/login'} className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 hover:bg-blue-100 hover:border-blue-300 transition-all group">
                 <span className="text-xl flex-shrink-0">{d.emoji}</span>
                 <div>
                   <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">{d.name}</p>
@@ -141,31 +152,27 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
               </a>
             ))}
           </div>
-          <a href="/login" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors shadow-sm">
-            Sign Up Free — 10 Questions/Month
-          </a>
-          <p className="text-xs text-gray-400 text-center mt-2">No credit card required</p>
+
+          {!isLoggedIn && (
+            <>
+              <a href="/login" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors shadow-sm">
+                Sign Up Free — 10 Questions/Month
+              </a>
+              <p className="text-xs text-gray-400 text-center mt-2">No credit card required</p>
+            </>
+          )}
         </div>
 
-        <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-100 rounded-2xl p-6 mb-6">
-          <h3 className="font-bold text-gray-900 mb-1">Want unlimited access?</h3>
-          <p className="text-sm text-gray-500 mb-4">Upgrade to PRO or ELITE for full access to all disciplines and unlimited questions.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-              <p className="font-bold text-blue-600 text-lg">RM14.99</p>
-              <p className="text-xs text-gray-500">/month · PRO</p>
-              <p className="text-xs text-gray-400 mt-1">50 Q/day · 1 discipline</p>
-            </div>
-            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-              <p className="font-bold text-yellow-600 text-lg">RM39.99</p>
-              <p className="text-xs text-gray-500">/month · ELITE</p>
-              <p className="text-xs text-gray-400 mt-1">Unlimited · All disciplines</p>
-            </div>
+        {/* Upgrade section — no price boxes */}
+        {!isLoggedIn && (
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-100 rounded-2xl p-6 mb-6">
+            <h3 className="font-bold text-gray-900 mb-1">Want unlimited access?</h3>
+            <p className="text-sm text-gray-500 mb-4">Upgrade to PRO or ELITE for full access to all disciplines and unlimited questions.</p>
+            <a href="/pricing" className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors">
+              View All Plans →
+            </a>
           </div>
-          <a href="/pricing" className="w-full py-3 mt-4 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors">
-            View All Plans →
-          </a>
-        </div>
+        )}
       </div>
 
       <footer className="border-t border-gray-100 bg-white px-6 py-4">
