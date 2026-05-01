@@ -23,7 +23,8 @@ interface AquaEvent {
   start_date: string
   end_date: string
   is_active: boolean
-  poster_url?: string
+poster_url?: string
+  chat_enabled?: boolean
 }
 
 interface Message {
@@ -131,7 +132,8 @@ export default function EventChatPage() {
   const [notices, setNotices] = useState<EventNotice[]>([])
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
-  const [nativeShareSupported, setNativeShareSupported] = useState(false)
+const [nativeShareSupported, setNativeShareSupported] = useState(false)
+  const [eventFiles, setEventFiles] = useState<{ name: string, url: string, originalName: string }[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const shareQrCanvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -194,7 +196,7 @@ export default function EventChatPage() {
     setUserPlan(sub?.plan || 'lite')
   }
 
-  const loadEvent = async () => {
+const loadEvent = async () => {
     setLoading(true)
     const { data } = await supabase
       .from('events')
@@ -210,6 +212,28 @@ export default function EventChatPage() {
         role: 'assistant',
         content: `Welcome to the **${data.name}** AI Assistant.\n\nI can help you find information about this event — including schedules, heat lists, start times, officials, and more.\n\nWhat would you like to know?`
       }])
+
+      // Load downloadable files
+      const { data: chunks } = await supabase
+        .from('event_chunks')
+        .select('source_file')
+        .eq('event_id', data.id)
+      if (chunks) {
+        const seen = new Set<string>()
+        const files: { name: string, url: string, originalName: string }[] = []
+        chunks.forEach((c: { source_file: string }) => {
+          const path = c.source_file
+          if (!seen.has(path)) {
+            seen.add(path)
+            const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(path)
+            const parts = path.split('/')
+            const rawName = parts[parts.length - 1]
+            const originalName = rawName.replace(/^\d+_/, '')
+            files.push({ name: path, url: publicUrl, originalName })
+          }
+        })
+        setEventFiles(files)
+      }
     }
     setLoading(false)
   }
@@ -466,6 +490,90 @@ export default function EventChatPage() {
     )
   }
 
+// Chat disabled — show download page
+  if (event && event.chat_enabled === false) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-gray-50 flex flex-col">
+        <div className="bg-white border-b border-gray-100 px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <a href="/dashboard" className="flex items-center gap-2 hover:opacity-80">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">A</span>
+              </div>
+              <span className="font-bold text-xl text-gray-900">AquaRef</span>
+            </a>
+            <button onClick={() => router.push('/dashboard')} className="text-sm text-gray-400 hover:text-gray-600">← Back</button>
+          </div>
+        </div>
+
+        <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
+          {event.poster_url && (
+            <div className="mb-6 rounded-2xl overflow-hidden shadow-lg border border-gray-200">
+              <img src={event.poster_url} alt={event.name} className="w-full object-cover" style={{ aspectRatio: '1200/630' }} />
+            </div>
+          )}
+
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{event.name}</h1>
+            <p className="text-gray-500 text-sm">
+              {countryToFlag(event.country)} {event.country} · {event.location} · {DISCIPLINE_LABELS[event.discipline] || event.discipline}
+              {event.start_date && (
+                <> · {new Date(event.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                {event.end_date ? ` - ${new Date(event.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</>
+              )}
+            </p>
+          </div>
+
+          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 mb-6 text-center">
+            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h2 className="font-semibold text-orange-900 mb-1">AI Chat Belum Tersedia</h2>
+            <p className="text-sm text-orange-700">
+              Chat AI untuk event ini belum diaktifkan. Sila muat turun dokumen di bawah untuk maklumat lanjut.
+            </p>
+          </div>
+
+          {eventFiles.length > 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-1">Dokumen Tersedia</h3>
+              <p className="text-xs text-gray-400 mb-4">Muat turun dokumen event di bawah</p>
+              <div className="space-y-3">
+{eventFiles.map((file, i) => (
+                  <a key={i} href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 hover:bg-blue-50 hover:border-blue-200 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">{file.originalName}</span>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+              <p className="text-sm text-gray-400">Tiada dokumen tersedia buat masa ini.</p>
+            </div>
+          )}
+        </div>
+
+        <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-xs text-gray-400">AquaRef · Untuk rujukan sahaja.</p>
+          </div>
+        </footer>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <style jsx>{`
@@ -625,7 +733,7 @@ export default function EventChatPage() {
               {userPlan === 'lite' && remainingQuestions !== null && (
                 <div className="text-right">
                   <div className="text-xs text-gray-400">This event</div>
-                  <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 5 left</div>
+  <div className="text-sm font-medium text-gray-700">{remainingQuestions} of 10 left</div>
                 </div>
               )}
             </div>
@@ -666,8 +774,8 @@ export default function EventChatPage() {
 
       {userPlan === 'lite' && remainingQuestions !== null && remainingQuestions <= 1 && (
         <div className={`px-6 py-2 border-b text-center text-xs ${remainingQuestions === 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}>
-          {remainingQuestions === 0 ? (
-            <>You have used all 5 free questions for this event. <a href="/pricing" className="underline font-medium">Upgrade now</a></>
+   {remainingQuestions === 0 ? (
+            <>You have used all 10 free questions for this event. <a href="/pricing" className="underline font-medium">Upgrade now</a></>
           ) : (
             <>Last free question for this event. <a href="/pricing" className="underline font-medium">Upgrade to PRO</a> for unlimited access.</>
           )}
