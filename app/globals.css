@@ -1,8 +1,24 @@
 @import "tailwindcss";
 
 :root {
+  /* Existing tokens */
   --background: #ffffff;
   --foreground: #171717;
+
+  /* AquaRef design system tokens */
+  --aqua-ink: #0F1B2D;
+  --aqua-ink-soft: #2A3849;
+  --aqua-ink-mute: #5A6878;
+  --aqua-paper: #F5F1E8;
+  --aqua-paper-deep: #EDE7D8;
+  --aqua-paper-deeper: #E2DAC4;
+  --aqua-pool: #00A8C5;
+  --aqua-pool-deep: #006B82;
+  --aqua-pool-tint: rgba(0, 168, 197, 0.1);
+  --aqua-flag: #E5523C;
+  --aqua-brass: #B8935A;
+  --aqua-rule: rgba(15, 27, 45, 0.12);
+  --aqua-rule-strong: rgba(15, 27, 45, 0.28);
 }
 
 @theme inline {
@@ -10,6 +26,26 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* AquaRef colors — used as bg-aqua-ink, text-aqua-pool, etc. */
+  --color-aqua-ink: var(--aqua-ink);
+  --color-aqua-ink-soft: var(--aqua-ink-soft);
+  --color-aqua-ink-mute: var(--aqua-ink-mute);
+  --color-aqua-paper: var(--aqua-paper);
+  --color-aqua-paper-deep: var(--aqua-paper-deep);
+  --color-aqua-paper-deeper: var(--aqua-paper-deeper);
+  --color-aqua-pool: var(--aqua-pool);
+  --color-aqua-pool-deep: var(--aqua-pool-deep);
+  --color-aqua-pool-tint: var(--aqua-pool-tint);
+  --color-aqua-flag: var(--aqua-flag);
+  --color-aqua-brass: var(--aqua-brass);
+  --color-aqua-rule: var(--aqua-rule);
+  --color-aqua-rule-strong: var(--aqua-rule-strong);
+
+  /* AquaRef fonts — used as font-display, font-body, font-cite */
+  --font-display: var(--font-fraunces);
+  --font-body: var(--font-dm-sans);
+  --font-cite: var(--font-jetbrains-mono);
 }
 
 @media (prefers-color-scheme: dark) {
