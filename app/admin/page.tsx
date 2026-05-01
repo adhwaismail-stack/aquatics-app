@@ -105,6 +105,7 @@ interface AquaEvent {
   is_active: boolean
   created_at: string
   poster_url?: string
+  chat_enabled?: boolean
 }
 
 interface EventNotice {
