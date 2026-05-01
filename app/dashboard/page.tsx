@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const disciplines = [
@@ -94,8 +94,25 @@ export default function DashboardPage() {
   const [allEvents, setAllEvents] = useState<AquaEvent[]>([])
   const [userCountry, setUserCountry] = useState<string | null>(null)
   const [noticeCounts, setNoticeCounts] = useState<Record<string, number>>({})
-  const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
+const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const carouselRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const carousel = carouselRef.current
+    if (!carousel) return
+    let scrollAmount = 0
+    const step = 0.5
+    const interval = setInterval(() => {
+      if (carousel.matches(':hover')) return
+      scrollAmount += step
+      carousel.scrollLeft = scrollAmount
+      if (scrollAmount >= carousel.scrollWidth - carousel.clientWidth) {
+        scrollAmount = 0
+      }
+    }, 20)
+    return () => clearInterval(interval)
+  }, [allEvents, announcements])
 
   useEffect(() => {
     const getUser = async () => {
@@ -291,8 +308,14 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <style jsx global>{`
-        .carousel-scroll::-webkit-scrollbar { display: none; }
+   .carousel-scroll::-webkit-scrollbar { display: none; }
         .carousel-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes carousel-auto-scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .carousel-auto { animation: carousel-auto-scroll 30s linear infinite; display: flex; }
+        .carousel-auto:hover { animation-play-state: paused; }
       `}</style>
 
       <div className="bg-white border-b border-gray-100 px-6 py-4">
@@ -497,7 +520,7 @@ export default function DashboardPage() {
                 {events.length > 2 && (
                   <p className="text-xs text-gray-400 mb-2 md:hidden">Swipe to see more</p>
                 )}
-                <div className="carousel-scroll flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4">
+             <div ref={carouselRef} className="carousel-scroll flex gap-3 overflow-x-auto pb-2 -mx-4 px-4">
                   {announcements.map((ann) => (
                     <div
                       key={ann.id}
