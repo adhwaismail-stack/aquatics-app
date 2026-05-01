@@ -548,18 +548,6 @@ const loadEvent = async () => {
             </p>
           </div>
 
-          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 mb-6 text-center">
-            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-            </div>
-            <h2 className="font-semibold text-orange-900 mb-1">AI Chat Belum Tersedia</h2>
-            <p className="text-sm text-orange-700">
-              Chat AI untuk event ini belum diaktifkan. Sila muat turun dokumen di bawah untuk maklumat lanjut.
-            </p>
-          </div>
-
   {/* Swimming Rules Assistant card */}
           <div className="bg-white rounded-2xl border border-blue-100 p-6 mb-6">
             <div className="flex items-center gap-3 mb-3">
