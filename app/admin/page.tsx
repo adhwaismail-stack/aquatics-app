@@ -1697,7 +1697,7 @@ if (activeTab === 'announcements') loadAnnouncements()
                     <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
                     <input type="text" value={newAnnouncement.title} onChange={e => {
                       const title = e.target.value
-                      const slug = title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 60)
+                     const slug = title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
                       setNewAnnouncement(prev => ({ ...prev, title, slug }))
                     }} placeholder="e.g. Borang Maklumat Atlet — MSSNS 2026" className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900" />
                   </div>
