@@ -66,9 +66,7 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
           <p className="text-2xl mb-2">📭</p>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Announcement Not Found</h2>
           <p className="text-gray-400 text-sm mb-6">This announcement may have ended or been removed.</p>
-          <a href="/" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-            Go to AquaRef
-          </a>
+          <a href="/" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Go to AquaRef</a>
         </div>
       </div>
     )
@@ -84,9 +82,7 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
             </div>
             <span className="font-bold text-xl text-gray-900">AquaRef</span>
           </a>
-          <a href="/login" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-            Log in →
-          </a>
+          <a href="/login" className="text-sm text-blue-600 hover:text-blue-700 font-medium">Log in →</a>
         </div>
       </div>
 
@@ -114,9 +110,7 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
 
         {announcement.content && (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-8 shadow-sm">
-            <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap">
-              {announcement.content}
-            </div>
+            <div className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">{announcement.content}</div>
           </div>
         )}
 
@@ -136,7 +130,6 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
               <p className="text-xs text-gray-400">Instant AI answers from official World Aquatics regulations</p>
             </div>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
             {disciplines.map(d => (
               <a key={d.id} href={`/chat/${d.id}`} className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 hover:bg-blue-100 hover:border-blue-300 transition-all group">
@@ -148,7 +141,6 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
               </a>
             ))}
           </div>
-
           <a href="/login" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors shadow-sm">
             Sign Up Free — 10 Questions/Month
           </a>
@@ -178,9 +170,7 @@ export default function AnnouncementPage({ params }: { params: Promise<{ slug: s
 
       <footer className="border-t border-gray-100 bg-white px-6 py-4">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-xs text-gray-400">
-            AquaRef · For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.
-          </p>
+          <p className="text-xs text-gray-400">AquaRef · For reference only. Always verify with official World Aquatics Regulations and your Meet Referee.</p>
         </div>
       </footer>
     </div>
