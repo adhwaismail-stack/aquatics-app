@@ -225,11 +225,13 @@ const loadEvent = async () => {
           const path = c.source_file
           if (!seen.has(path)) {
             seen.add(path)
-            const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(path)
+   const { data: { publicUrl } } = supabase.storage.from('events').getPublicUrl(path)
             const parts = path.split('/')
             const rawName = parts[parts.length - 1]
             const originalName = rawName.replace(/^\d+_/, '')
-            files.push({ name: path, url: publicUrl, originalName })
+            const encodedUrl = parts.map((seg, i) => i === parts.length - 1 ? encodeURIComponent(seg) : seg).join('/')
+            const finalUrl = publicUrl.substring(0, publicUrl.lastIndexOf('/') + 1) + encodeURIComponent(rawName)
+            files.push({ name: path, url: finalUrl, originalName })
           }
         })
         setEventFiles(files)
