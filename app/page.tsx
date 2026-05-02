@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import Link from 'next/link'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,14 +10,70 @@ const supabase = createClient(
 )
 
 const ALL_DISCIPLINES = [
-  { name: 'Swimming', code: 'SW Rules', id: 'swimming', isPara: false },
-  { name: 'Water Polo', code: 'WP Rules', id: 'waterpolo', isPara: false },
-  { name: 'Open Water', code: 'OW Rules', id: 'openwater', isPara: false },
-  { name: 'Artistic Swimming', code: 'AS Rules', id: 'artistic', isPara: false },
-  { name: 'Diving', code: 'DV Rules', id: 'diving', isPara: false },
-  { name: 'High Diving', code: 'HD Rules', id: 'highdiving', isPara: false },
-  { name: 'Masters', code: 'MS Rules', id: 'masters', isPara: false },
-  { name: 'Para Swimming *', code: 'WPS Rules', id: 'paraswimming', isPara: true },
+  {
+    name: 'Swimming',
+    code: 'SW Rules',
+    id: 'swimming',
+    isPara: false,
+    tagline: 'Pool race rules, DQ reasons, World Aquatics standards',
+    anchorLabel: 'Swimming Rules and Regulations',
+  },
+  {
+    name: 'Water Polo',
+    code: 'WP Rules',
+    id: 'waterpolo',
+    isPara: false,
+    tagline: 'Match conduct, fouls, exclusions, penalty rules',
+    anchorLabel: 'Water Polo Competition Rules',
+  },
+  {
+    name: 'Open Water',
+    code: 'OW Rules',
+    id: 'openwater',
+    isPara: false,
+    tagline: 'Marathon swims, course rules, drafting, feeding',
+    anchorLabel: 'Open Water Swimming Rules',
+  },
+  {
+    name: 'Artistic Swimming',
+    code: 'AS Rules',
+    id: 'artistic',
+    isPara: false,
+    tagline: 'Routines, scoring, technical elements, judging',
+    anchorLabel: 'Artistic Swimming Regulations',
+  },
+  {
+    name: 'Diving',
+    code: 'DV Rules',
+    id: 'diving',
+    isPara: false,
+    tagline: 'Dive degrees, execution, judging criteria',
+    anchorLabel: 'Diving Rules and Scoring',
+  },
+  {
+    name: 'High Diving',
+    code: 'HD Rules',
+    id: 'highdiving',
+    isPara: false,
+    tagline: '20m+ platform rules, safety, execution',
+    anchorLabel: 'High Diving Competition Rules',
+  },
+  {
+    name: 'Masters',
+    code: 'MS Rules',
+    id: 'masters',
+    isPara: false,
+    tagline: 'Age-group competition, records, eligibility',
+    anchorLabel: 'Masters Swimming Regulations',
+  },
+  {
+    name: 'Para Swimming *',
+    code: 'WPS Rules',
+    id: 'paraswimming',
+    isPara: true,
+    tagline: 'Classification, WPS rules, adapted competition',
+    anchorLabel: 'Para Swimming Rules (WPS)',
+  },
 ]
 
 export default function Home() {
@@ -33,8 +90,26 @@ export default function Home() {
     fetchLive()
   }, [])
 
+  // SEO: ItemList schema for Google
+  const itemListSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: ALL_DISCIPLINES.map((d, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: d.anchorLabel,
+      url: `https://aquaref.co/chat/${d.id}`,
+    })),
+  }
+
   return (
     <div className="min-h-screen bg-white font-sans">
+      {/* Invisible SEO schema */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+      />
+
       {/* Navigation */}
       <nav className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
         <div className="flex items-center gap-2">
@@ -76,6 +151,81 @@ export default function Home() {
           </a>
         </div>
         <p className="text-sm text-gray-400 mt-4">Free forever on LITE. No credit card needed. Cancel anytime on paid plans.</p>
+      </section>
+
+      {/* Disciplines — MOVED UP for SEO */}
+      <section id="disciplines" className="px-8 py-20 bg-gradient-to-b from-slate-50 to-white">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">8 Aquatics Disciplines, One Rules Assistant</h2>
+          <p className="text-center text-gray-500 mb-14 text-lg">
+            Get instant, cited answers from official World Aquatics and IPC rulebooks. Choose your discipline to explore the rules.
+          </p>
+          <div className="grid md:grid-cols-3 gap-6">
+            {ALL_DISCIPLINES.map((d, i) => {
+              const isLive = liveDisciplines.includes(d.id)
+
+              const cardContent = (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={`font-semibold ${
+                      d.isPara
+                        ? isLive ? 'text-purple-900' : 'text-gray-700'
+                        : isLive ? 'text-blue-900' : 'text-gray-700'
+                    }`}>{d.name}</h3>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      d.isPara
+                        ? isLive ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
+                        : isLive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {isLive ? 'Live' : 'Coming Soon'}
+                    </span>
+                  </div>
+                  <p className={`text-sm font-medium mb-1 ${
+                    d.isPara
+                      ? isLive ? 'text-purple-700' : 'text-gray-400'
+                      : isLive ? 'text-blue-700' : 'text-gray-400'
+                  }`}>{d.code}</p>
+                  <p className="text-xs text-gray-500 leading-snug mb-2 min-h-[2rem]">
+                    {d.tagline}
+                  </p>
+                  {d.isPara && (
+                    <p className="text-xs text-purple-400 mb-2">World Para Swimming (IPC)</p>
+                  )}
+                  {isLive && (
+                    <p className={`text-xs font-semibold ${d.isPara ? 'text-purple-600' : 'text-blue-600'}`}>
+                      Explore rules →
+                    </p>
+                  )}
+                </>
+              )
+
+              const cardClasses = `block p-6 rounded-xl border transition-all ${
+                d.isPara
+                  ? isLive ? 'border-purple-200 bg-purple-50 hover:border-purple-400 hover:shadow-md' : 'border-gray-100 bg-gray-50'
+                  : isLive ? 'border-blue-200 bg-blue-50 hover:border-blue-400 hover:shadow-md' : 'border-gray-100 bg-gray-50'
+              }`
+
+              return isLive ? (
+                <Link
+                  key={i}
+                  href={`/chat/${d.id}`}
+                  aria-label={d.anchorLabel}
+                  className={cardClasses}
+                >
+                  {cardContent}
+                </Link>
+              ) : (
+                <div key={i} className={cardClasses}>
+                  {cardContent}
+                </div>
+              )
+            })}
+          </div>
+
+          <p className="text-xs text-gray-400 mt-6 text-center">
+            * Para Swimming rules are governed by World Para Swimming (WPS) under the International Paralympic Committee (IPC), independent of World Aquatics.
+          </p>
+        </div>
       </section>
 
       {/* Two Main Features — Rules & Event Hub */}
@@ -193,53 +343,6 @@ export default function Home() {
               <span key={i} className="bg-blue-500 px-3 py-1 rounded-full">{lang}</span>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Disciplines */}
-      <section id="disciplines" className="px-8 py-20">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">All aquatics disciplines</h2>
-          <p className="text-center text-gray-500 mb-14 text-lg">One platform for every aquatics sport</p>
-          <div className="grid md:grid-cols-3 gap-6">
-            {ALL_DISCIPLINES.map((d, i) => {
-              const isLive = liveDisciplines.includes(d.id)
-              return (
-                <div key={i} className={`p-6 rounded-xl border ${
-                  d.isPara
-                    ? isLive ? 'border-purple-200 bg-purple-50' : 'border-gray-100 bg-gray-50'
-                    : isLive ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50'
-                }`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className={`font-semibold ${
-                      d.isPara
-                        ? isLive ? 'text-purple-900' : 'text-gray-700'
-                        : isLive ? 'text-blue-900' : 'text-gray-700'
-                    }`}>{d.name}</h3>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      d.isPara
-                        ? isLive ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
-                        : isLive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      {isLive ? 'Live' : 'Coming Soon'}
-                    </span>
-                  </div>
-                  <p className={`text-sm ${
-                    d.isPara
-                      ? isLive ? 'text-purple-700' : 'text-gray-400'
-                      : isLive ? 'text-blue-700' : 'text-gray-400'
-                  }`}>{d.code}</p>
-                  {d.isPara && (
-                    <p className="text-xs text-purple-400 mt-1">World Para Swimming (IPC)</p>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          <p className="text-xs text-gray-400 mt-6 text-center">
-            * Para Swimming rules are governed by World Para Swimming (WPS) under the International Paralympic Committee (IPC), independent of World Aquatics.
-          </p>
         </div>
       </section>
 
