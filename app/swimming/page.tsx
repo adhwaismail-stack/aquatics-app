@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { swimming } from "@/data/disciplines/swimming";
 import FAQAccordion from "@/app/components/FAQAccordion";
+import SwimmingDemoChat from "@/app/components/SwimmingDemoChat";
 
 const d = swimming;
 const url = "https://aquaref.co/" + d.slug;
@@ -122,27 +123,9 @@ export default function SwimmingPage() {
             </h2>
             <p className="text-aqua-paper/70 max-w-2xl mb-12 text-lg">
               Two free questions, no signup required. Each answer cites the specific World Aquatics article it draws from.
+                
             </p>
-            <div className="bg-white/5 border border-white/10 rounded-lg p-8 max-w-2xl">
-              <p className="text-aqua-paper/60 text-sm mb-4 font-cite">Demo widget — connects to live AI in next phase</p>
-              <input
-                type="text"
-                className="w-full bg-white/5 border border-white/10 rounded-full px-5 py-3 text-aqua-paper"
-                placeholder={d.demoPlaceholder}
-                disabled
-              />
-            </div>
-            <div className="mt-7 max-w-2xl">
-              <div className="text-xs text-aqua-paper/50 tracking-widest uppercase mb-3">Try one of these</div>
-              <div className="flex flex-wrap gap-2">
-                {d.suggestedQuestions.map((q, i) => (
-                  <button key={i} className="border border-white/20 text-aqua-paper/85 px-4 py-2 rounded-full text-sm" disabled>
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+        <SwimmingDemoChat placeholder={d.demoPlaceholder} suggestedQuestions={d.suggestedQuestions} />        </div>
         </section>
 
         <section className="py-24">
