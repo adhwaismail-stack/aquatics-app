@@ -124,7 +124,17 @@ export async function POST(request: NextRequest) {
     const context = allChunks.slice(0, 10).map((c: { content: string }) => c.content).join('\n\n---\n\n')
 
     // Get answer from Claude
-    const disciplineName = discipline === 'water-polo' ? 'Water Polo' : 'Swimming'
+   const disciplineNames: Record<string, string> = {
+      'swimming': 'Swimming',
+      'water-polo': 'Water Polo',
+      'open-water': 'Open Water',
+      'artistic-swimming': 'Artistic Swimming',
+      'diving': 'Diving',
+      'high-diving': 'High Diving',
+      'masters-swimming': 'Masters Swimming',
+      'para-swimming': 'Para Swimming'
+    }
+    const disciplineName = disciplineNames[discipline] || 'Swimming'
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
