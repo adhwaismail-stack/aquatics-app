@@ -1,4 +1,6 @@
 // Discipline content — single source of truth for the public Swimming page.
+// Citations verified against World Aquatics Swimming Competition Regulations
+// (in force from February 2026).
 
 export type Citation = string;
 
@@ -44,7 +46,7 @@ export const swimming: DisciplineContent = {
     "Get instant answers about Swimming rules, disqualifications, and regulations. Reviewed by World Aquatics certified Technical Officials. Try free.",
   ogImagePath: "/og-images/swimming.png",
   rulebookName: "World Aquatics Swimming Competition Regulations",
-  rulebookCycle: "2025–2028",
+  rulebookCycle: "In force from February 2026",
   heroEyebrow: "World Aquatics Swimming",
   heroSub:
     "Instant answers from the World Aquatics Swimming Competition Regulations, reviewed by certified Technical Officials.",
@@ -56,141 +58,141 @@ export const swimming: DisciplineContent = {
   ],
   sectionHeading: "The ten ways a clean race becomes a DQ.",
   sectionLead:
-    "Every reason below is a real call we've fielded. Tap any card to ask the AI for the full ruling — citations included.",
+    "Every reason below is grounded in a specific World Aquatics article. Tap any card to ask the AI for the full ruling.",
   dqReasons: [
     {
       num: "01",
       category: "TOUCH RULE",
       title: "One-handed touch in breaststroke or butterfly",
-      body: "In breaststroke and butterfly, swimmers must touch the wall with both hands simultaneously at every turn and finish. A one-handed or staggered touch results in immediate disqualification.",
-      cite: "SW 7.6 / SW 8.4",
+      body: "In breaststroke and butterfly, the touch at every turn and finish must be made with both hands separated and simultaneously, at, above, or below the water surface. The hands cannot be stacked one on top of the other. A one-handed or staggered touch results in disqualification.",
+      cite: "SW 7.7 / SW 8.5",
     },
     {
       num: "02",
       category: "UNDERWATER",
       title: "Going past 15 meters underwater",
-      body: "After every start and turn, swimmers must surface no later than 15 meters from the wall. Failing to break the surface by that mark in freestyle, butterfly, or backstroke results in a DQ.",
-      cite: "SW 5.3 / SW 6.5 / SW 8.5",
+      body: "After every start and turn in freestyle, butterfly, and backstroke, the swimmer's head must break the water surface no later than 15 meters from the wall. Failing to break the surface by that mark is a DQ.",
+      cite: "SW 5.3 / SW 6.3 / SW 8.6",
     },
     {
       num: "03",
       category: "START",
       title: "False start (early start)",
-      body: "Any movement on the starting block after the starter says \"Take your marks\" and before the start signal is a false start. One false start equals automatic disqualification.",
+      body: "Any swimmer who initiates the start before the starting signal may be disqualified. The disqualification is confirmed when both the Starter and the Referee observe the early initiation, with video review used when Automatic Officiating Equipment is available.",
       cite: "SW 4.4",
     },
     {
       num: "04",
       category: "BACKSTROKE TURN",
       title: "Improper turn in backstroke",
-      body: "Swimmers may turn onto their stomach to initiate a backstroke turn, but only one continuous freestyle arm pull is allowed before the flip. More than one stroke equals a DQ.",
+      body: "When executing a backstroke turn, the shoulders may be turned over the vertical to the breast, after which an immediate continuous single arm pull or immediate continuous simultaneous double arm pull may be used to initiate the turn. The swimmer must return to the back upon leaving the wall.",
       cite: "SW 6.4",
     },
     {
       num: "05",
       category: "BACKSTROKE FINISH",
       title: "Not finishing on the back in backstroke",
-      body: "Swimmers must finish the race on their back, with some part of their body touching the wall. Finishing on the chest or in transition is a DQ.",
-      cite: "SW 6.6",
+      body: "At the finish of a backstroke race, the swimmer must touch the finish wall while on the back. Finishing on the chest or in transition results in a DQ.",
+      cite: "SW 6.5",
     },
     {
       num: "06",
       category: "FORWARD PROPULSION",
       title: "Walking on the bottom of the pool",
-      body: "In all strokes, taking a step or pushing off the bottom for forward propulsion results in disqualification. Standing in place to rest is allowed; walking is not.",
-      cite: "SW 10.4",
+      body: "Standing or walking on the pool bottom is prohibited in all strokes — except during Freestyle events or the Freestyle leg of Medley events, where standing is permitted. Walking, however, is never permitted as it provides forward propulsion.",
+      cite: "SW 10.2.3 / SW 10.2.4",
     },
     {
       num: "07",
       category: "LANE ROPE",
       title: "Pulling on the lane rope",
       body: "Using the lane line for propulsion or balance during the race results in disqualification.",
-      cite: "SW 10.5",
+      cite: "SW 10.2.5",
     },
     {
       num: "08",
       category: "SYMMETRY",
       title: "Non-simultaneous arms (butterfly / breaststroke)",
-      body: "In butterfly, both arms must recover over the water simultaneously. In breaststroke, both arms must move in the same horizontal plane simultaneously. Asymmetry can lead to a DQ.",
-      cite: "SW 7.2 / SW 8.3",
+      body: "In butterfly, both arms must be brought forward simultaneously over the water and backward simultaneously under the water. In breaststroke, all arm movements must be simultaneous and in the same horizontal plane without alternating movement. Asymmetry can lead to a DQ.",
+      cite: "SW 7.3 / SW 8.3",
     },
     {
       num: "09",
       category: "RELAY",
       title: "Early relay takeoff",
-      body: "A relay swimmer's feet must remain on the block until the previous swimmer has touched the wall. Leaving early is a DQ for the whole relay team.",
-      cite: "SW 10.10",
+      body: "Until the swimmer in the water touches the wall to complete their leg, the feet of the next relay team member must remain in contact with the starting platform. Leaving early disqualifies the relay team.",
+      cite: "SW 10.4.5",
     },
     {
       num: "10",
       category: "WATER ENTRY",
-      title: "Re-entering the water during another race",
-      body: "A swimmer who enters a pool where an event is in progress before all racers have finished will be disqualified from their next event.",
-      cite: "SW 10.13",
+      title: "Entering the water during another race",
+      body: "A swimmer who enters a pool while a race is in progress, before all racers have completed the course, will be disqualified from the next race they are scheduled to compete in.",
+      cite: "SW 10.2.7 / SW 10.3",
     },
   ],
   faqs: [
     {
       question: "What does DQ mean in swimming?",
       answer:
-        "DQ stands for \"disqualified.\" When a swimmer breaks a stroke or technical rule during a race, an official issues a DQ, and the swim doesn't count for time or place. The most common DQ reasons are improper touches, false starts, and going past 15 meters underwater.",
-      cite: "SW 9 / SW 10",
+        "DQ stands for \"disqualified.\" When a swimmer breaches a stroke or technical rule during a race, the Referee disqualifies the swimmer and the swim does not count for time or place. Common DQ reasons include improper touches, false starts, and going past 15 meters underwater.",
+      cite: "SW 10.3 / SW 4.4",
     },
     {
       question: "Can a swimmer use a snorkel in competition?",
       answer:
-        "No. World Aquatics rules prohibit any device that aids speed, buoyancy, or endurance during competition, including snorkels, fins, webbed gloves, and power bands.",
-      cite: "SW 10.7",
+        "No. Other than permitted swimwear, an athlete must not wear or use any device that may aid speed, buoyancy, or endurance during competition. This includes webbed gloves, flippers, fins, adhesive substances, and similar aids such as snorkels.",
+      cite: "SW 14.2",
     },
     {
       question: "What is the 15-meter rule in swimming?",
       answer:
-        "After every start and turn in freestyle, butterfly, and backstroke, the swimmer's head must break the water surface no later than 15 meters from the wall. Lane lines have a marker indicating this point. The rule does not apply to breaststroke.",
-      cite: "SW 5.3 / SW 6.5 / SW 8.5",
+        "After every start and turn in freestyle, butterfly, and backstroke, the swimmer's head must break the water surface no later than 15 meters from the wall. Lane lines have distinct floats marking this point. The 15-meter rule does not apply to breaststroke.",
+      cite: "SW 5.3 / SW 6.3 / SW 8.6",
     },
     {
       question: "Can goggles fall off without causing a DQ?",
       answer:
-        "Yes. Losing goggles during a race is not a disqualification. The swimmer is expected to continue racing without them.",
-      cite: "SW 10.8",
+        "Yes. Goggles are optional under World Aquatics rules — an athlete must wear a swimsuit and may wear goggles and/or a cap. There is no rule that disqualifies a swimmer for losing goggles during a race. The swimmer is expected to continue racing without them.",
+      cite: "SW 14.1",
     },
     {
       question: "Is a butterfly kick legal in breaststroke?",
       answer:
-        "A single downward butterfly kick is permitted during the start and each turn pullout in breaststroke, but not during the regular swimming portion. Continuous butterfly kicking during breaststroke equals a DQ.",
+        "Yes, but only once per turn. After the start and after each turn, a single butterfly kick is permitted at any time prior to the first breaststroke kick. Additional butterfly kicks during the breaststroke swim are not permitted and result in a DQ.",
       cite: "SW 7.1",
     },
     {
       question: "How do you appeal a swimming disqualification?",
       answer:
-        "Appeals are filed in writing with the Meet Referee within a time limit set by the meet rules (typically 30 minutes after results are posted). The Jury of Appeal makes the final decision. The Meet Referee's interpretation of stroke rules is generally final and not subject to appeal.",
-      cite: "GR 9",
+        "Appeals against a Referee's decision are adjudicated under Article 12 of Part One of the World Aquatics Competition Regulations. The Resolution Desk Judges receive initial queries from team leaders, including those regarding disqualifications, and pass them to the Technical Swimming Committee.",
+      cite: "SW 2.3.2 / SW 2.17",
     },
     {
       question: "Can a swimmer wear two swimsuits in competition?",
       answer:
-        "No. World Aquatics rules permit only one swimsuit and require the suit to be on the World Aquatics approved swimwear list.",
-      cite: "GR 5",
+        "No. During competition, a swimmer must wear a swimsuit permitted by Article 6 of Part One. The approved swimwear regulations limit competition to a single permitted swimsuit; layering swimsuits is not allowed.",
+      cite: "SW 14.1 / Part One Art. 6",
     },
     {
       question: "What happens if a swimmer's body touches the bottom of the pool?",
       answer:
-        "Touching the bottom is not automatically a DQ — it only becomes a violation if the swimmer uses the bottom for forward propulsion (pushing off or walking). Brief incidental contact during underwater kicking is allowed.",
-      cite: "SW 10.4",
+        "Touching the bottom is not automatically a DQ. Standing on the pool bottom is permitted during freestyle events or the freestyle leg of medley events. In other strokes, taking a stride or step from the bottom for propulsion is prohibited and results in disqualification.",
+      cite: "SW 10.2.3 / SW 10.2.4",
     },
     {
       question: "Can a relay team be disqualified if one swimmer breaks a rule?",
       answer:
-        "Yes. If any swimmer in a relay commits a stroke violation, false start, or other infraction, the entire relay team is disqualified.",
-      cite: "SW 10.9",
+        "Yes. If any swimmer in a relay commits a stroke violation, an early takeoff, or another infraction covered by the relay rules, the entire relay team is disqualified. The swimmer who breached the rule is also individually disqualified.",
+      cite: "SW 10.4 / SW 10.5",
     },
     {
-      question: "What is a stroke and turn judge looking for?",
+      question: "What does a Judge of Stroke or Inspector of Turns watch for?",
       answer:
-        "Stroke and turn judges watch for legal stroke technique throughout the race and at every turn. They check arm symmetry, kick patterns, wall touches, body position at turns, and 15-meter underwater limits. They report any violations to the Referee for final DQ decisions.",
-      cite: "SW 2.4",
+        "Judges of Stroke ensure that the rules of the designated stroke are followed throughout the race and assist with turns and finishes. Inspectors of Turns are assigned one per lane at each end and ensure compliance with the rules at the start, every turn, and the finish. Both report any breach observed to the Referee.",
+      cite: "SW 2.8 / SW 2.9",
     },
   ],
   datePublished: "2026-05-01",
-  dateModified: "2026-05-01",
+  dateModified: "2026-05-02",
 };
