@@ -116,8 +116,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Silently skip if DB unavailable during build
   }
 
-  // 5. Future: programmatic Q&A pages
-  // When ready, fetch from a `qa_pages` table and add here.
+// 5. Programmatic Q&A pages (published only)
+  let qaPages: MetadataRoute.Sitemap = []
+  try {
+    const { data: published } = await supabase
+      .from('qa_pages')
+      .select('discipline, slug, last_updated_at, published_at')
+      .eq('status', 'published')
+      .not('slug', 'is', null)
+    if (published) {
+      qaPages = published
+        .filter((q) => q.slug)
+        .map((q) => ({
+          url: `${BASE_URL}/${q.discipline}/q/${q.slug}`,
+          lastModified: new Date(q.last_updated_at || q.published_at || new Date()),
+          changeFrequency: 'monthly' as const,
+          priority: 0.7,
+        }))
+    }
+  } catch {
+    // Silently skip if DB unavailable during build
+  }
 
   // Combine all
   return [
@@ -125,5 +144,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...disciplinePages,
     ...eventPages,
     ...announcementPages,
+    ...qaPages,
   ]
 }
