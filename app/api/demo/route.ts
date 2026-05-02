@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const forwarded = request.headers.get('x-forwarded-for')
     const ip = forwarded ? forwarded.split(',')[0].trim() : 'unknown'
 
-    const { question } = await request.json()
+    const { question, discipline = 'swimming' } = await request.json()
 
     if (!question) {
       return NextResponse.json(
@@ -84,12 +84,12 @@ export async function POST(request: NextRequest) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Vector search — Swimming only for demo
+    // Vector search — uses discipline from request body
     const { data: vectorChunks } = await supabase.rpc(
       'match_rulebook_chunks',
       {
         query_embedding: queryEmbedding,
-        match_discipline: 'swimming',
+        match_discipline: discipline,
         match_count: 8
       }
     )
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       const { data } = await supabase
         .from('rulebook_chunks')
         .select('content')
-        .eq('discipline', 'swimming')
+        .eq('discipline', discipline)
         .ilike('content', `%${keyword}%`)
         .limit(3)
       if (data) keywordChunks = [...keywordChunks, ...data]
@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
     const context = allChunks.slice(0, 10).map((c: { content: string }) => c.content).join('\n\n---\n\n')
 
     // Get answer from Claude
+    const disciplineName = discipline === 'water-polo' ? 'Water Polo' : 'Swimming'
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'user',
-          content: `Here is the relevant World Aquatics Swimming Regulations content:\n\n${context}\n\nQuestion (answer in the same language): ${question}`
+          content: `Here is the relevant World Aquatics ${disciplineName} Regulations content:\n\n${context}\n\nQuestion (answer in the same language): ${question}`
         }
       ]
     })
