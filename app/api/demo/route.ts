@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     const context = allChunks.slice(0, 10).map((c: { content: string }) => c.content).join('\n\n---\n\n')
 
     // Get answer from Claude
-   const disciplineNames: Record<string, string> = {
+  const disciplineNames: Record<string, string> = {
       'swimming': 'Swimming',
       'water-polo': 'Water Polo',
       'open-water': 'Open Water',
@@ -134,15 +134,26 @@ export async function POST(request: NextRequest) {
       'masters-swimming': 'Masters Swimming',
       'para-swimming': 'Para Swimming'
     }
+    const disciplineGovernance: Record<string, string> = {
+      'swimming': 'World Aquatics',
+      'water-polo': 'World Aquatics',
+      'open-water': 'World Aquatics',
+      'artistic-swimming': 'World Aquatics',
+      'diving': 'World Aquatics',
+      'high-diving': 'World Aquatics',
+      'masters-swimming': 'World Aquatics',
+      'para-swimming': 'World Para Swimming (under the International Paralympic Committee)'
+    }
     const disciplineName = disciplineNames[discipline] || 'Swimming'
+    const governingBody = disciplineGovernance[discipline] || 'World Aquatics'
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
       system: SYSTEM_PROMPT,
-      messages: [
+    messages: [
         {
           role: 'user',
-          content: `Here is the relevant World Aquatics ${disciplineName} Regulations content:\n\n${context}\n\nQuestion (answer in the same language): ${question}`
+          content: `Here is the relevant ${governingBody} ${disciplineName} Regulations content:\n\n${context}\n\nQuestion (answer in the same language): ${question}`
         }
       ]
     })
