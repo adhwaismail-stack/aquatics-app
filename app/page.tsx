@@ -14,6 +14,7 @@ const ALL_DISCIPLINES = [
     name: 'Swimming',
     code: 'SW Rules',
     id: 'swimming',
+    landingUrl: '/swimming',
     isPara: false,
     tagline: 'Pool race rules, DQ reasons, World Aquatics standards',
     anchorLabel: 'Swimming Rules and Regulations',
@@ -22,6 +23,7 @@ const ALL_DISCIPLINES = [
     name: 'Water Polo',
     code: 'WP Rules',
     id: 'waterpolo',
+    landingUrl: '/water-polo',
     isPara: false,
     tagline: 'Match conduct, fouls, exclusions, penalty rules',
     anchorLabel: 'Water Polo Competition Rules',
@@ -30,6 +32,7 @@ const ALL_DISCIPLINES = [
     name: 'Open Water',
     code: 'OW Rules',
     id: 'openwater',
+    landingUrl: '/open-water',
     isPara: false,
     tagline: 'Marathon swims, course rules, drafting, feeding',
     anchorLabel: 'Open Water Swimming Rules',
@@ -38,6 +41,7 @@ const ALL_DISCIPLINES = [
     name: 'Artistic Swimming',
     code: 'AS Rules',
     id: 'artistic',
+    landingUrl: '/artistic-swimming',
     isPara: false,
     tagline: 'Routines, scoring, technical elements, judging',
     anchorLabel: 'Artistic Swimming Regulations',
@@ -46,6 +50,7 @@ const ALL_DISCIPLINES = [
     name: 'Diving',
     code: 'DV Rules',
     id: 'diving',
+    landingUrl: '/diving',
     isPara: false,
     tagline: 'Dive degrees, execution, judging criteria',
     anchorLabel: 'Diving Rules and Scoring',
@@ -54,6 +59,7 @@ const ALL_DISCIPLINES = [
     name: 'High Diving',
     code: 'HD Rules',
     id: 'highdiving',
+    landingUrl: '/high-diving',
     isPara: false,
     tagline: '20m+ platform rules, safety, execution',
     anchorLabel: 'High Diving Competition Rules',
@@ -62,6 +68,7 @@ const ALL_DISCIPLINES = [
     name: 'Masters',
     code: 'MS Rules',
     id: 'masters',
+    landingUrl: '/masters-swimming',
     isPara: false,
     tagline: 'Age-group competition, records, eligibility',
     anchorLabel: 'Masters Swimming Regulations',
@@ -70,6 +77,7 @@ const ALL_DISCIPLINES = [
     name: 'Para Swimming *',
     code: 'WPS Rules',
     id: 'paraswimming',
+    landingUrl: '/para-swimming',
     isPara: true,
     tagline: 'Classification, WPS rules, adapted competition',
     anchorLabel: 'Para Swimming Rules (WPS)',
@@ -98,7 +106,7 @@ export default function Home() {
       '@type': 'ListItem',
       position: i + 1,
       name: d.anchorLabel,
-      url: `https://aquaref.co/chat/${d.id}`,
+   url: `https://aquaref.co${d.landingUrl}`,
     })),
   }
 
@@ -208,7 +216,7 @@ export default function Home() {
               return isLive ? (
                 <Link
                   key={i}
-                  href={`/chat/${d.id}`}
+                    href={d.landingUrl}
                   aria-label={d.anchorLabel}
                   className={cardClasses}
                 >
