@@ -21,18 +21,46 @@ const SLUG_MAP: Record<string, string> = {
   'para-swimming': 'paraswimming',
 }
 
-// Auto-generate URL slug from a question
-function generateSlug(question: string): string {
-  return question
+// Auto-generate URL slug from a question.
+// Keeps the most distinctive words; pads with discipline if too generic.
+function generateSlug(question: string, discipline: string): string {
+  // Stopwords to remove for slug brevity
+  const stopwords = new Set([
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been',
+    'do', 'does', 'did', 'have', 'has', 'had', 'can', 'could',
+    'will', 'would', 'should', 'may', 'might', 'my', 'your',
+    'this', 'that', 'these', 'those', 'in', 'on', 'at', 'to',
+    'for', 'of', 'and', 'or', 'but', 'with', 'from'
+  ])
+
+  // Question words to strip from the start
+  const questionWords = /^(what|why|how|when|where|who|which|is|are|can|do|does|will|should)\s+/i
+
+  const cleaned = question
     .toLowerCase()
-    .replace(/['"?!,.;:()]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/^(what|why|how|is|can|do|does|are)-/, '')
+    .replace(questionWords, '')           // remove leading "what/why/how"
+    .replace(/['"?!,.;:()]/g, '')         // strip punctuation
+    .split(/\s+/)
+    .filter(w => w.length > 0 && !stopwords.has(w))  // drop stopwords
+    .join('-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 60)
-    .replace(/-[^-]*$/, (match) => match.length > 1 ? '' : match) // trim partial last word
-    || question.toLowerCase().replace(/\s+/g, '-').slice(0, 60)
+
+  // If somehow empty (all stopwords), fall back to first 5 words of original
+  if (!cleaned) {
+    return question.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .slice(0, 5)
+      .join('-')
+      .slice(0, 60) || 'untitled-question'
+  }
+
+  // Cap at 60 chars on a clean word boundary
+  if (cleaned.length <= 60) return cleaned
+  const truncated = cleaned.slice(0, 60)
+  const lastDash = truncated.lastIndexOf('-')
+  return lastDash > 30 ? truncated.slice(0, lastDash) : truncated
 }
 
 export async function POST(request: NextRequest) {
@@ -200,8 +228,8 @@ RULES:
       )
     }
 
-    // Step 10: Generate slug
-    const slug = generateSlug(parsed.canonical_question)
+// Step 10: Generate slug
+    const slug = generateSlug(parsed.canonical_question, publicDiscipline)
 
     // Step 11: Save back to qa_pages
     const { error: updateError } = await supabase
