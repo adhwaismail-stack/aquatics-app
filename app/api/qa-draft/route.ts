@@ -126,9 +126,9 @@ export async function POST(request: NextRequest) {
     const context = allChunks.slice(0, 15).map((c) => c.content).join('\n\n---\n\n')
 
     // Step 6: Build a structured drafting prompt
-    const draftingPrompt = `You are drafting a public Q&A page for AquaRef.co about ${publicDiscipline.replace('-', ' ')}.
+   const draftingPrompt = `You are drafting a public Q&A page for AquaRef.co about ${publicDiscipline.replace('-', ' ')}.
 
-Below are excerpts from the official World Aquatics rulebook for ${publicDiscipline.replace('-', ' ')}:
+Below are excerpts from the official World Aquatics 2026 Competition Regulations for ${publicDiscipline.replace('-', ' ')}:
 
 ---
 ${context}
@@ -136,23 +136,29 @@ ${context}
 
 The question to answer is: "${question}"
 
+YOUR JOB: Synthesize the rulebook excerpts above into a helpful answer for parents, coaches, and officials. Be helpful, not perfectionist.
+
+If the question is BROAD (e.g. "Why was my swimmer DQ'd in breaststroke?"), list the most common 3-5 reasons drawn from the excerpts, citing each one's article. This is the MOST helpful kind of answer.
+
+If the question is SPECIFIC (e.g. "What is the 15-meter rule?"), give a focused answer with one main citation.
+
 Generate a Q&A in this EXACT JSON format (no markdown, no preamble, just the JSON object):
 
 {
   "canonical_question": "The cleaned-up question, ending with a question mark",
-  "answer_short": "1-2 sentence direct answer that satisfies the question above-the-fold. 30-200 characters.",
-  "answer_full": "Detailed 200-400 word answer in 2-3 paragraphs. Plain English. Cite specific rule articles inline (e.g. 'Per SW 7.1...'). Separate paragraphs with two newlines (\\n\\n).",
- "rule_citation": "The most relevant rule article reference, e.g. 'World Aquatics Article 7.7' or 'World Aquatics Article 21.10'. Look for [BRACKETED - Article X.X] tags or 'Article N.N' patterns in the rulebook excerpts. Just the citation, nothing else.",
-  "rule_quote": "The most relevant 1-2 sentences from the rulebook excerpts above, quoted exactly.",
-  "meta_description": "60-155 character SEO description summarizing the answer. Plain text, no quotes."
+  "answer_short": "1-2 sentence direct answer above-the-fold. 30-250 characters.",
+  "answer_full": "Detailed 200-400 word answer. For broad questions, structure as: brief intro paragraph, then bullet-style list of reasons with each citation inline, then closing recommendation. For specific questions, 2-3 flowing paragraphs. Cite articles inline (e.g. 'Per Article 7.7...'). Separate paragraphs with two newlines (\\n\\n).",
+  "rule_citation": "The most relevant rule article. Use the format you see in the excerpts: 'World Aquatics Article 7.7'. If multiple apply, pick the most central one for the short answer.",
+  "rule_quote": "1-2 sentences quoted exactly from the rulebook excerpts.",
+  "meta_description": "60-155 character SEO description. Plain text, no quotes."
 }
 
-CRITICAL RULES:
-- Only use information from the rulebook excerpts provided above. Do NOT invent rules.
-- If the rulebook does not contain enough information to answer accurately, set "answer_short" to "INSUFFICIENT_RULEBOOK_DATA" and leave other fields empty strings.
-- Cite SPECIFIC rule article numbers (e.g. "Article 7.7", "Article 21.10") as they appear in the rulebook excerpts. The 2026 World Aquatics regulations use "Article N.N" format, NOT the old "SW N.N" or "WP N.N" format. Look for "[STROKE - Article X.X]" tags or numerical headings.
+RULES:
+- Use ONLY information from the rulebook excerpts above. Do NOT invent rules or article numbers.
+- The 2026 regulations use "Article N.N" format. Look for "[STROKE - Article X.X]" tags or "Article N.N" patterns in the excerpts.
 - Write in clear, plain English a parent or coach can understand.
-- Return ONLY valid JSON. No code fences, no commentary.`
+- ONLY return "INSUFFICIENT_RULEBOOK_DATA" if the excerpts contain ZERO information related to the question. If you can answer with even partial information from the excerpts, do so — partial helpful answers are better than refusing.
+- Return ONLY valid JSON. No code fences, no commentary, no preamble.`
 
     // Step 7: Call Claude
     const message = await anthropic.messages.create({
