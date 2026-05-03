@@ -257,6 +257,8 @@ export default function AdminQAPage() {
       .from('qa_pages')
       .select('*')
       .eq('status', activeTab)
+  .order('ai_drafted_at', { ascending: false, nullsFirst: false })
+      .order('last_updated_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
     if (error) {
       setActionError('Failed to load: ' + error.message)
