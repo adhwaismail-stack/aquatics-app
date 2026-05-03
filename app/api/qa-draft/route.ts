@@ -142,7 +142,7 @@ Generate a Q&A in this EXACT JSON format (no markdown, no preamble, just the JSO
   "canonical_question": "The cleaned-up question, ending with a question mark",
   "answer_short": "1-2 sentence direct answer that satisfies the question above-the-fold. 30-200 characters.",
   "answer_full": "Detailed 200-400 word answer in 2-3 paragraphs. Plain English. Cite specific rule articles inline (e.g. 'Per SW 7.1...'). Separate paragraphs with two newlines (\\n\\n).",
-  "rule_citation": "The most relevant rule article reference, e.g. 'World Aquatics SW 7.1' or 'World Aquatics WP 21.10'. Just the citation, nothing else.",
+ "rule_citation": "The most relevant rule article reference, e.g. 'World Aquatics Article 7.7' or 'World Aquatics Article 21.10'. Look for [BRACKETED - Article X.X] tags or 'Article N.N' patterns in the rulebook excerpts. Just the citation, nothing else.",
   "rule_quote": "The most relevant 1-2 sentences from the rulebook excerpts above, quoted exactly.",
   "meta_description": "60-155 character SEO description summarizing the answer. Plain text, no quotes."
 }
@@ -150,7 +150,7 @@ Generate a Q&A in this EXACT JSON format (no markdown, no preamble, just the JSO
 CRITICAL RULES:
 - Only use information from the rulebook excerpts provided above. Do NOT invent rules.
 - If the rulebook does not contain enough information to answer accurately, set "answer_short" to "INSUFFICIENT_RULEBOOK_DATA" and leave other fields empty strings.
-- Cite SPECIFIC rule article numbers (e.g. "SW 7.1", "WP 21.10"), not vague references.
+- Cite SPECIFIC rule article numbers (e.g. "Article 7.7", "Article 21.10") as they appear in the rulebook excerpts. The 2026 World Aquatics regulations use "Article N.N" format, NOT the old "SW N.N" or "WP N.N" format. Look for "[STROKE - Article X.X]" tags or numerical headings.
 - Write in clear, plain English a parent or coach can understand.
 - Return ONLY valid JSON. No code fences, no commentary.`
 
