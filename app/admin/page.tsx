@@ -98,6 +98,7 @@ interface AquaEvent {
   slug: string
   description: string
   discipline: string
+  secondary_disciplines?: string[]
   country: string
   location: string
   start_date: string
@@ -105,7 +106,7 @@ interface AquaEvent {
   is_active: boolean
   created_at: string
   poster_url?: string
-chat_enabled?: boolean
+  chat_enabled?: boolean
   state?: string | null
 }
 
@@ -316,6 +317,7 @@ export default function AdminPage() {
   const [selectedEvent, setSelectedEvent] = useState<AquaEvent | null>(null)
 const [newEvent, setNewEvent] = useState({
     name: '', slug: '', description: '', discipline: 'swimming',
+    secondary_disciplines: [] as string[],
     country: 'Malaysia', location: '', start_date: '', end_date: '', state: ''
   })
   const [creatingEvent, setCreatingEvent] = useState(false)
@@ -338,7 +340,7 @@ const [newEvent, setNewEvent] = useState({
   // Edit Event Details state
   const [editingDetails, setEditingDetails] = useState(false)
 const [editForm, setEditForm] = useState({
-    name: '', slug: '', discipline: '', country: '', location: '', start_date: '', end_date: '', state: ''
+    name: '', slug: '', discipline: '', secondary_disciplines: [] as string[], country: '', location: '', start_date: '', end_date: '', state: ''
   })
   const [savingDetails, setSavingDetails] = useState(false)
   const [slugWarningShown, setSlugWarningShown] = useState(false)
@@ -713,6 +715,7 @@ setEditForm({
       name: selectedEvent.name,
       slug: selectedEvent.slug,
       discipline: selectedEvent.discipline,
+      secondary_disciplines: selectedEvent.secondary_disciplines || [],
       country: selectedEvent.country,
       location: selectedEvent.location,
       start_date: selectedEvent.start_date || '',
@@ -752,6 +755,7 @@ setEditForm({
         name: editForm.name.trim(),
         slug: cleanSlug,
         discipline: editForm.discipline,
+        secondary_disciplines: editForm.secondary_disciplines || [],
         country: editForm.country,
         location: editForm.location.trim(),
         start_date: editForm.start_date || null,
@@ -763,11 +767,12 @@ setEditForm({
     if (error) {
       alert('Error saving: ' + error.message)
     } else {
-      setSelectedEvent({
+setSelectedEvent({
         ...selectedEvent,
         name: editForm.name.trim(),
         slug: cleanSlug,
         discipline: editForm.discipline,
+        secondary_disciplines: editForm.secondary_disciplines || [],
         country: editForm.country,
         location: editForm.location.trim(),
         start_date: editForm.start_date,
@@ -907,7 +912,7 @@ if (activeTab === 'announcements') loadAnnouncements()
     const { data, error } = await supabase.from('events').insert({ ...newEvent, slug, is_active: false }).select().single()
     if (error) { alert('Error creating event: ' + error.message) }
     else {
- setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', country: 'Malaysia', location: '', start_date: '', end_date: '', state: '' })
+setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secondary_disciplines: [], country: 'Malaysia', location: '', start_date: '', end_date: '', state: '' })
       setShowCreateEvent(false)
       await loadEvents()
       if (data) openEventManagement(data)
@@ -1195,10 +1200,10 @@ if (activeTab === 'announcements') loadAnnouncements()
                   <input type="text" value={newEvent.slug} onChange={(e) => setNewEvent(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+     <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Discipline</label>
-                  <select value={newEvent.discipline} onChange={(e) => setNewEvent(prev => ({ ...prev, discipline: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 bg-white">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Primary Discipline</label>
+                  <select value={newEvent.discipline} onChange={(e) => setNewEvent(prev => ({ ...prev, discipline: e.target.value, secondary_disciplines: prev.secondary_disciplines.filter(d => d !== e.target.value) }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 bg-white">
                     {DISCIPLINES.map(d => <option key={d.discipline} value={d.discipline}>{d.name}</option>)}
                   </select>
                 </div>
@@ -1207,6 +1212,28 @@ if (activeTab === 'announcements') loadAnnouncements()
                   <select value={newEvent.country} onChange={(e) => setNewEvent(prev => ({ ...prev, country: e.target.value }))} className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 bg-white">
                     {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
                   </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Disciplines <span className="text-gray-400 font-normal">(optional — for multi-sport events)</span></label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                  {DISCIPLINES.filter(d => d.discipline !== newEvent.discipline).map(d => (
+                    <label key={d.discipline} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newEvent.secondary_disciplines.includes(d.discipline)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewEvent(prev => ({ ...prev, secondary_disciplines: [...prev.secondary_disciplines, d.discipline] }))
+                          } else {
+                            setNewEvent(prev => ({ ...prev, secondary_disciplines: prev.secondary_disciplines.filter(x => x !== d.discipline) }))
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="text-xs text-gray-700">{d.name}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
            <div>
@@ -1356,10 +1383,10 @@ if (activeTab === 'announcements') loadAnnouncements()
                           <input type="text" value={editForm.slug} onChange={(e) => setEditForm(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))} className="flex-1 px-3 py-2 border border-orange-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 bg-orange-50" />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Discipline</label>
-                          <select value={editForm.discipline} onChange={(e) => setEditForm(prev => ({ ...prev, discipline: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Primary Discipline</label>
+                          <select value={editForm.discipline} onChange={(e) => setEditForm(prev => ({ ...prev, discipline: e.target.value, secondary_disciplines: prev.secondary_disciplines.filter(d => d !== e.target.value) }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
                             {DISCIPLINES.map(d => <option key={d.discipline} value={d.discipline}>{d.name}</option>)}
                           </select>
                         </div>
@@ -1368,6 +1395,28 @@ if (activeTab === 'announcements') loadAnnouncements()
                           <select value={editForm.country} onChange={(e) => setEditForm(prev => ({ ...prev, country: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white">
                             {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
                           </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Secondary Disciplines <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                          {DISCIPLINES.filter(d => d.discipline !== editForm.discipline).map(d => (
+                            <label key={d.discipline} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editForm.secondary_disciplines.includes(d.discipline)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditForm(prev => ({ ...prev, secondary_disciplines: [...prev.secondary_disciplines, d.discipline] }))
+                                  } else {
+                                    setEditForm(prev => ({ ...prev, secondary_disciplines: prev.secondary_disciplines.filter(x => x !== d.discipline) }))
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-xs text-gray-700">{d.name}</span>
+                            </label>
+                          ))}
                         </div>
                       </div>
      <div>

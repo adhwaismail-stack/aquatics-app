@@ -18,12 +18,13 @@ interface AquaEvent {
   slug: string
   description: string
   discipline: string
+  secondary_disciplines?: string[]
   country: string
   location: string
   start_date: string
   end_date: string
   is_active: boolean
-poster_url?: string
+  poster_url?: string
   chat_enabled?: boolean
 }
 
@@ -50,6 +51,28 @@ const DISCIPLINE_LABELS: Record<string, string> = {
   masters: 'Masters',
   openwater: 'Open Water',
   paraswimming: 'Para Swimming',
+}
+
+const DISCIPLINE_CODES: Record<string, string> = {
+  swimming: 'SW',
+  waterpolo: 'WP',
+  artistic: 'AS',
+  diving: 'DV',
+  highdiving: 'HD',
+  masters: 'MS',
+  openwater: 'OW',
+  paraswimming: 'WPS',
+}
+
+const DISCIPLINE_SAMPLE_QS: Record<string, string[]> = {
+  swimming: ['What is the rule for a false start?', 'Is a one-hand touch legal for breaststroke turn?', 'Can a swimmer be DQ for an early turn?'],
+  waterpolo: ['When is a major foul called?', 'How long is each quarter?', 'What is the shot clock rule?'],
+  artistic: ['What counts as a base mark deduction?', 'How are technical merit scores calculated?', 'What are the required elements?'],
+  diving: ['What is a balk in diving?', 'How are degree of difficulty calculated?', 'When is a dive failed?'],
+  highdiving: ['What is the height for men and women?', 'How are scores calculated?', 'What are the safety requirements?'],
+  masters: ['What are the age group categories?', 'Are FINA rules followed at Masters?', 'Can I compete in multiple age groups?'],
+  openwater: ['What is the minimum water temperature?', 'When can a swimmer be disqualified?', 'How is feeding regulated?'],
+  paraswimming: ['What are the classification levels?', 'What modifications are allowed?', 'Who can use a tapper?'],
 }
 
 const NOTICE_STYLES: Record<string, { dot: string, label: string }> = {
@@ -548,31 +571,45 @@ const loadEvent = async () => {
             </p>
           </div>
 
-  {/* Swimming Rules Assistant card */}
-          <div className="bg-white rounded-2xl border border-blue-100 p-6 mb-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">A</span>
+ {/* Rules Assistant cards — dynamic per discipline */}
+          {(() => {
+            const allDisciplines = [event.discipline, ...(event.secondary_disciplines || [])]
+            return (
+              <div className="space-y-4 mb-6">
+                {allDisciplines.map((d) => {
+                  const sampleQs = DISCIPLINE_SAMPLE_QS[d] || DISCIPLINE_SAMPLE_QS.swimming
+                  const isPara = d === 'paraswimming'
+                  const isPrimary = d === event.discipline
+                  return (
+                    <div key={d} className={`bg-white rounded-2xl border p-6 ${isPara ? 'border-purple-100' : isPrimary ? 'border-blue-100' : 'border-gray-100'}`}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isPara ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                          <span className="text-white font-bold text-sm">A</span>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-sm">AquaRef {DISCIPLINE_LABELS[d]} Rules Assistant</h3>
+                          <p className="text-xs text-gray-400">{isPara ? 'World Para Swimming Rules (IPC)' : `Official World Aquatics ${DISCIPLINE_CODES[d]} Rules`} · 90+ languages</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-4">
+                        Ada soalan tentang peraturan {DISCIPLINE_LABELS[d]}? Tanya dijawab terus dari peraturan rasmi.
+                      </p>
+                      <div className="space-y-2 mb-4">
+                        {sampleQs.map((q, i) => (
+                          <div key={i} className={`border rounded-lg px-3 py-2 ${isPara ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'}`}>
+                            <p className="text-xs text-gray-600 italic">&ldquo;{q}&rdquo;</p>
+                          </div>
+                        ))}
+                      </div>
+                      <a href={`/chat/${d}`} className={`w-full py-3 text-white rounded-xl text-sm font-semibold text-center block transition-colors ${isPara ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                        Tanya Peraturan {DISCIPLINE_LABELS[d]} →
+                      </a>
+                    </div>
+                  )
+                })}
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 text-sm">AquaRef Swimming Rules Assistant</h3>
-                <p className="text-xs text-gray-400">Official World Aquatics SW Rules · 90+ languages</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mb-4">
-              Ada soalan tentang peraturan renang? Tanya tentang DQ, false start, pusingan, gaya renang dan lebih lagi — dijawab terus dari peraturan rasmi World Aquatics.
-            </p>
-            <div className="space-y-2 mb-4">
-              {['Apakah peraturan false start?', 'Adakah sentuhan satu tangan sah untuk pusingan breaststroke?', 'Bolehkah perenang kena DQ kerana pusingan awal?'].map((q, i) => (
-                <div key={i} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                  <p className="text-xs text-gray-600 italic">&ldquo;{q}&rdquo;</p>
-                </div>
-              ))}
-            </div>
-            <a href="/chat/swimming" className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold text-center block transition-colors">
-              Tanya Peraturan Renang →
-            </a>
-          </div>
+            )
+          })()}
 
           {eventFiles.length > 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
@@ -765,8 +802,8 @@ const loadEvent = async () => {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-    <a href="/chat/swimming" className="text-sm px-4 py-2.5 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 font-medium transition-all hidden md:block">
-                SW Rules
+<a href={`/chat/${event?.discipline || 'swimming'}`} className="text-sm px-4 py-2.5 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 font-medium transition-all hidden md:block">
+                {DISCIPLINE_CODES[event?.discipline || 'swimming']} Rules
               </a>
               <button onClick={() => setShareModalOpen(true)} className="text-sm px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-all shadow-sm hover:shadow-md" title="Share this event">
                 Share Event
@@ -910,15 +947,36 @@ const loadEvent = async () => {
               </button>
             </div>
           )}
-<div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-blue-900"> Swimming Rules Assistant</p>
-              <p className="text-xs text-blue-600 mt-0.5">Ask about DQs, false starts, stroke rules and more</p>
-            </div>
-            <a href="/chat/swimming" className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 font-medium whitespace-nowrap flex-shrink-0">
-              Ask Rules →
-            </a>
-          </div>
+{event && (() => {
+            const allDisciplines = [event.discipline, ...(event.secondary_disciplines || [])]
+            const isMulti = allDisciplines.length > 1
+            return isMulti ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-700 px-1">Rules Assistants for this event</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {allDisciplines.map((d) => (
+                    <a key={d} href={`/chat/${d}`} className={`rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 hover:shadow-sm transition-all ${d === event.discipline ? 'bg-blue-50 border border-blue-200 hover:bg-blue-100' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}>
+                      <div className="min-w-0">
+                        <p className={`text-xs font-semibold ${d === event.discipline ? 'text-blue-900' : 'text-gray-700'}`}>{DISCIPLINE_LABELS[d]} Rules</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">{DISCIPLINE_CODES[d]} · World Aquatics</p>
+                      </div>
+                      <span className={`text-xs font-bold flex-shrink-0 ${d === event.discipline ? 'text-blue-600' : 'text-gray-400'}`}>→</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-blue-900">{DISCIPLINE_LABELS[event.discipline]} Rules Assistant</p>
+                  <p className="text-xs text-blue-600 mt-0.5">Ask about rules, regulations, DQs and more</p>
+                </div>
+                <a href={`/chat/${event.discipline}`} className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 font-medium whitespace-nowrap flex-shrink-0">
+                  Ask Rules →
+                </a>
+              </div>
+            )
+          })()}
           <p className="text-xs text-gray-400 mt-2 text-center">
             Answers based on uploaded event documents only. Always verify with the Meet Referee or Event Director.
           </p>
