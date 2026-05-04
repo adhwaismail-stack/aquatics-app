@@ -269,25 +269,95 @@ export default function AtletRegistrationPage() {
 
   if (magicLinkSent) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-green-50 px-4 py-8">
+        <div className="max-w-lg mx-auto">
+
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Maklumat Berjaya Dihantar!</h2>
+            <p className="text-gray-600 text-sm">
+              Terima kasih, <strong>{parentName}</strong>. Maklumat atlet anda telah diserahkan kepada <strong>PANS</strong> untuk MSSNS 2026.
+            </p>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Maklumat Berjaya Dihantar!</h2>
-          <p className="text-gray-500 text-sm mb-2">Data atlet anda telah disimpan untuk MSSNS 2026.</p>
-          <p className="text-gray-500 text-sm mb-6">
-            Kami telah menghantar pautan log masuk ke <strong className="text-blue-600">{parentEmail}</strong>. Klik pautan tersebut untuk mengakses AquaRef.
-          </p>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left text-sm text-yellow-800 mb-6">
-            <p className="font-medium mb-1">Tidak jumpa emel?</p>
-            <ul className="space-y-1 text-xs">
-              <li>Semak folder <strong>Spam</strong> atau <strong>Junk</strong></li>
-              <li>Emel dihantar daripada Supabase Auth</li>
-              <li>Pautan tamat tempoh dalam <strong>1 jam</strong></li>
+
+          <div className="bg-white rounded-2xl border border-green-100 p-5 mb-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900 mb-1">Data atlet selesai diserahkan</p>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Maklumat {swimmers.length} atlet anda telah disimpan dengan selamat untuk PANS. Tiada tindakan lanjut diperlukan untuk MSSNS 2026.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="bg-blue-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">BONUS</span>
+              <p className="text-sm font-semibold text-blue-900">Akaun AquaRef Percuma</p>
+            </div>
+            <p className="text-xs text-blue-800 mb-4 leading-relaxed">
+              Anda telah dibuat akaun <strong>AquaRef LITE</strong> secara automatik. Akses peraturan World Aquatics, info event, dan banyak lagi.
+            </p>
+
+            <div className="bg-white rounded-xl p-4 border border-blue-100">
+              <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Cara log masuk:
+              </p>
+              <ol className="text-xs text-gray-600 space-y-1.5 leading-relaxed list-decimal list-inside">
+                <li>Buka emel anda: <strong className="text-blue-600">{parentEmail}</strong></li>
+                <li>Cari emel daripada <strong>AquaRef</strong></li>
+                <li>Subject: <strong>&quot;AquaRef — Pautan log masuk&quot;</strong></li>
+                <li>Klik butang <strong>&quot;Log Masuk ke AquaRef&quot;</strong> dalam emel</li>
+              </ol>
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+            <p className="text-xs font-semibold text-yellow-900 mb-2 flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Tidak nampak emel?
+            </p>
+            <ul className="text-xs text-yellow-800 space-y-1 ml-5 list-disc">
+              <li>Semak folder <strong>Spam</strong> atau <strong>Promotions</strong></li>
+              <li>Tunggu 1–2 minit, kadang ada lewat sedikit</li>
+              <li>Pastikan emel <strong>{parentEmail}</strong> dieja betul</li>
             </ul>
           </div>
-          <p className="text-xs text-gray-400">AquaRef membantu anda memahami peraturan renang dan maklumat pertandingan.</p>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+            <p className="text-xs text-gray-600 leading-relaxed">
+              <strong className="text-gray-700">Tidak perlu akaun AquaRef?</strong> Tidak mengapa — abaikan emel sahaja. Data atlet anda telah pun diserahkan kepada PANS dengan selamat.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <a href="/" className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium text-center hover:bg-gray-50 transition-colors">
+              Lawati AquaRef
+            </a>
+            <a href="https://aquaref.co/chat/swimming" className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium text-center hover:bg-blue-700 transition-colors">
+              Cuba Chat Renang →
+            </a>
+          </div>
+
+          <p className="text-xs text-gray-400 text-center mt-6">
+            Soalan atau masalah? Hubungi{' '}
+            <a href="mailto:hello@aquaref.co" className="text-blue-600 hover:underline">hello@aquaref.co</a>
+          </p>
         </div>
       </div>
     )
@@ -295,14 +365,28 @@ export default function AtletRegistrationPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-4 py-8">
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Maklumat Berjaya Dihantar!</h2>
-          <p className="text-gray-500 text-sm mb-6">Data atlet anda telah disimpan untuk MSSNS 2026. Terima kasih kerana menyumbang kepada pembangunan sukan akuatik Negeri Sembilan.</p>
-          <a href="/dashboard" className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-blue-700">Pergi ke Dashboard</a>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Maklumat Berjaya Dihantar!</h2>
+          <p className="text-gray-600 text-sm mb-6">
+            Terima kasih, <strong>{parentName}</strong>. Maklumat {swimmers.length} atlet anda telah diserahkan kepada <strong>PANS</strong> untuk MSSNS 2026.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <a href="/dashboard" className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium text-center hover:bg-blue-700 transition-colors">
+              Pergi ke Dashboard
+            </a>
+            <a href="/chat/swimming" className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium text-center hover:bg-gray-50 transition-colors">
+              Cuba Chat Renang
+            </a>
+          </div>
+          <p className="text-xs text-gray-400">
+            Tahun depan? Borang akan dibuka semula untuk MSSNS 2027.
+          </p>
         </div>
       </div>
     )
@@ -350,7 +434,6 @@ export default function AtletRegistrationPage() {
           </p>
         </div>
 
-        {/* Section 1 — Pengisi Borang */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-4 shadow-sm">
           <h2 className="font-semibold text-blue-700 mb-4 text-sm uppercase tracking-wide">
             Bahagian 1 — Maklumat Ibu Bapa / Penjaga / Atlet
@@ -384,7 +467,6 @@ export default function AtletRegistrationPage() {
           </div>
         </div>
 
-        {/* Swimmers */}
         <div className="space-y-4 mb-4">
           {swimmers.map((swimmer, si) => (
             <div key={si} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
@@ -445,7 +527,6 @@ export default function AtletRegistrationPage() {
                 </div>
               </div>
 
-              {/* PBs */}
               <div className="mt-6 pt-5 border-t border-gray-100">
                 <div className="flex items-center justify-between mb-3">
                   <div>
@@ -511,7 +592,6 @@ export default function AtletRegistrationPage() {
           </button>
         )}
 
-        {/* Consent + Submit */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
           <label className="flex items-start gap-3 cursor-pointer mb-6">
             <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-0.5 flex-shrink-0 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
