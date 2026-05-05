@@ -50,6 +50,18 @@
     state?: string | null
   }
 
+  interface MySubmission {
+  id: string
+  type: 'event' | 'announcement'
+  title: string
+  status: 'pending' | 'approved' | 'rejected'
+  rejection_reason: string | null
+  slug: string | null
+  url: string | null
+  poster_url: string | null
+  reviewed_at: string | null
+  created_at: string
+}
   interface InboxMessage {
     id: string
     type: string
@@ -131,6 +143,12 @@
     const [submitChooserLoading, setSubmitChooserLoading] = useState(false)
     const [showSubmitEventForm, setShowSubmitEventForm] = useState(false)
     const [showSubmitAnnouncementForm, setShowSubmitAnnouncementForm] = useState(false)
+    // My Submissions state (chunk 4)
+  const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([])
+  const [mySubmissionsLoading, setMySubmissionsLoading] = useState(false)
+  const [mySubmissionsExpanded, setMySubmissionsExpanded] = useState(false)
+  const [mySubmissionsFilter, setMySubmissionsFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  const [copiedSubmissionId, setCopiedSubmissionId] = useState<string | null>(null)
     // Event submission form state
     const [eventForm, setEventForm] = useState({
       name: '', description: '', discipline: 'swimming',
@@ -250,10 +268,81 @@
 
         // Load inbox messages
         loadInbox(user.email!)
+        // Load my submissions (PRO/ELITE only)
+      const isPaidUser = sub.plan === 'pro' || sub.plan === 'starter' || sub.plan === 'elite' || sub.plan === 'all_disciplines'
+      if (isPaidUser) {
+        loadMySubmissions(user.email!)
+      }
       }
       getUser()
     }, [])
 
+    const loadMySubmissions = async (email: string) => {
+    setMySubmissionsLoading(true)
+    try {
+      const [eventsRes, annsRes] = await Promise.all([
+        supabase
+          .from('events')
+          .select('id, name, slug, status, rejection_reason, poster_url, reviewed_at, created_at')
+          .eq('submitted_by', email)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('announcements')
+          .select('id, title, slug, url, status, rejection_reason, thumbnail_url, reviewed_at, created_at')
+          .eq('submitted_by', email)
+          .order('created_at', { ascending: false }),
+      ])
+
+      const combined: MySubmission[] = []
+      if (eventsRes.data) {
+        eventsRes.data.forEach((e: { id: string; name: string; slug: string | null; status: 'pending' | 'approved' | 'rejected'; rejection_reason: string | null; poster_url: string | null; reviewed_at: string | null; created_at: string }) => {
+          combined.push({
+            id: e.id,
+            type: 'event',
+            title: e.name,
+            status: e.status,
+            rejection_reason: e.rejection_reason,
+            slug: e.slug,
+            url: null,
+            poster_url: e.poster_url,
+            reviewed_at: e.reviewed_at,
+            created_at: e.created_at,
+          })
+        })
+      }
+      if (annsRes.data) {
+        annsRes.data.forEach((a: { id: string; title: string; slug: string | null; url: string; status: 'pending' | 'approved' | 'rejected'; rejection_reason: string | null; thumbnail_url: string | null; reviewed_at: string | null; created_at: string }) => {
+          combined.push({
+            id: a.id,
+            type: 'announcement',
+            title: a.title,
+            status: a.status,
+            rejection_reason: a.rejection_reason,
+            slug: a.slug,
+            url: a.url,
+            poster_url: a.thumbnail_url,
+            reviewed_at: a.reviewed_at,
+            created_at: a.created_at,
+          })
+        })
+      }
+
+      // Sort: pending first (oldest), then approved/rejected (newest first)
+      combined.sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1
+        if (a.status !== 'pending' && b.status === 'pending') return 1
+        if (a.status === 'pending' && b.status === 'pending') {
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+
+      setMySubmissions(combined)
+    } catch (err) {
+      console.error('Failed to load my submissions:', err)
+    }
+    setMySubmissionsLoading(false)
+  }
     const loadInbox = async (email: string) => {
       setInboxLoading(true)
       try {
@@ -1533,7 +1622,209 @@
               )}
             </div>
           )}
+{/* My Submissions section (chunk 4) */}
+        {subscription && (
+          <div className="mb-6">
+            {/* LITE — show upgrade prompt with faded preview */}
+            {subscription.plan === 'lite' ? (
+              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <button
+                  onClick={() => setMySubmissionsExpanded(!mySubmissionsExpanded)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">My Submissions</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">PRO/ELITE feature — preview what you can submit</p>
+                  </div>
+                  <svg className={`w-5 h-5 text-gray-400 transition-transform ${mySubmissionsExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {mySubmissionsExpanded && (
+                  <div className="border-t border-gray-100 p-4">
+                    <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-100 rounded-xl p-4 mb-4">
+                      <p className="text-sm font-medium text-yellow-900 mb-1">📅 Submit your events to AquaRef</p>
+                      <p className="text-xs text-yellow-700 mb-3">Share competitions, courses, and announcements with the AquaRef community. Each submission gets a shareable URL after admin approval.</p>
+                      <a href="/pricing" className="inline-block text-xs bg-yellow-500 hover:bg-yellow-600 text-white font-medium px-4 py-2 rounded-lg">Upgrade to PRO →</a>
+                    </div>
 
+                    <p className="text-xs text-gray-500 mb-3 font-medium">Preview — what your submissions will look like:</p>
+
+                    {/* Faded preview cards */}
+                    <div className="space-y-2 opacity-50 pointer-events-none select-none">
+                      <div className="border border-green-200 rounded-xl p-3 bg-white">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">EVENT</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">Approved</span>
+                          <span className="text-xs text-gray-400">3 days ago</span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 mb-1">National Age Group Championships 2026</p>
+                        <p className="text-xs text-gray-500 mb-2">Click to copy URL</p>
+                        <code className="text-xs text-blue-700 break-all block bg-blue-50 px-2 py-1.5 rounded border border-blue-200">aquaref.co/events/national-age-group-2026</code>
+                      </div>
+
+                      <div className="border border-orange-200 rounded-xl p-3 bg-white">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700">ANNOUNCEMENT</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">Pending Review</span>
+                          <span className="text-xs text-gray-400">2 hours ago</span>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 mb-1">Team Selection Results</p>
+                        <p className="text-xs text-gray-400">Awaiting review (24-48 hours)</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* PRO/ELITE — real My Submissions section */
+              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <button
+                  onClick={() => setMySubmissionsExpanded(!mySubmissionsExpanded)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div className="flex-1">
+                    <h2 className="text-base font-semibold text-gray-900">My Submissions</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {mySubmissions.length === 0 ? 'No submissions yet — click "+ Submit" to add your first one' : (() => {
+                        const pending = mySubmissions.filter(s => s.status === 'pending').length
+                        const approved = mySubmissions.filter(s => s.status === 'approved').length
+                        const rejected = mySubmissions.filter(s => s.status === 'rejected').length
+                        const parts = []
+                        if (pending > 0) parts.push(`${pending} pending`)
+                        if (approved > 0) parts.push(`${approved} approved`)
+                        if (rejected > 0) parts.push(`${rejected} rejected`)
+                        return parts.join(' · ')
+                      })()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {mySubmissions.filter(s => s.status === 'pending').length > 0 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">
+                        {mySubmissions.filter(s => s.status === 'pending').length} pending
+                      </span>
+                    )}
+                    <svg className={`w-5 h-5 text-gray-400 transition-transform ${mySubmissionsExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </button>
+
+                {mySubmissionsExpanded && (
+                  <div className="border-t border-gray-100 p-4">
+                    {mySubmissionsLoading ? (
+                      <div className="text-center py-8 text-sm text-gray-400">Loading your submissions...</div>
+                    ) : mySubmissions.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-sm font-medium text-gray-700 mb-1">No submissions yet</p>
+                        <p className="text-xs text-gray-400 mb-4">Submit events and announcements to share with the AquaRef community.</p>
+                        <button onClick={handleOpenSubmitChooser} className="text-xs bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">+ Submit Your First</button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Filter pills */}
+                        <div className="flex gap-2 mb-3 flex-wrap">
+                          {(['all', 'pending', 'approved', 'rejected'] as const).map(filter => {
+                            const count = filter === 'all' ? mySubmissions.length : mySubmissions.filter(s => s.status === filter).length
+                            const active = mySubmissionsFilter === filter
+                            return (
+                              <button
+                                key={filter}
+                                onClick={() => setMySubmissionsFilter(filter)}
+                                className={`text-xs px-3 py-1 rounded-full font-medium border transition-colors capitalize ${active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}
+                              >
+                                {filter} ({count})
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {(() => {
+                          const filtered = mySubmissionsFilter === 'all' ? mySubmissions : mySubmissions.filter(s => s.status === mySubmissionsFilter)
+                          if (filtered.length === 0) {
+                            return <p className="text-sm text-gray-400 text-center py-6">No submissions match this filter.</p>
+                          }
+                          return (
+                            <div className="space-y-2">
+                              {filtered.map((sub) => {
+                                const submittedAgo = (() => {
+                                  const ms = Date.now() - new Date(sub.created_at).getTime()
+                                  const hours = Math.floor(ms / (1000 * 60 * 60))
+                                  if (hours < 1) return 'less than 1 hour ago'
+                                  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`
+                                  const days = Math.floor(hours / 24)
+                                  return `${days} day${days !== 1 ? 's' : ''} ago`
+                                })()
+
+                                const liveUrl = sub.type === 'event' ? `/events/${sub.slug}` : `/announcements/${sub.slug}`
+                                const fullUrl = `https://aquaref.co${liveUrl}`
+
+                                const statusBadge = sub.status === 'approved'
+                                  ? 'bg-green-100 text-green-700'
+                                  : sub.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-red-100 text-red-700'
+                                const statusLabel = sub.status === 'pending' ? 'Pending Review' : sub.status === 'approved' ? 'Approved' : 'Rejected'
+                                const typeBadge = sub.type === 'event' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                                const borderColor = sub.status === 'approved' ? 'border-green-200' : sub.status === 'rejected' ? 'border-red-200' : 'border-gray-200'
+
+                                return (
+                                  <div key={sub.id} className={`border rounded-xl p-3 ${borderColor} bg-white`}>
+                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeBadge}`}>
+                                        {sub.type === 'event' ? 'EVENT' : 'ANNOUNCEMENT'}
+                                      </span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge}`}>{statusLabel}</span>
+                                      <span className="text-xs text-gray-400">{submittedAgo}</span>
+                                    </div>
+
+                                    <p className="text-sm font-semibold text-gray-900 mb-2">{sub.title}</p>
+
+                                    {sub.status === 'pending' && (
+                                      <p className="text-xs text-gray-500">Awaiting review (24-48 hours)</p>
+                                    )}
+
+                                    {sub.status === 'approved' && sub.slug && (
+                                      <div className="space-y-2">
+                                        <code className="text-xs text-blue-700 break-all block bg-blue-50 px-2 py-1.5 rounded border border-blue-200">{fullUrl}</code>
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={async () => {
+                                              await navigator.clipboard.writeText(fullUrl)
+                                              setCopiedSubmissionId(sub.id)
+                                              setTimeout(() => setCopiedSubmissionId(null), 2000)
+                                            }}
+                                            className={`text-xs px-3 py-1 rounded-lg font-medium ${copiedSubmissionId === sub.id ? 'bg-green-100 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                          >
+                                            {copiedSubmissionId === sub.id ? 'Copied!' : 'Copy URL'}
+                                          </button>
+                                          <a href={liveUrl} target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">
+                                            View →
+                                          </a>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {sub.status === 'rejected' && sub.rejection_reason && (
+                                      <details className="text-xs">
+                                        <summary className="text-red-600 cursor-pointer font-medium hover:text-red-700">View rejection reason</summary>
+                                        <p className="mt-2 p-2 bg-red-50 border border-red-100 rounded text-red-700">{sub.rejection_reason}</p>
+                                      </details>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        })()}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
           <div className="mb-6">
             <h2 className="text-base font-semibold text-gray-900 mb-3">Choose a discipline</h2>
             <div className="grid md:grid-cols-3 gap-4">
