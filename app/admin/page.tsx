@@ -2672,18 +2672,46 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
                           <span className="text-xs text-gray-400">{new Date(msg.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed mb-3">{msg.message}</p>
-                        <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap">
                           {status === 'unread' && (
-                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'read' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium">Mark Read</button>
+                            <button onClick={async () => {
+                              try {
+                                const res = await fetch('/api/admin/update-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: msg.id, status: 'read', adminEmail: 'muhammadadhwa@gmail.com' }) })
+                                const data = await res.json()
+                                if (!data.success) { alert('Update failed: ' + (data.error || 'Unknown error')); return }
+                              } catch (err) { alert('Update failed: ' + (err instanceof Error ? err.message : 'Network error')); return }
+                              loadMessages()
+                            }} className="text-xs px-3 py-1 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium">Mark Read</button>
                           )}
                           {status !== 'resolved' && (
-                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'resolved' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 font-medium">Mark Resolved</button>
+                            <button onClick={async () => {
+                              try {
+                                const res = await fetch('/api/admin/update-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: msg.id, status: 'resolved', adminEmail: 'muhammadadhwa@gmail.com' }) })
+                                const data = await res.json()
+                                if (!data.success) { alert('Update failed: ' + (data.error || 'Unknown error')); return }
+                              } catch (err) { alert('Update failed: ' + (err instanceof Error ? err.message : 'Network error')); return }
+                              loadMessages()
+                            }} className="text-xs px-3 py-1 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 font-medium">Mark Resolved</button>
                           )}
                           {status !== 'archived' && (
-                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'archived' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 font-medium">Archive</button>
+                            <button onClick={async () => {
+                              try {
+                                const res = await fetch('/api/admin/update-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: msg.id, status: 'archived', adminEmail: 'muhammadadhwa@gmail.com' }) })
+                                const data = await res.json()
+                                if (!data.success) { alert('Update failed: ' + (data.error || 'Unknown error')); return }
+                              } catch (err) { alert('Update failed: ' + (err instanceof Error ? err.message : 'Network error')); return }
+                              loadMessages()
+                            }} className="text-xs px-3 py-1 border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 font-medium">Archive</button>
                           )}
                           {status !== 'unread' && (
-                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'unread' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium">Mark Unread</button>
+                            <button onClick={async () => {
+                              try {
+                                const res = await fetch('/api/admin/update-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: msg.id, status: 'unread', adminEmail: 'muhammadadhwa@gmail.com' }) })
+                                const data = await res.json()
+                                if (!data.success) { alert('Update failed: ' + (data.error || 'Unknown error')); return }
+                              } catch (err) { alert('Update failed: ' + (err instanceof Error ? err.message : 'Network error')); return }
+                              loadMessages()
+                            }} className="text-xs px-3 py-1 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium">Mark Unread</button>
                           )}
                         </div>
                       </div>
@@ -3212,33 +3240,25 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
 
                         <div className="flex gap-2 mt-3">
                           <button
-               onClick={async () => {
+           onClick={async () => {
                                 setSavingReview(true)
-                                const table = sub.type === 'event' ? 'events' : 'announcements'
-                                await supabase.from(table).update({
-                                  status: 'approved',
-                                  is_active: true,
-                                  reviewed_at: new Date().toISOString(),
-                                  reviewed_by: 'muhammadadhwa@gmail.com',
-                                }).eq('id', sub.id)
-
-                                // Notify the user
-                     const itemTitle = sub.title
-                                const itemUrl = sub.type === 'event' ? `/events/${sub.slug}` : `/announcements/${sub.slug}`
-                                if (sub.submitted_by) {
-                                  await supabase.from('user_inbox').insert({
-                                    user_email: sub.submitted_by,
-                                    type: 'system',
-                                    title: `${sub.type === 'event' ? 'Event' : 'Announcement'} approved`,
-                                    body: `Your ${sub.type === 'event' ? 'event' : 'announcement'} "${itemTitle}" has been approved and is now live. You can share the link with your audience.`,
-                                    related_id: sub.id,
-                                    related_type: `${sub.type}_approved`,
-                                    is_read: false,
-                                    link_url: itemUrl,
-                                    link_text: `View ${sub.type === 'event' ? 'event' : 'announcement'} →`,
+                                try {
+                                  const res = await fetch('/api/admin/approve-submission', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      type: sub.type,
+                                      id: sub.id,
+                                      adminEmail: 'muhammadadhwa@gmail.com',
+                                    })
                                   })
+                                  const data = await res.json()
+                                  if (!data.success) {
+                                    alert('Approve failed: ' + (data.error || 'Unknown error'))
+                                  }
+                                } catch (err) {
+                                  alert('Approve failed: ' + (err instanceof Error ? err.message : 'Network error'))
                                 }
-
                                 setSavingReview(false)
                                 loadSubmissions()
                               }}
@@ -3380,37 +3400,32 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
 
                   <div className="flex gap-2">
                     <button onClick={() => { setReviewingSubmission(null); setReviewMode(null) }} disabled={savingReview} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
-                    <button
+             <button
                       onClick={async () => {
                         if (!rejectReason.trim()) { alert('Rejection reason is required.'); return }
                         setSavingReview(true)
-                        const table = reviewingSubmission.type === 'event' ? 'events' : 'announcements'
-                        await supabase.from(table).update({
-                          status: 'rejected',
-                          is_active: false,
-                          rejection_reason: rejectReason.trim(),
-                          reviewed_at: new Date().toISOString(),
-                          reviewed_by: 'muhammadadhwa@gmail.com',
-                        }).eq('id', reviewingSubmission.id)
-
-                        if (reviewMode === 'reject_violation') {
-                          let suspensionUntil: string | null = null
-                          if (violationLevel === 'suspension_24h') suspensionUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-                          if (violationLevel === 'suspension_3d') suspensionUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-                          if (violationLevel === 'suspension_1w') suspensionUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-                          if (violationLevel === 'permanent_ban') suspensionUntil = new Date('2099-12-31').toISOString()
-
-                          await supabase.from('submission_violations').insert({
-                            user_email: reviewingSubmission.submitted_by,
-                            level: violationLevel,
-                            reason: rejectReason.trim(),
-                            related_submission_type: reviewingSubmission.type,
-                            related_submission_id: reviewingSubmission.id,
-                            suspension_until: suspensionUntil,
-                            issued_by: 'muhammadadhwa@gmail.com',
+                        try {
+                          const res = await fetch('/api/admin/reject-submission', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              type: reviewingSubmission.type,
+                              id: reviewingSubmission.id,
+                              adminEmail: 'muhammadadhwa@gmail.com',
+                              rejectionReason: rejectReason.trim(),
+                              issueViolation: reviewMode === 'reject_violation',
+                              violationLevel: reviewMode === 'reject_violation' ? violationLevel : undefined,
+                            })
                           })
+                          const data = await res.json()
+                          if (!data.success) {
+                            alert('Reject failed: ' + (data.error || 'Unknown error'))
+                          } else if (data.warning) {
+                            alert(data.warning)
+                          }
+                        } catch (err) {
+                          alert('Reject failed: ' + (err instanceof Error ? err.message : 'Network error'))
                         }
-
                         setSavingReview(false)
                         setReviewingSubmission(null)
                         setReviewMode(null)
@@ -3459,11 +3474,28 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
                             </div>
                             <p className="text-sm text-gray-700 mb-1">{v.reason}</p>
                             <p className="text-xs text-gray-500">Issued by {v.issued_by}</p>
-                            {v.appeal_status === 'none' && (
+                     {v.appeal_status === 'none' && (
                               <button
                                 onClick={async () => {
                                   if (!confirm('Overturn this violation? This will reverse the suspension.')) return
-                                  await supabase.from('submission_violations').update({ appeal_status: 'overturned', suspension_until: null, appeal_notes: 'Manually overturned by admin.' }).eq('id', v.id)
+                                  try {
+                                    const res = await fetch('/api/admin/overturn-violation', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        violationId: v.id,
+                                        adminEmail: 'muhammadadhwa@gmail.com',
+                                      })
+                                    })
+                                    const data = await res.json()
+                                    if (!data.success) {
+                                      alert('Overturn failed: ' + (data.error || 'Unknown error'))
+                                      return
+                                    }
+                                  } catch (err) {
+                                    alert('Overturn failed: ' + (err instanceof Error ? err.message : 'Network error'))
+                                    return
+                                  }
                                   loadUserViolationHistory(violationHistoryUser)
                                   loadSubmissions()
                                 }}
