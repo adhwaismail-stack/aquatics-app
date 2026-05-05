@@ -149,6 +149,52 @@ state?: string | null
   slug?: string | null
   content?: string | null
 }
+interface PendingSubmission {
+  id: string
+  type: 'event' | 'announcement'
+  title: string
+  description: string | null
+  submitted_by: string
+  status: 'pending' | 'approved' | 'rejected'
+  rejection_reason: string | null
+  reviewed_at: string | null
+  reviewed_by: string | null
+  proof_url: string | null
+  country: string | null
+  state: string | null
+  discipline: string | null
+  start_date: string | null
+  end_date: string | null
+  location: string | null
+  poster_url: string | null
+  url: string | null
+  slug: string | null
+  created_at: string
+}
+
+interface SubmissionViolation {
+  id: string
+  user_email: string
+  level: 'warning' | 'suspension_24h' | 'suspension_3d' | 'suspension_1w' | 'permanent_ban'
+  reason: string
+  related_submission_type: 'event' | 'announcement' | null
+  related_submission_id: string | null
+  suspension_until: string | null
+  issued_by: string
+  issued_at: string
+  appeal_status: 'none' | 'pending' | 'upheld' | 'overturned'
+  appeal_notes: string | null
+}
+
+interface UserMessage {
+  id: string
+  user_email: string
+  sender_name: string | null
+  topic: string | null
+  message: string
+  status: 'unread' | 'read' | 'resolved' | 'archived'
+  created_at: string
+}
 
 interface EventChatLog {
   id: string
@@ -398,9 +444,35 @@ const [deletingAllReg, setDeletingAllReg] = useState(false)
   const [eventCorrectionText, setEventCorrectionText] = useState('')
   const [savingEventCorrection, setSavingEventCorrection] = useState(false)
 const [eventLogKeyword, setEventLogKeyword] = useState('')
- const [userMessages, setUserMessages] = useState<{ id: string, user_email: string, message: string, created_at: string }[]>([])
+ const [userMessages, setUserMessages] = useState<UserMessage[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
 
+  // Submissions Review state
+  const [pendingSubmissions, setPendingSubmissions] = useState<PendingSubmission[]>([])
+  const [recentlyReviewed, setRecentlyReviewed] = useState<PendingSubmission[]>([])
+  const [activeViolations, setActiveViolations] = useState<SubmissionViolation[]>([])
+  const [submissionsLoading, setSubmissionsLoading] = useState(false)
+  const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null)
+  const [reviewingSubmission, setReviewingSubmission] = useState<PendingSubmission | null>(null)
+  const [reviewMode, setReviewMode] = useState<'reject' | 'reject_violation' | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejectTemplate, setRejectTemplate] = useState('')
+  const [violationLevel, setViolationLevel] = useState<'warning' | 'suspension_24h' | 'suspension_3d' | 'suspension_1w' | 'permanent_ban'>('warning')
+  const [savingReview, setSavingReview] = useState(false)
+  const [violationHistoryUser, setViolationHistoryUser] = useState<string | null>(null)
+  const [userViolationHistory, setUserViolationHistory] = useState<SubmissionViolation[]>([])
+
+  // Submissions stats
+  const [submissionStats, setSubmissionStats] = useState({
+    pendingEvents: 0,
+    pendingAnnouncements: 0,
+    submissionsThisWeek: 0,
+    activeSuspensions: 0,
+  })
+
+  // Messages tab enhancements
+  const [messageStatusFilter, setMessageStatusFilter] = useState<'all' | 'unread' | 'read' | 'resolved' | 'archived'>('all')
+  const [messageTopicFilter, setMessageTopicFilter] = useState<string>('all')
   // Broadcast inbox state
   const [broadcastLogs, setBroadcastLogs] = useState<BroadcastLog[]>([])
   const [broadcastsLoading, setBroadcastsLoading] = useState(false)
@@ -587,6 +659,183 @@ const loadMessages = async () => {
     const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
     if (data) setAnnouncements(data)
     setAnnouncementsLoading(false)
+  }
+  const loadSubmissions = async () => {
+    setSubmissionsLoading(true)
+
+    // Fetch pending events
+    const { data: pendingEvents } = await supabase
+      .from('events')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+
+    // Fetch pending announcements
+    const { data: pendingAnns } = await supabase
+      .from('announcements')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+
+    // Combine into unified format
+    const combined: PendingSubmission[] = []
+
+    if (pendingEvents) {
+      pendingEvents.forEach((e: any) => {
+        combined.push({
+          id: e.id,
+          type: 'event',
+          title: e.name,
+          description: e.description,
+          submitted_by: e.submitted_by,
+          status: e.status,
+          rejection_reason: e.rejection_reason,
+          reviewed_at: e.reviewed_at,
+          reviewed_by: e.reviewed_by,
+          proof_url: e.proof_url,
+          country: e.country,
+          state: e.state,
+          discipline: e.discipline,
+          start_date: e.start_date,
+          end_date: e.end_date,
+          location: e.location,
+          poster_url: e.poster_url,
+          url: null,
+          slug: e.slug,
+          created_at: e.created_at,
+        })
+      })
+    }
+
+    if (pendingAnns) {
+      pendingAnns.forEach((a: any) => {
+        combined.push({
+          id: a.id,
+          type: 'announcement',
+          title: a.title,
+          description: a.description,
+          submitted_by: a.submitted_by,
+          status: a.status,
+          rejection_reason: a.rejection_reason,
+          reviewed_at: a.reviewed_at,
+          reviewed_by: a.reviewed_by,
+          proof_url: null,
+          country: a.country,
+          state: a.state,
+          discipline: null,
+          start_date: null,
+          end_date: null,
+          location: null,
+          poster_url: a.thumbnail_url,
+          url: a.url,
+          slug: a.slug,
+          created_at: a.created_at,
+        })
+      })
+    }
+
+    // Sort all combined by oldest-first (longest waiting at top)
+    combined.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    setPendingSubmissions(combined)
+
+    // Fetch recently reviewed (last 20, excluding pending)
+    const { data: reviewedEvents } = await supabase
+      .from('events')
+      .select('*')
+      .in('status', ['approved', 'rejected'])
+      .not('reviewed_at', 'is', null)
+      .order('reviewed_at', { ascending: false })
+      .limit(20)
+
+    const { data: reviewedAnns } = await supabase
+      .from('announcements')
+      .select('*')
+      .in('status', ['approved', 'rejected'])
+      .not('reviewed_at', 'is', null)
+      .order('reviewed_at', { ascending: false })
+      .limit(20)
+
+    const reviewedCombined: PendingSubmission[] = []
+    if (reviewedEvents) {
+      reviewedEvents.forEach((e: any) => {
+        reviewedCombined.push({
+          id: e.id, type: 'event', title: e.name, description: e.description,
+          submitted_by: e.submitted_by, status: e.status, rejection_reason: e.rejection_reason,
+          reviewed_at: e.reviewed_at, reviewed_by: e.reviewed_by, proof_url: e.proof_url,
+          country: e.country, state: e.state, discipline: e.discipline,
+          start_date: e.start_date, end_date: e.end_date, location: e.location,
+          poster_url: e.poster_url, url: null, slug: e.slug, created_at: e.created_at,
+        })
+      })
+    }
+    if (reviewedAnns) {
+      reviewedAnns.forEach((a: any) => {
+        reviewedCombined.push({
+          id: a.id, type: 'announcement', title: a.title, description: a.description,
+          submitted_by: a.submitted_by, status: a.status, rejection_reason: a.rejection_reason,
+          reviewed_at: a.reviewed_at, reviewed_by: a.reviewed_by, proof_url: null,
+          country: a.country, state: a.state, discipline: null,
+          start_date: null, end_date: null, location: null,
+          poster_url: a.thumbnail_url, url: a.url, slug: a.slug, created_at: a.created_at,
+        })
+      })
+    }
+    reviewedCombined.sort((a, b) => new Date(b.reviewed_at || 0).getTime() - new Date(a.reviewed_at || 0).getTime())
+    setRecentlyReviewed(reviewedCombined.slice(0, 20))
+
+    // Fetch active violations (users currently suspended or with permanent ban)
+    const now = new Date().toISOString()
+    const { data: violations } = await supabase
+      .from('submission_violations')
+      .select('*')
+      .or(`suspension_until.gte.${now},level.eq.permanent_ban`)
+      .order('issued_at', { ascending: false })
+
+    if (violations) setActiveViolations(violations)
+
+    // Compute stats
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { count: weekCount } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .not('submitted_by', 'is', null)
+      .gte('created_at', oneWeekAgo)
+    const { count: weekAnnCount } = await supabase
+      .from('announcements')
+      .select('id', { count: 'exact', head: true })
+      .not('submitted_by', 'is', null)
+      .gte('created_at', oneWeekAgo)
+
+    const activeSuspendedUsers = new Set((violations || []).map(v => v.user_email))
+
+    setSubmissionStats({
+      pendingEvents: pendingEvents?.length || 0,
+      pendingAnnouncements: pendingAnns?.length || 0,
+      submissionsThisWeek: (weekCount || 0) + (weekAnnCount || 0),
+      activeSuspensions: activeSuspendedUsers.size,
+    })
+
+    setSubmissionsLoading(false)
+  }
+
+  const loadUserViolationHistory = async (userEmail: string) => {
+    const { data } = await supabase
+      .from('submission_violations')
+      .select('*')
+      .eq('user_email', userEmail)
+      .order('issued_at', { ascending: false })
+    if (data) setUserViolationHistory(data)
+  }
+
+  const getNextViolationLevel = (userEmail: string): 'warning' | 'suspension_24h' | 'suspension_3d' | 'suspension_1w' | 'permanent_ban' => {
+    const userViolations = activeViolations.filter(v => v.user_email === userEmail && v.appeal_status !== 'overturned')
+    const allUserViolations = userViolations.length
+    // Count includes the new one being issued
+    if (allUserViolations === 0) return 'warning'
+    if (allUserViolations === 1) return 'suspension_24h'
+    if (allUserViolations === 2) return 'suspension_3d'
+    if (allUserViolations === 3) return 'suspension_1w'
+    return 'permanent_ban'
   }
 
   // Load registrations
@@ -893,6 +1142,7 @@ useEffect(() => {
     if (activeTab === 'announcements') loadAnnouncements()
     if (activeTab === 'messages') loadMessages()
     if (activeTab === 'inbox') loadBroadcasts()
+    if (activeTab === 'submissions') loadSubmissions()
   }, [activeTab])
 
   const handleSavePrompt = async () => {
@@ -1112,8 +1362,8 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-        {['rulebooks', 'events', 'announcements', 'registrations', 'inbox', 'system prompt', 'chat logs', 'corrections', 'feedback', 'messages', 'beta users', 'subscribers', 'analytics'].map((tab) => (
-           <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : tab === 'registrations' ? 'bg-purple-600 text-white' : tab === 'announcements' ? 'bg-orange-500 text-white' : tab === 'inbox' ? 'bg-indigo-600 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+       {['rulebooks', 'events', 'announcements', 'submissions', 'registrations', 'inbox', 'system prompt', 'chat logs', 'corrections', 'feedback', 'messages', 'beta users', 'subscribers', 'analytics'].map((tab) => (
+        <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : tab === 'registrations' ? 'bg-purple-600 text-white' : tab === 'announcements' ? 'bg-orange-500 text-white' : tab === 'inbox' ? 'bg-indigo-600 text-white' : tab === 'submissions' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
           ))}
@@ -2324,36 +2574,124 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
           </div>
         )}
 
-  {/* Messages tab */}
+ {/* Messages tab */}
         {activeTab === 'messages' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="font-semibold text-gray-900">User Messages</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{userMessages.length} messages received</p>
+                <p className="text-xs text-gray-400 mt-0.5">{userMessages.length} total · {(userMessages as any[]).filter((m: any) => m.status === 'unread' || !m.status).length} unread</p>
               </div>
               <button onClick={loadMessages} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
             </div>
+
+            {/* Filters */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Status</label>
+                <select value={messageStatusFilter} onChange={(e) => setMessageStatusFilter(e.target.value as any)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white">
+                  <option value="all">All statuses</option>
+                  <option value="unread">Unread only</option>
+                  <option value="read">Read</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Topic</label>
+                <select value={messageTopicFilter} onChange={(e) => setMessageTopicFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white">
+                  <option value="all">All topics</option>
+                  <option value="appeal">⚠️ Appeal</option>
+                  <option value="billing">Billing</option>
+                  <option value="technical">Technical</option>
+                  <option value="eventhub">Event Hub</option>
+                  <option value="content">AI Content</option>
+                  <option value="account">Account</option>
+                  <option value="partner">Partnership</option>
+                  <option value="media">Media</option>
+                  <option value="other">Other</option>
+                  <option value="none">No topic (legacy)</option>
+                </select>
+              </div>
+            </div>
+
             {messagesLoading ? (
               <div className="text-center py-8 text-gray-400">Loading...</div>
             ) : userMessages.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <p className="text-2xl mb-2">💬</p>
-                <p className="text-sm">No messages yet. Share the feedback button with your users!</p>
+                <p className="text-sm">No messages yet.</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {userMessages.map((msg) => (
-                  <div key={msg.id} className="border border-gray-100 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{msg.user_email}</span>
-                      <span className="text-xs text-gray-400">{new Date(msg.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{msg.message}</p>
-                  </div>
-                ))}
-              </div>
-)}  
+            ) : (() => {
+              const filtered = (userMessages as any[]).filter((m: any) => {
+                const status = m.status || 'unread'
+                if (messageStatusFilter !== 'all' && status !== messageStatusFilter) return false
+                if (messageTopicFilter === 'none' && m.topic) return false
+                if (messageTopicFilter !== 'all' && messageTopicFilter !== 'none' && m.topic !== messageTopicFilter) return false
+                return true
+              })
+              if (filtered.length === 0) {
+                return <div className="text-center py-12 text-gray-400"><p className="text-sm">No messages match these filters.</p></div>
+              }
+              const topicColors: Record<string, string> = {
+                appeal: 'bg-red-100 text-red-700',
+                billing: 'bg-green-100 text-green-700',
+                technical: 'bg-blue-100 text-blue-700',
+                eventhub: 'bg-purple-100 text-purple-700',
+                content: 'bg-yellow-100 text-yellow-700',
+                account: 'bg-orange-100 text-orange-700',
+                partner: 'bg-indigo-100 text-indigo-700',
+                media: 'bg-pink-100 text-pink-700',
+                other: 'bg-gray-100 text-gray-600',
+              }
+              const topicLabels: Record<string, string> = {
+                appeal: '⚠️ Appeal',
+                billing: 'Billing',
+                technical: 'Technical',
+                eventhub: 'Event Hub',
+                content: 'AI Content',
+                account: 'Account',
+                partner: 'Partnership',
+                media: 'Media',
+                other: 'Other',
+              }
+              return (
+                <div className="space-y-3">
+                  {filtered.map((msg: any) => {
+                    const status = msg.status || 'unread'
+                    const isAppeal = msg.topic === 'appeal'
+                    return (
+                      <div key={msg.id} className={`border rounded-xl p-4 ${isAppeal ? 'border-red-200 bg-red-50' : status === 'unread' ? 'border-blue-200 bg-blue-50' : 'border-gray-100'}`}>
+                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {msg.topic && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${topicColors[msg.topic] || topicColors.other}`}>{topicLabels[msg.topic] || msg.topic}</span>}
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${status === 'unread' ? 'bg-blue-100 text-blue-700' : status === 'read' ? 'bg-gray-100 text-gray-600' : status === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>{status}</span>
+                            <span className="text-xs font-medium text-gray-700">{msg.user_email}</span>
+                            {msg.sender_name && <span className="text-xs text-gray-500">({msg.sender_name})</span>}
+                          </div>
+                          <span className="text-xs text-gray-400">{new Date(msg.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed mb-3">{msg.message}</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {status === 'unread' && (
+                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'read' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-medium">Mark Read</button>
+                          )}
+                          {status !== 'resolved' && (
+                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'resolved' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 font-medium">Mark Resolved</button>
+                          )}
+                          {status !== 'archived' && (
+                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'archived' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 font-medium">Archive</button>
+                          )}
+                          {status !== 'unread' && (
+                            <button onClick={async () => { await supabase.from('user_messages').update({ status: 'unread' }).eq('id', msg.id); loadMessages() }} className="text-xs px-3 py-1 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 font-medium">Mark Unread</button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         )}
 
@@ -2786,6 +3124,346 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
           </div>
         )}
 
+{/* Submissions tab */}
+        {activeTab === 'submissions' && (
+          <div className="space-y-4">
+            {/* Stats bar */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-white rounded-xl border border-red-100 p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">{submissionStats.pendingEvents}</div>
+                <div className="text-xs text-gray-400 mt-1">Pending Events</div>
+              </div>
+              <div className="bg-white rounded-xl border border-red-100 p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">{submissionStats.pendingAnnouncements}</div>
+                <div className="text-xs text-gray-400 mt-1">Pending Announcements</div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{submissionStats.submissionsThisWeek}</div>
+                <div className="text-xs text-gray-400 mt-1">Submissions This Week</div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
+                <div className="text-2xl font-bold text-orange-600">{submissionStats.activeSuspensions}</div>
+                <div className="text-xs text-gray-400 mt-1">Active Suspensions</div>
+              </div>
+            </div>
+
+            {/* Pending queue */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Pending Review</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">{pendingSubmissions.length} submission{pendingSubmissions.length !== 1 ? 's' : ''} awaiting your decision · oldest first</p>
+                </div>
+                <button onClick={loadSubmissions} className="text-sm text-red-600 hover:text-red-700">Refresh</button>
+              </div>
+
+              {submissionsLoading ? (
+                <div className="text-center py-8 text-gray-400">Loading...</div>
+              ) : pendingSubmissions.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-2xl mb-2">✓</p>
+                  <p className="text-sm font-medium text-gray-500">No pending submissions</p>
+                  <p className="text-xs mt-1">You&apos;re all caught up.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingSubmissions.map((sub) => {
+                    const hoursAgo = Math.floor((Date.now() - new Date(sub.created_at).getTime()) / (1000 * 60 * 60))
+                    const timeLabel = hoursAgo < 1 ? 'less than 1 hour ago' : hoursAgo < 24 ? `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago` : `${Math.floor(hoursAgo / 24)} day${Math.floor(hoursAgo / 24) !== 1 ? 's' : ''} ago`
+                    const isExpanded = expandedSubmission === sub.id
+                    return (
+                      <div key={sub.id} className={`border rounded-xl p-4 ${hoursAgo > 36 ? 'border-orange-200 bg-orange-50' : 'border-gray-100'}`}>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sub.type === 'event' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                {sub.type === 'event' ? 'EVENT' : 'ANNOUNCEMENT'}
+                              </span>
+                              {sub.country && <span className="text-xs text-gray-500">{countryToFlag(sub.country)} {sub.country}</span>}
+                              {sub.discipline && <span className="text-xs text-gray-500">{DISCIPLINE_LABELS[sub.discipline] || sub.discipline}</span>}
+                              <span className={`text-xs ${hoursAgo > 36 ? 'text-orange-700 font-medium' : 'text-gray-400'}`}>{timeLabel}</span>
+                            </div>
+                            <p className="font-semibold text-gray-900 text-sm mb-1">{sub.title}</p>
+                            <p className="text-xs text-gray-500">Submitted by <span className="font-medium">{sub.submitted_by}</span></p>
+                          </div>
+                          <button onClick={() => setExpandedSubmission(isExpanded ? null : sub.id)} className="text-xs text-blue-600 hover:text-blue-700 font-medium flex-shrink-0">
+                            {isExpanded ? 'Hide details' : 'Preview'}
+                          </button>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                            {sub.description && (
+                              <div><p className="text-xs text-gray-400 mb-0.5">Description:</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{sub.description}</p></div>
+                            )}
+                            {sub.location && <div><p className="text-xs text-gray-400 mb-0.5">Location:</p><p className="text-sm text-gray-700">{sub.location}</p></div>}
+                            {(sub.start_date || sub.end_date) && (
+                              <div><p className="text-xs text-gray-400 mb-0.5">Dates:</p><p className="text-sm text-gray-700">{sub.start_date} {sub.end_date ? `→ ${sub.end_date}` : ''}</p></div>
+                            )}
+                            {sub.url && <div><p className="text-xs text-gray-400 mb-0.5">URL:</p><p className="text-sm text-gray-700 font-mono break-all">{sub.url}</p></div>}
+                            {sub.poster_url && (
+                              <div><p className="text-xs text-gray-400 mb-1">Poster:</p><img src={sub.poster_url} alt="" className="max-w-xs rounded-lg border border-gray-200" /></div>
+                            )}
+                            {sub.proof_url && (
+                              <div><p className="text-xs text-gray-400 mb-0.5">Proof document:</p><a href={sub.proof_url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-700 underline">View proof</a></div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={async () => {
+                              setSavingReview(true)
+                              const table = sub.type === 'event' ? 'events' : 'announcements'
+                              await supabase.from(table).update({
+                                status: 'approved',
+                                is_active: true,
+                                reviewed_at: new Date().toISOString(),
+                                reviewed_by: 'muhammadadhwa@gmail.com',
+                              }).eq('id', sub.id)
+                              setSavingReview(false)
+                              loadSubmissions()
+                            }}
+                            disabled={savingReview}
+                            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => { setReviewingSubmission(sub); setReviewMode('reject'); setRejectReason(''); setRejectTemplate('') }}
+                            disabled={savingReview}
+                            className="flex-1 py-2 border border-orange-200 text-orange-600 rounded-lg text-xs font-medium hover:bg-orange-50 disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => {
+                              setReviewingSubmission(sub)
+                              setReviewMode('reject_violation')
+                              setRejectReason('')
+                              setRejectTemplate('')
+                              setViolationLevel(getNextViolationLevel(sub.submitted_by))
+                            }}
+                            disabled={savingReview}
+                            className="flex-1 py-2 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50"
+                          >
+                            Reject + Violation
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Recently reviewed */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-900">Recently Reviewed</h2>
+                <p className="text-xs text-gray-400">Last {recentlyReviewed.length} decisions</p>
+              </div>
+              {recentlyReviewed.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">No reviewed submissions yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentlyReviewed.map((sub) => (
+                    <div key={sub.id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${sub.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {sub.status === 'approved' ? 'Approved' : 'Rejected'}
+                        </span>
+                        <span className="text-xs text-gray-400 flex-shrink-0">{sub.type === 'event' ? 'Event' : 'Announce'}</span>
+                        <span className="text-sm text-gray-700 truncate">{sub.title}</span>
+                      </div>
+                      <span className="text-xs text-gray-400 flex-shrink-0">{sub.reviewed_at ? new Date(sub.reviewed_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Active violations */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-900">Active Violations</h2>
+                <p className="text-xs text-gray-400">{activeViolations.length} active</p>
+              </div>
+              {activeViolations.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">No active violations.</p>
+              ) : (
+                <div className="space-y-2">
+                  {activeViolations.map((v) => {
+                    const isPermanent = v.level === 'permanent_ban'
+                    const expiresIn = v.suspension_until ? Math.ceil((new Date(v.suspension_until).getTime() - Date.now()) / (1000 * 60 * 60)) : 0
+                    const levelLabel = { warning: 'Warning', suspension_24h: '24h ban', suspension_3d: '3-day ban', suspension_1w: '1-week ban', permanent_ban: 'Permanent ban' }[v.level]
+                    return (
+                      <div key={v.id} className={`border rounded-xl p-3 ${isPermanent ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isPermanent ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'}`}>{levelLabel}</span>
+                              <span className="text-sm font-medium text-gray-900 truncate">{v.user_email}</span>
+                            </div>
+                            <p className="text-xs text-gray-600 truncate">{v.reason}</p>
+                            {!isPermanent && v.suspension_until && (
+                              <p className="text-xs text-gray-500 mt-0.5">Expires in {expiresIn}h ({new Date(v.suspension_until).toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})</p>
+                            )}
+                          </div>
+                          <button onClick={() => { setViolationHistoryUser(v.user_email); loadUserViolationHistory(v.user_email) }} className="text-xs text-blue-600 hover:text-blue-700 font-medium flex-shrink-0">History</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Reject modal */}
+            {reviewingSubmission && reviewMode && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                  <h3 className="font-semibold text-gray-900 mb-1">{reviewMode === 'reject' ? 'Reject Submission' : 'Reject + Issue Violation'}</h3>
+                  <p className="text-xs text-gray-500 mb-4">{reviewingSubmission.title}</p>
+
+                  {reviewMode === 'reject_violation' && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg">
+                      <p className="text-xs font-semibold text-red-900 mb-1">Violation Level</p>
+                      <select value={violationLevel} onChange={(e) => setViolationLevel(e.target.value as any)} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm bg-white text-gray-900">
+                        <option value="warning">Warning (no suspension)</option>
+                        <option value="suspension_24h">24-hour suspension</option>
+                        <option value="suspension_3d">3-day suspension</option>
+                        <option value="suspension_1w">1-week suspension</option>
+                        <option value="permanent_ban">Permanent ban</option>
+                      </select>
+                      <p className="text-xs text-red-700 mt-2">Auto-suggested based on user&apos;s violation history. Override if needed.</p>
+                    </div>
+                  )}
+
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Common reason (optional template)</label>
+                    <select value={rejectTemplate} onChange={(e) => { setRejectTemplate(e.target.value); if (e.target.value) setRejectReason(e.target.value) }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900">
+                      <option value="">— Custom reason —</option>
+                      <option value="Missing official poster.">Missing official poster</option>
+                      <option value="Missing sanctioning letter or equivalent authorisation document.">Missing sanctioning letter</option>
+                      <option value="Submission contains external commercial links not permitted under the guidelines.">External commercial links</option>
+                      <option value="Submission is not aquatics-related.">Not aquatics-related</option>
+                      <option value="Spam or duplicate submission.">Spam / duplicate</option>
+                      <option value="Misleading or inaccurate information detected.">Misleading information</option>
+                      <option value="Copyright concern: content does not appear to be your own or properly authorised.">Copyright concern</option>
+                      <option value="Insufficient detail. Please include date, venue, organising body, and registration info.">Insufficient detail</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Rejection reason (sent to user) *</label>
+                    <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={4} placeholder="Explain why this submission was rejected. Be clear and constructive." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900" />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button onClick={() => { setReviewingSubmission(null); setReviewMode(null) }} disabled={savingReview} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+                    <button
+                      onClick={async () => {
+                        if (!rejectReason.trim()) { alert('Rejection reason is required.'); return }
+                        setSavingReview(true)
+                        const table = reviewingSubmission.type === 'event' ? 'events' : 'announcements'
+                        await supabase.from(table).update({
+                          status: 'rejected',
+                          is_active: false,
+                          rejection_reason: rejectReason.trim(),
+                          reviewed_at: new Date().toISOString(),
+                          reviewed_by: 'muhammadadhwa@gmail.com',
+                        }).eq('id', reviewingSubmission.id)
+
+                        if (reviewMode === 'reject_violation') {
+                          let suspensionUntil: string | null = null
+                          if (violationLevel === 'suspension_24h') suspensionUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                          if (violationLevel === 'suspension_3d') suspensionUntil = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+                          if (violationLevel === 'suspension_1w') suspensionUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                          if (violationLevel === 'permanent_ban') suspensionUntil = new Date('2099-12-31').toISOString()
+
+                          await supabase.from('submission_violations').insert({
+                            user_email: reviewingSubmission.submitted_by,
+                            level: violationLevel,
+                            reason: rejectReason.trim(),
+                            related_submission_type: reviewingSubmission.type,
+                            related_submission_id: reviewingSubmission.id,
+                            suspension_until: suspensionUntil,
+                            issued_by: 'muhammadadhwa@gmail.com',
+                          })
+                        }
+
+                        setSavingReview(false)
+                        setReviewingSubmission(null)
+                        setReviewMode(null)
+                        setRejectReason('')
+                        setRejectTemplate('')
+                        loadSubmissions()
+                      }}
+                      disabled={savingReview || !rejectReason.trim()}
+                      className={`flex-1 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50 ${reviewMode === 'reject_violation' ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'}`}
+                    >
+                      {savingReview ? 'Saving...' : reviewMode === 'reject_violation' ? 'Reject + Issue Violation' : 'Reject Submission'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Violation history modal */}
+            {violationHistoryUser && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Violation History</h3>
+                      <p className="text-xs text-gray-500">{violationHistoryUser}</p>
+                    </div>
+                    <button onClick={() => setViolationHistoryUser(null)} className="text-gray-400 hover:text-gray-600 text-sm">Close</button>
+                  </div>
+
+                  {userViolationHistory.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No violations.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {userViolationHistory.map((v) => {
+                        const levelLabel = { warning: 'Warning', suspension_24h: '24h ban', suspension_3d: '3-day ban', suspension_1w: '1-week ban', permanent_ban: 'Permanent ban' }[v.level]
+                        return (
+                          <div key={v.id} className="border border-gray-100 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${v.level === 'permanent_ban' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'}`}>{levelLabel}</span>
+                                {v.appeal_status === 'overturned' && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Overturned</span>}
+                                {v.appeal_status === 'pending' && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Appeal Pending</span>}
+                                {v.appeal_status === 'upheld' && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">Appeal Denied</span>}
+                              </div>
+                              <span className="text-xs text-gray-400">{new Date(v.issued_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <p className="text-sm text-gray-700 mb-1">{v.reason}</p>
+                            <p className="text-xs text-gray-500">Issued by {v.issued_by}</p>
+                            {v.appeal_status === 'none' && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm('Overturn this violation? This will reverse the suspension.')) return
+                                  await supabase.from('submission_violations').update({ appeal_status: 'overturned', suspension_until: null, appeal_notes: 'Manually overturned by admin.' }).eq('id', v.id)
+                                  loadUserViolationHistory(violationHistoryUser)
+                                  loadSubmissions()
+                                }}
+                                className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                Overturn this violation →
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {/* System Prompt tab */}
         {activeTab === 'system prompt' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
