@@ -3212,18 +3212,36 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
 
                         <div className="flex gap-2 mt-3">
                           <button
-                            onClick={async () => {
-                              setSavingReview(true)
-                              const table = sub.type === 'event' ? 'events' : 'announcements'
-                              await supabase.from(table).update({
-                                status: 'approved',
-                                is_active: true,
-                                reviewed_at: new Date().toISOString(),
-                                reviewed_by: 'muhammadadhwa@gmail.com',
-                              }).eq('id', sub.id)
-                              setSavingReview(false)
-                              loadSubmissions()
-                            }}
+               onClick={async () => {
+                                setSavingReview(true)
+                                const table = sub.type === 'event' ? 'events' : 'announcements'
+                                await supabase.from(table).update({
+                                  status: 'approved',
+                                  is_active: true,
+                                  reviewed_at: new Date().toISOString(),
+                                  reviewed_by: 'muhammadadhwa@gmail.com',
+                                }).eq('id', sub.id)
+
+                                // Notify the user
+                     const itemTitle = sub.title
+                                const itemUrl = sub.type === 'event' ? `/events/${sub.slug}` : `/announcements/${sub.slug}`
+                                if (sub.submitted_by) {
+                                  await supabase.from('user_inbox').insert({
+                                    user_email: sub.submitted_by,
+                                    type: 'system',
+                                    title: `${sub.type === 'event' ? 'Event' : 'Announcement'} approved`,
+                                    body: `Your ${sub.type === 'event' ? 'event' : 'announcement'} "${itemTitle}" has been approved and is now live. You can share the link with your audience.`,
+                                    related_id: sub.id,
+                                    related_type: `${sub.type}_approved`,
+                                    is_read: false,
+                                    link_url: itemUrl,
+                                    link_text: `View ${sub.type === 'event' ? 'event' : 'announcement'} →`,
+                                  })
+                                }
+
+                                setSavingReview(false)
+                                loadSubmissions()
+                              }}
                             disabled={savingReview}
                             className="flex-1 py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50"
                           >
