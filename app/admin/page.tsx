@@ -2357,26 +2357,352 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
           </div>
         )}
 
-        {/* Inbox tab — Broadcast Messages */}
+     {/* Inbox tab — Broadcast Messages */}
         {activeTab === 'inbox' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-xl border border-indigo-100 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="font-semibold text-gray-900">Broadcast Inbox Messages</h2>
-                  <p className="text-sm text-gray-400 mt-0.5">Send messages directly to users&apos; inboxes. {broadcastLogs.length} broadcast{broadcastLogs.length !== 1 ? 's' : ''} sent so far.</p>
-                </div>
-                <button onClick={loadBroadcasts} className="text-sm text-indigo-600 hover:text-indigo-700">Refresh</button>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-900">Broadcast Inbox Messages</h2>
+                <p className="text-sm text-gray-400 mt-0.5">{broadcastLogs.length} broadcast{broadcastLogs.length !== 1 ? 's' : ''} sent so far.</p>
               </div>
-
-              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-center">
-                <p className="text-sm text-indigo-700 font-medium">Inbox tab is working!</p>
-                <p className="text-xs text-indigo-600 mt-1">Broadcast form and history list coming next.</p>
-                <p className="text-xs text-indigo-500 mt-2">
-                  Loading state: {broadcastsLoading ? 'loading...' : 'ready'} · Records: {broadcastLogs.length}
-                </p>
+              <div className="flex gap-2">
+                <button onClick={loadBroadcasts} className="text-sm text-indigo-600 hover:text-indigo-700">Refresh</button>
+                {!showBroadcastForm && (
+                  <button
+                    onClick={() => {
+                      setShowBroadcastForm(true)
+                      setBroadcastPreview(null)
+                      setBroadcastResult(null)
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                  >
+                    + New Broadcast
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Compose Broadcast Form */}
+            {showBroadcastForm && (
+              <div className="bg-white rounded-xl border border-indigo-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Compose Broadcast</h3>
+                  <button
+                    onClick={() => {
+                      setShowBroadcastForm(false)
+                      setBroadcastPreview(null)
+                      setBroadcastResult(null)
+                      setBroadcastForm({
+                        messageType: 'system',
+                        title: '',
+                        body: '',
+                        linkUrl: '',
+                        linkText: '',
+                        filterType: 'all',
+                        filterValue: '',
+                      })
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {/* RECIPIENTS SECTION */}
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 mb-4">
+                  <p className="text-xs font-semibold text-indigo-900 uppercase tracking-wide mb-3">Recipients</p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Send to</label>
+                      <select
+                        value={broadcastForm.filterType}
+                        onChange={(e) => setBroadcastForm(prev => ({ ...prev, filterType: e.target.value as 'all' | 'by_plan' | 'by_country' | 'by_email', filterValue: '' }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
+                      >
+                        <option value="all">All active users</option>
+                        <option value="by_plan">By plan tier</option>
+                        <option value="by_country">By country</option>
+                        <option value="by_email">A specific user (by email)</option>
+                      </select>
+                    </div>
+
+                    {broadcastForm.filterType === 'by_plan' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Plan</label>
+                        <select
+                          value={broadcastForm.filterValue}
+                          onChange={(e) => setBroadcastForm(prev => ({ ...prev, filterValue: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
+                        >
+                          <option value="">— Select plan —</option>
+                          <option value="lite">LITE (free)</option>
+                          <option value="pro">PRO (RM14.99/mo)</option>
+                          <option value="elite">ELITE (RM39.99/mo)</option>
+                          <option value="all_disciplines">ELITE legacy (all_disciplines)</option>
+                          <option value="starter">PRO legacy (starter)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {broadcastForm.filterType === 'by_country' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Country</label>
+                        <select
+                          value={broadcastForm.filterValue}
+                          onChange={(e) => setBroadcastForm(prev => ({ ...prev, filterValue: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
+                        >
+                          <option value="">— Select country —</option>
+                          {COUNTRIES.map(c => <option key={c} value={c}>{countryToFlag(c)} {c}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {broadcastForm.filterType === 'by_email' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">User email</label>
+                        <input
+                          type="email"
+                          value={broadcastForm.filterValue}
+                          onChange={(e) => setBroadcastForm(prev => ({ ...prev, filterValue: e.target.value.trim().toLowerCase() }))}
+                          placeholder="user@example.com"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* MESSAGE SECTION */}
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Message Type</label>
+                    <select
+                      value={broadcastForm.messageType}
+                      onChange={(e) => setBroadcastForm(prev => ({ ...prev, messageType: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 bg-white"
+                    >
+                      <option value="system">System (default)</option>
+                      <option value="announcement">Announcement (feature, news)</option>
+                      <option value="event">Event (live notice, update)</option>
+                      <option value="promotion">Promotion (discount, upgrade)</option>
+                      <option value="warning">Warning (interruption, terms)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-gray-700">Title *</label>
+                      <span className={`text-xs ${broadcastForm.title.length > 180 ? 'text-orange-600' : 'text-gray-400'}`}>{broadcastForm.title.length} / 200</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={broadcastForm.title}
+                      onChange={(e) => setBroadcastForm(prev => ({ ...prev, title: e.target.value.slice(0, 200) }))}
+                      placeholder="e.g. Welcome to MSSNS 2026"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-gray-700">Body *</label>
+                      <span className={`text-xs ${broadcastForm.body.length > 1800 ? 'text-orange-600' : 'text-gray-400'}`}>{broadcastForm.body.length} / 2000</span>
+                    </div>
+                    <textarea
+                      value={broadcastForm.body}
+                      onChange={(e) => setBroadcastForm(prev => ({ ...prev, body: e.target.value.slice(0, 2000) }))}
+                      rows={4}
+                      placeholder="Write the message here..."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 resize-y"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Link URL <span className="text-gray-400 font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={broadcastForm.linkUrl}
+                        onChange={(e) => setBroadcastForm(prev => ({ ...prev, linkUrl: e.target.value.slice(0, 500) }))}
+                        placeholder="/events/mssns-akuatik-2026 or https://..."
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Button Text <span className="text-gray-400 font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={broadcastForm.linkText}
+                        onChange={(e) => setBroadcastForm(prev => ({ ...prev, linkText: e.target.value.slice(0, 100) }))}
+                        placeholder="e.g. View Event"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                      />
+                    </div>
+                  </div>
+                  {(broadcastForm.linkUrl && !broadcastForm.linkText) || (!broadcastForm.linkUrl && broadcastForm.linkText) ? (
+                    <p className="text-xs text-orange-600">Both Link URL and Button Text are required together (or leave both empty).</p>
+                  ) : null}
+                </div>
+
+                {/* PREVIEW STEP — shows recipient count after Preview clicked */}
+                {broadcastPreview && !broadcastResult && (
+                  <div className={`border rounded-lg p-4 mb-4 ${broadcastPreview.warning ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'}`}>
+                    <p className={`text-sm font-semibold mb-2 ${broadcastPreview.warning ? 'text-orange-900' : 'text-blue-900'}`}>
+                      {broadcastPreview.warning ? '⚠️ ' : ''}This will be sent to <strong>{broadcastPreview.count}</strong> user{broadcastPreview.count !== 1 ? 's' : ''}.
+                    </p>
+                    {broadcastPreview.sample.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-600 mb-1">Sample recipients:</p>
+                        <ul className="text-xs text-gray-700 space-y-0.5">
+                          {broadcastPreview.sample.map(email => (
+                            <li key={email}>• {email}</li>
+                          ))}
+                          {broadcastPreview.count > broadcastPreview.sample.length && (
+                            <li className="text-gray-400">...and {broadcastPreview.count - broadcastPreview.sample.length} more</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                    {broadcastPreview.warning && (
+                      <p className="text-xs text-orange-700 mb-3">High recipient count. Please double-check before sending.</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setBroadcastPreview(null)}
+                        disabled={broadcastSending}
+                        className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Edit Message
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setBroadcastSending(true)
+                          try {
+                            const res = await fetch('/api/admin/send-broadcast', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                action: 'send',
+                                adminEmail: 'muhammadadhwa@gmail.com',
+                                filter: { type: broadcastForm.filterType, value: broadcastForm.filterValue || undefined },
+                                messageType: broadcastForm.messageType,
+                                title: broadcastForm.title,
+                                body: broadcastForm.body,
+                                linkUrl: broadcastForm.linkUrl || undefined,
+                                linkText: broadcastForm.linkText || undefined,
+                              })
+                            })
+                            const data = await res.json()
+                            if (data.success) {
+                              setBroadcastResult({ success: true, message: data.message })
+                              setBroadcastPreview(null)
+                              loadBroadcasts()
+                            } else {
+                              setBroadcastResult({ success: false, message: data.error || 'Send failed' })
+                            }
+                          } catch (err) {
+                            setBroadcastResult({ success: false, message: err instanceof Error ? err.message : 'Send failed' })
+                          }
+                          setBroadcastSending(false)
+                        }}
+                        disabled={broadcastSending}
+                        className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {broadcastSending ? 'Sending...' : `Confirm & Send to ${broadcastPreview.count}`}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* RESULT MESSAGE — shows after send */}
+                {broadcastResult && (
+                  <div className={`border rounded-lg p-4 mb-4 ${broadcastResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <p className={`text-sm font-semibold ${broadcastResult.success ? 'text-green-900' : 'text-red-900'}`}>
+                      {broadcastResult.success ? '✅ Broadcast sent!' : '❌ Send failed'}
+                    </p>
+                    <p className={`text-xs mt-1 ${broadcastResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                      {broadcastResult.message}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setBroadcastResult(null)
+                        setBroadcastForm({
+                          messageType: 'system',
+                          title: '',
+                          body: '',
+                          linkUrl: '',
+                          linkText: '',
+                          filterType: 'all',
+                          filterValue: '',
+                        })
+                        setShowBroadcastForm(false)
+                      }}
+                      className="mt-3 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                    >
+                      Send another broadcast →
+                    </button>
+                  </div>
+                )}
+
+                {/* PREVIEW BUTTON — initial state */}
+                {!broadcastPreview && !broadcastResult && (
+                  <button
+                    onClick={async () => {
+                      // Validation
+                      if (!broadcastForm.title.trim()) { alert('Title is required'); return }
+                      if (!broadcastForm.body.trim()) { alert('Body is required'); return }
+                      if (broadcastForm.filterType !== 'all' && !broadcastForm.filterValue) {
+                        alert('Please select a filter value'); return
+                      }
+                      if ((broadcastForm.linkUrl && !broadcastForm.linkText) || (!broadcastForm.linkUrl && broadcastForm.linkText)) {
+                        alert('Both Link URL and Button Text are required together (or leave both empty).'); return
+                      }
+
+                      try {
+                        const res = await fetch('/api/admin/send-broadcast', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'preview',
+                            adminEmail: 'muhammadadhwa@gmail.com',
+                            filter: { type: broadcastForm.filterType, value: broadcastForm.filterValue || undefined }
+                          })
+                        })
+                        const data = await res.json()
+                        if (data.error) {
+                          alert('Preview failed: ' + data.error)
+                          return
+                        }
+                        if (!data.rateLimit?.allowed) {
+                          alert(`Rate limit reached. You've sent ${data.rateLimit.recentCount} broadcasts in the last hour (limit: ${data.rateLimit.limit}). Please wait.`)
+                          return
+                        }
+                        setBroadcastPreview({
+                          count: data.recipientsCount,
+                          sample: data.recipientsSample || [],
+                          warning: data.warningHighCount,
+                        })
+                      } catch (err) {
+                        alert('Preview failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+                      }
+                    }}
+                    disabled={!broadcastForm.title.trim() || !broadcastForm.body.trim()}
+                    className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    Preview Recipients →
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Placeholder for history list — built in Step 6.7 */}
+            {!showBroadcastForm && broadcastLogs.length > 0 && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-center">
+                <p className="text-xs text-indigo-600">{broadcastLogs.length} broadcast{broadcastLogs.length !== 1 ? 's' : ''} in history. List view coming next.</p>
+              </div>
+            )}
           </div>
         )}
 
