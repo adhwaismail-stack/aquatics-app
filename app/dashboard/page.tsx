@@ -46,8 +46,19 @@ interface AquaEvent {
   start_date: string
   end_date: string
   is_active: boolean
-poster_url?: string
+  poster_url?: string
   state?: string | null
+}
+
+interface InboxMessage {
+  id: string
+  type: string
+  title: string
+  body: string
+  related_id: string | null
+  related_type: string | null
+  is_read: boolean
+  created_at: string
 }
 
 const DISCIPLINE_LABELS: Record<string, string> = {
@@ -105,10 +116,14 @@ export default function DashboardPage() {
 const [eliteCountryFilter, setEliteCountryFilter] = useState<string>('home')
 const [announcements, setAnnouncements] = useState<Announcement[]>([])
 const [stateFilter, setStateFilter] = useState<string>('all')
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState('')
   const [sendingFeedback, setSendingFeedback] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
+  const [showInboxModal, setShowInboxModal] = useState(false)
+  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([])
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
+  const [inboxLoading, setInboxLoading] = useState(false)
   const carouselRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -198,13 +213,31 @@ const { data: announcementsData } = await supabase
         if (savedFilter) setEliteCountryFilter(savedFilter)
       }
 
-      setLoading(false)
+setLoading(false)
 
       const isBeta = sub.stripe_customer_id === null && sub.plan !== 'lite' && sub.current_period_end !== null
       if (isBeta && !localStorage.getItem('aquaref_beta_welcome_v1')) setShowBetaWelcome(true)
+
+      // Load inbox messages
+      loadInbox(user.email!)
     }
     getUser()
   }, [])
+
+  const loadInbox = async (email: string) => {
+    setInboxLoading(true)
+    try {
+      const res = await fetch(`/api/inbox?userEmail=${encodeURIComponent(email)}&limit=50`)
+      const data = await res.json()
+      if (data.messages) {
+        setInboxMessages(data.messages)
+        setInboxUnreadCount(data.unreadCount || 0)
+      }
+    } catch (err) {
+      console.error('Failed to load inbox:', err)
+    }
+    setInboxLoading(false)
+  }
 
   useEffect(() => {
     if (allEvents.length === 0) return
@@ -350,7 +383,22 @@ const events = (() => {
             {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && !isExpired() && (
               <button onClick={() => { window.location.href = '/choose-discipline' }} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Switch Discipline</button>
             )}
-           <button onClick={() => { setShowFeedbackModal(true); setFeedbackSent(false); setFeedbackMessage('') }} className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">💬 Feedback</button>
+       <button onClick={() => { setShowFeedbackModal(true); setFeedbackSent(false); setFeedbackMessage('') }} className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">💬 Feedback</button>
+            <button
+              onClick={() => setShowInboxModal(true)}
+              className="relative text-sm bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors flex items-center gap-1.5"
+              title="Inbox"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span className="hidden md:inline">Inbox</span>
+              {inboxUnreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
+                  {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
+                </span>
+              )}
+            </button>
             <button onClick={() => setShowPlanModal(true)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">My Plan</button>
             <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
           </div>
@@ -432,8 +480,125 @@ const events = (() => {
                     {sendingFeedback ? 'Sending...' : 'Send Message'}
                   </button>
                 </div>
-              </>
+     </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showInboxModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-gray-900">Inbox</h3>
+                  <p className="text-xs text-gray-400">
+                    {inboxUnreadCount > 0 ? `${inboxUnreadCount} unread` : 'All caught up'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowInboxModal(false)} className="text-gray-400 hover:text-gray-600 text-xl px-2">✕</button>
+            </div>
+
+            {/* Mark all as read button */}
+            {inboxUnreadCount > 0 && (
+              <div className="px-6 py-3 border-b border-gray-100 flex-shrink-0 bg-blue-50">
+                <button
+                  onClick={async () => {
+                    try {
+                      await fetch('/api/inbox', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userEmail: user?.email, action: 'mark_all_read' })
+                      })
+                      setInboxMessages(prev => prev.map(m => ({ ...m, is_read: true })))
+                      setInboxUnreadCount(0)
+                    } catch (err) {
+                      console.error('Mark all read failed:', err)
+                    }
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Mark all as read
+                </button>
+              </div>
+            )}
+
+            {/* Messages list */}
+            <div className="flex-1 overflow-y-auto">
+              {inboxLoading ? (
+                <div className="p-8 text-center">
+                  <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-sm text-gray-400">Loading messages...</p>
+                </div>
+              ) : inboxMessages.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Your inbox is empty</p>
+                  <p className="text-xs text-gray-400">You&apos;ll see notifications here when there&apos;s something new.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {inboxMessages.map((msg) => (
+                    <button
+                      key={msg.id}
+                      onClick={async () => {
+                        if (msg.is_read) return
+                        try {
+                          await fetch('/api/inbox', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userEmail: user?.email, action: 'mark_read', messageId: msg.id })
+                          })
+                          setInboxMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m))
+                          setInboxUnreadCount(prev => Math.max(0, prev - 1))
+                        } catch (err) {
+                          console.error('Mark read failed:', err)
+                        }
+                      }}
+                      className={`w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors ${!msg.is_read ? 'bg-blue-50/50' : ''}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {!msg.is_read && (
+                          <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5 flex-shrink-0" />
+                        )}
+                        <div className={`flex-1 min-w-0 ${msg.is_read ? 'pl-5' : ''}`}>
+                          <div className="flex items-start justify-between gap-3 mb-1">
+                            <p className={`text-sm ${!msg.is_read ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
+                              {msg.title}
+                            </p>
+                            <p className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+                              {new Date(msg.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                            </p>
+                          </div>
+                          <p className={`text-xs leading-relaxed ${!msg.is_read ? 'text-gray-700' : 'text-gray-500'}`}>
+                            {msg.body}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-gray-100 flex-shrink-0 bg-gray-50">
+              <p className="text-xs text-gray-400 text-center">
+                {inboxMessages.length > 0 ? `Showing ${inboxMessages.length} message${inboxMessages.length !== 1 ? 's' : ''}` : 'No messages yet'}
+              </p>
+            </div>
           </div>
         </div>
       )}
