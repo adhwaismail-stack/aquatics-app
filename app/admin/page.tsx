@@ -2697,10 +2697,90 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
               </div>
             )}
 
-            {/* Placeholder for history list — built in Step 6.7 */}
-            {!showBroadcastForm && broadcastLogs.length > 0 && (
-              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-center">
-                <p className="text-xs text-indigo-600">{broadcastLogs.length} broadcast{broadcastLogs.length !== 1 ? 's' : ''} in history. List view coming next.</p>
+{/* Broadcast History List */}
+            {!showBroadcastForm && (
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Broadcast History</h3>
+
+                {broadcastsLoading ? (
+                  <div className="text-center py-8 text-gray-400 text-sm">Loading broadcasts...</div>
+                ) : broadcastLogs.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <p className="text-sm font-medium text-gray-500 mb-2">No broadcasts sent yet</p>
+                    <p className="text-xs">Click &quot;+ New Broadcast&quot; above to send your first one.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {broadcastLogs.map((log) => {
+                      const typeColors: Record<string, string> = {
+                        system: 'bg-gray-100 text-gray-700',
+                        announcement: 'bg-blue-100 text-blue-700',
+                        event: 'bg-green-100 text-green-700',
+                        promotion: 'bg-orange-100 text-orange-700',
+                        warning: 'bg-red-100 text-red-700',
+                      }
+                      const filterLabel = (() => {
+                        if (log.filter_type === 'all') return 'All users'
+                        if (log.filter_type === 'by_plan') return `Plan: ${log.filter_value?.toUpperCase() || '—'}`
+                        if (log.filter_type === 'by_country') return `${countryToFlag(log.filter_value || '')} ${log.filter_value || '—'}`
+                        if (log.filter_type === 'by_email') return `Email: ${log.filter_value || '—'}`
+                        return log.filter_type
+                      })()
+                      return (
+                        <div key={log.id} className="border border-gray-100 rounded-xl p-4 hover:border-indigo-200 transition-colors">
+                          <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${typeColors[log.message_type] || typeColors.system}`}>
+                                  {log.message_type}
+                                </span>
+                                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                                  {log.recipients_count} recipient{log.recipients_count !== 1 ? 's' : ''}
+                                </span>
+                                <span className="text-xs text-gray-500">→ {filterLabel}</span>
+                              </div>
+                              <p className="font-semibold text-gray-900 text-sm">{log.title}</p>
+                            </div>
+                            <p className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+                              {new Date(log.sent_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-600 leading-relaxed mb-2 line-clamp-2">{log.body}</p>
+                          {log.link_url && log.link_text && (
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                              <span className="text-xs text-gray-400">Link:</span>
+                              <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">{log.link_text}</span>
+                              <span className="text-xs text-gray-400 truncate">→ {log.link_url}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                            <p className="text-xs text-gray-400">Sent by {log.sent_by_email}</p>
+                            <button
+                              onClick={() => {
+                                setBroadcastForm({
+                                  messageType: log.message_type,
+                                  title: log.title,
+                                  body: log.body,
+                                  linkUrl: log.link_url || '',
+                                  linkText: log.link_text || '',
+                                  filterType: log.filter_type as 'all' | 'by_plan' | 'by_country' | 'by_email',
+                                  filterValue: log.filter_value || '',
+                                })
+                                setShowBroadcastForm(true)
+                                setBroadcastPreview(null)
+                                setBroadcastResult(null)
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
+                              }}
+                              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                            >
+                              Reuse as template →
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
