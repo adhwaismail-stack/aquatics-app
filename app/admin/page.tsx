@@ -110,6 +110,20 @@ interface AquaEvent {
   state?: string | null
 }
 
+interface BroadcastLog {
+  id: string
+  sent_by_email: string
+  message_type: string
+  title: string
+  body: string
+  link_url: string | null
+  link_text: string | null
+  filter_type: string
+  filter_value: string | null
+  recipients_count: number
+  sent_at: string
+}
+
 interface EventNotice {
   id: string
   event_id: string
@@ -384,8 +398,25 @@ const [deletingAllReg, setDeletingAllReg] = useState(false)
   const [eventCorrectionText, setEventCorrectionText] = useState('')
   const [savingEventCorrection, setSavingEventCorrection] = useState(false)
 const [eventLogKeyword, setEventLogKeyword] = useState('')
-  const [userMessages, setUserMessages] = useState<{ id: string, user_email: string, message: string, created_at: string }[]>([])
+ const [userMessages, setUserMessages] = useState<{ id: string, user_email: string, message: string, created_at: string }[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
+
+  // Broadcast inbox state
+  const [broadcastLogs, setBroadcastLogs] = useState<BroadcastLog[]>([])
+  const [broadcastsLoading, setBroadcastsLoading] = useState(false)
+  const [showBroadcastForm, setShowBroadcastForm] = useState(false)
+  const [broadcastForm, setBroadcastForm] = useState({
+    messageType: 'system',
+    title: '',
+    body: '',
+    linkUrl: '',
+    linkText: '',
+    filterType: 'all' as 'all' | 'by_plan' | 'by_country' | 'by_email',
+    filterValue: '',
+  })
+  const [broadcastSending, setBroadcastSending] = useState(false)
+  const [broadcastPreview, setBroadcastPreview] = useState<{ count: number; sample: string[]; warning: boolean } | null>(null)
+  const [broadcastResult, setBroadcastResult] = useState<{ success: boolean; message: string } | null>(null)
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -534,6 +565,21 @@ const loadMessages = async () => {
     const { data } = await supabase.from('user_messages').select('*').order('created_at', { ascending: false })
     if (data) setUserMessages(data)
     setMessagesLoading(false)
+  }
+
+  const loadBroadcasts = async () => {
+    setBroadcastsLoading(true)
+    const { data, error } = await supabase
+      .from('broadcast_log')
+      .select('*')
+      .order('sent_at', { ascending: false })
+      .limit(100)
+    if (error) {
+      console.error('Failed to load broadcasts:', error.message)
+    } else if (data) {
+      setBroadcastLogs(data)
+    }
+    setBroadcastsLoading(false)
   }
 
   const loadAnnouncements = async () => {
@@ -835,7 +881,7 @@ setSelectedEvent({
     }
   }
 
-  useEffect(() => {
+useEffect(() => {
     if (activeTab === 'chat logs') loadChatLogs()
     if (activeTab === 'corrections') loadCorrections()
     if (activeTab === 'subscribers') loadSubscribers()
@@ -844,8 +890,9 @@ setSelectedEvent({
     if (activeTab === 'analytics') { loadAnalytics(); loadFeedback(); loadSubscribers(); loadChatLogs() }
     if (activeTab === 'events') loadEvents()
     if (activeTab === 'registrations') loadRegistrations()
-if (activeTab === 'announcements') loadAnnouncements()
+    if (activeTab === 'announcements') loadAnnouncements()
     if (activeTab === 'messages') loadMessages()
+    if (activeTab === 'inbox') loadBroadcasts()
   }, [activeTab])
 
   const handleSavePrompt = async () => {
@@ -1065,8 +1112,8 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-        {['rulebooks', 'events', 'announcements', 'registrations', 'system prompt', 'chat logs', 'corrections', 'feedback', 'messages', 'beta users', 'subscribers', 'analytics'].map((tab) => (
-            <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : tab === 'registrations' ? 'bg-purple-600 text-white' : tab === 'announcements' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
+        {['rulebooks', 'events', 'announcements', 'registrations', 'inbox', 'system prompt', 'chat logs', 'corrections', 'feedback', 'messages', 'beta users', 'subscribers', 'analytics'].map((tab) => (
+           <button key={tab} onClick={() => { setActiveTab(tab); setSelectedEvent(null); setShowCreateEvent(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab === tab ? tab === 'events' ? 'bg-green-600 text-white' : tab === 'registrations' ? 'bg-purple-600 text-white' : tab === 'announcements' ? 'bg-orange-500 text-white' : tab === 'inbox' ? 'bg-indigo-600 text-white' : 'bg-blue-600 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}>
               {tab}
             </button>
           ))}
@@ -2306,7 +2353,30 @@ setNewEvent({ name: '', slug: '', description: '', discipline: 'swimming', secon
                   </div>
                 ))}
               </div>
-            )}  
+)}  
+          </div>
+        )}
+
+        {/* Inbox tab — Broadcast Messages */}
+        {activeTab === 'inbox' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-indigo-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Broadcast Inbox Messages</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Send messages directly to users&apos; inboxes. {broadcastLogs.length} broadcast{broadcastLogs.length !== 1 ? 's' : ''} sent so far.</p>
+                </div>
+                <button onClick={loadBroadcasts} className="text-sm text-indigo-600 hover:text-indigo-700">Refresh</button>
+              </div>
+
+              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-center">
+                <p className="text-sm text-indigo-700 font-medium">Inbox tab is working!</p>
+                <p className="text-xs text-indigo-600 mt-1">Broadcast form and history list coming next.</p>
+                <p className="text-xs text-indigo-500 mt-2">
+                  Loading state: {broadcastsLoading ? 'loading...' : 'ready'} · Records: {broadcastLogs.length}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
