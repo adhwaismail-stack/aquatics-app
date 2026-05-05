@@ -59,6 +59,8 @@ interface InboxMessage {
   related_type: string | null
   is_read: boolean
   created_at: string
+  link_url: string | null
+  link_text: string | null
 }
 
 const DISCIPLINE_LABELS: Record<string, string> = {
@@ -551,43 +553,78 @@ const events = (() => {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {inboxMessages.map((msg) => (
-                    <button
+                 <div
                       key={msg.id}
-                      onClick={async () => {
-                        if (msg.is_read) return
-                        try {
-                          await fetch('/api/inbox', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userEmail: user?.email, action: 'mark_read', messageId: msg.id })
-                          })
-                          setInboxMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m))
-                          setInboxUnreadCount(prev => Math.max(0, prev - 1))
-                        } catch (err) {
-                          console.error('Mark read failed:', err)
-                        }
-                      }}
-                      className={`w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors ${!msg.is_read ? 'bg-blue-50/50' : ''}`}
+                      className={`px-6 py-4 transition-colors ${!msg.is_read ? 'bg-blue-50/50' : ''}`}
                     >
-                      <div className="flex items-start gap-3">
-                        {!msg.is_read && (
-                          <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5 flex-shrink-0" />
-                        )}
-                        <div className={`flex-1 min-w-0 ${msg.is_read ? 'pl-5' : ''}`}>
-                          <div className="flex items-start justify-between gap-3 mb-1">
-                            <p className={`text-sm ${!msg.is_read ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
-                              {msg.title}
-                            </p>
-                            <p className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
-                              {new Date(msg.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                      <div
+                        onClick={async () => {
+                          if (msg.is_read) return
+                          try {
+                            await fetch('/api/inbox', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ userEmail: user?.email, action: 'mark_read', messageId: msg.id })
+                            })
+                            setInboxMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m))
+                            setInboxUnreadCount(prev => Math.max(0, prev - 1))
+                          } catch (err) {
+                            console.error('Mark read failed:', err)
+                          }
+                        }}
+                        className="cursor-pointer hover:bg-gray-50 -mx-6 -my-4 px-6 py-4 rounded transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          {!msg.is_read && (
+                            <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5 flex-shrink-0" />
+                          )}
+                          <div className={`flex-1 min-w-0 ${msg.is_read ? 'pl-5' : ''}`}>
+                            <div className="flex items-start justify-between gap-3 mb-1">
+                              <p className={`text-sm ${!msg.is_read ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
+                                {msg.title}
+                              </p>
+                              <p className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+                                {new Date(msg.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}
+                              </p>
+                            </div>
+                            <p className={`text-xs leading-relaxed ${!msg.is_read ? 'text-gray-700' : 'text-gray-500'}`}>
+                              {msg.body}
                             </p>
                           </div>
-                          <p className={`text-xs leading-relaxed ${!msg.is_read ? 'text-gray-700' : 'text-gray-500'}`}>
-                            {msg.body}
-                          </p>
                         </div>
                       </div>
-                    </button>
+                      {msg.link_url && msg.link_text && (
+                        <div className={`mt-3 ${!msg.is_read ? 'pl-5' : 'pl-5'}`}>
+                          <a
+                            href={msg.link_url}
+                            target={msg.link_url.startsWith('http') ? '_blank' : '_self'}
+                            rel={msg.link_url.startsWith('http') ? 'noopener noreferrer' : ''}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (!msg.is_read) {
+                                try {
+                                  await fetch('/api/inbox', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userEmail: user?.email, action: 'mark_read', messageId: msg.id })
+                                  })
+                                  setInboxMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m))
+                                  setInboxUnreadCount(prev => Math.max(0, prev - 1))
+                                } catch (err) {
+                                  console.error('Mark read failed:', err)
+                                }
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                          >
+                            {msg.link_text}
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

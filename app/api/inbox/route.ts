@@ -21,9 +21,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { data: messages, error } = await supabase
+const { data: messages, error } = await supabase
       .from('user_inbox')
-      .select('id, type, title, body, related_id, related_type, is_read, created_at')
+      .select('id, type, title, body, related_id, related_type, is_read, created_at, link_url, link_text')
       .eq('user_email', userEmail)
       .order('created_at', { ascending: false })
       .limit(limit)
