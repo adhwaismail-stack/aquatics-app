@@ -10,39 +10,91 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+// ─────────────────────────────────────────────────────────────
+// SECTION-AWARE CHUNKING
+// Auto-detects PDF table of contents to know which section
+// each article belongs to (e.g., distinguishes Article 7.7 in
+// the Breaststroke section vs Article 7.7 in the Facilities section)
+// ─────────────────────────────────────────────────────────────
 
-const ARTICLE_HEADERS: Record<string, string> = {
-  '1': 'DEFINITIONS AND GENERAL RULES',
-  '2': 'OFFICIALS',
-  '3': 'EQUIPMENT AND FACILITIES',
-  '4': 'THE START',
-  '5': 'THE FINISH',
-  '6': 'BACKSTROKE',
-  '7': 'BREASTSTROKE',
-  '8': 'BUTTERFLY',
-  '9': 'FREESTYLE',
-  '10': 'INDIVIDUAL MEDLEY',
-  '11': 'RELAY EVENTS',
-  '12': 'OPEN WATER SWIMMING',
-  '13': 'MASTERS SWIMMING',
-  '14': 'PARA SWIMMING',
-  '15': 'FACILITIES AND EQUIPMENT',
-  '16': 'COMPETITION REGULATIONS',
-  '17': 'TIMING AND RESULTS',
-  '18': 'DOPING CONTROL',
-  '19': 'APPEALS AND PROTESTS',
-  '20': 'GENERAL PROVISIONS',
+interface TOCEntry {
+  number: number
+  title: string
 }
 
-function getArticleLabel(articleNum: string): string {
-  const main = articleNum.split('.')[0]
-  const header = ARTICLE_HEADERS[main]
-  return header ? `[${header} - Article ${articleNum}] ` : `[Article ${articleNum}] `
+/**
+ * Parses the table of contents from the raw PDF text.
+ * Pattern: "<page> <section_number> <TITLE_IN_CAPS> <next_page>"
+ * e.g. "52 1 SWIMMING COMPETITIONS 52" → section 1 = "SWIMMING COMPETITIONS"
+ */
+function parseTOC(text: string): TOCEntry[] {
+  const tocRegex = /(?<=\d{2,3}\s)(\d{1,2})\s+([A-Z][A-Z\s,\-]+?[A-Z])(?=\s+\d{2,3}\s)/g
+  const entries: TOCEntry[] = []
+  let match
+  let iterations = 0
+  while ((match = tocRegex.exec(text)) !== null) {
+    if (++iterations > 10000) break // safety guard
+    const sectionNum = parseInt(match[1])
+    const title = match[2].trim()
+    if (sectionNum < 1 || sectionNum > 25) continue
+    if (title.length < 3 || title.length > 80) continue
+    if (/\b(PART|REGULATIONS|TABLE|CONTENTS|FORCE|MATTERS|COMPETITION)\b/.test(title)) continue
+    if (!entries.find((e) => e.number === sectionNum && e.title === title)) {
+      entries.push({ number: sectionNum, title })
+    }
+  }
+  return entries
+}
+
+/**
+ * Finds positions of body section headers (NOT the TOC entries).
+ * A body header is followed by an article number with the same prefix
+ * (e.g., "7 BREASTSTROKE 7.1") whereas TOC is followed by a page number.
+ */
+function findSectionPositions(
+  text: string,
+  toc: TOCEntry[]
+): Array<{ position: number; section: TOCEntry }> {
+  const results: Array<{ position: number; section: TOCEntry }> = []
+  for (const entry of toc) {
+    const escapedTitle = entry.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const headerPattern = new RegExp(
+      `\\b${entry.number}\\s+${escapedTitle}\\s+${entry.number}\\.\\d+`,
+      'g'
+    )
+    let match
+    let iter = 0
+    while ((match = headerPattern.exec(text)) !== null) {
+      if (++iter > 100) break
+      results.push({ position: match.index, section: entry })
+    }
+  }
+  return results.sort((a, b) => a.position - b.position)
+}
+
+/**
+ * Returns the section that contains the given position.
+ */
+function getSectionAt(
+  position: number,
+  sectionPositions: Array<{ position: number; section: TOCEntry }>
+): TOCEntry | null {
+  let current: TOCEntry | null = null
+  for (const sp of sectionPositions) {
+    if (sp.position <= position) current = sp.section
+    else break
+  }
+  return current
+}
+
+function getArticleLabel(articleNum: string, section: TOCEntry | null): string {
+  if (section) return `[${section.title} - Article ${articleNum}] `
+  return `[Article ${articleNum}] `
 }
 
 function removeTOC(text: string): string {
   const lines = text.split('\n')
-  const filtered = lines.filter(line => {
+  const filtered = lines.filter((line) => {
     const dotRatio = (line.match(/\./g) || []).length / (line.length || 1)
     const isTOCLine = dotRatio > 0.3 && /\d+$/.test(line.trim())
     return !isTOCLine
@@ -63,25 +115,43 @@ function cleanText(text: string): string {
 }
 
 function smartChunk(text: string): string[] {
-  const noTOC = removeTOC(text)
-  const cleaned = cleanText(noTOC)
-  const chunks: string[] = []
-
-  const articlePattern = /(?=(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+)\.(\d+)(?:\.(\d+))?\s+[A-Z][a-z])/g
-  const parts = cleaned.split(articlePattern)
-
-  const contentParts: string[] = []
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
-    if (part && part.trim().length > 50 && !/^\d+$/.test(part.trim())) {
-      contentParts.push(part.trim())
-    }
+  // Step 1: Parse TOC from RAW text (before cleaning, which may strip context)
+  const toc = parseTOC(text)
+  console.log(`Detected ${toc.length} TOC entries`)
+  if (toc.length > 0) {
+    console.log('First 5 sections:', toc.slice(0, 5).map((e) => `${e.number}=${e.title}`).join(', '))
   }
 
-  for (const part of contentParts) {
+  // Step 2: Clean the text
+  const noTOC = removeTOC(text)
+  const cleaned = cleanText(noTOC)
+
+  // Step 3: Find body section positions
+  const sectionPositions = findSectionPositions(cleaned, toc)
+  console.log(`Found ${sectionPositions.length} body section header occurrences`)
+
+  // Step 4: Split text by article patterns and label each chunk with its section
+  const chunks: string[] = []
+  const articlePattern = /(?=(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+)\.(\d+)(?:\.(\d+))?\s+[A-Z][a-z])/g
+
+  const splitPositions: number[] = []
+  let m
+  let iter = 0
+  while ((m = articlePattern.exec(cleaned)) !== null) {
+    if (++iter > 50000) break // safety guard
+    splitPositions.push(m.index)
+  }
+
+  for (let i = 0; i < splitPositions.length; i++) {
+    const start = splitPositions[i]
+    const end = i + 1 < splitPositions.length ? splitPositions[i + 1] : cleaned.length
+    const part = cleaned.slice(start, end).trim()
+    if (part.length < 50) continue
+
     const numMatch = part.match(/^(?:SW\s+|WP\s+|AS\s+|DV\s+|HD\s+|MS\s+)?(\d+\.\d+(?:\.\d+)?)/)
     const articleNum = numMatch ? numMatch[1] : ''
-    const label = articleNum ? getArticleLabel(articleNum) : ''
+    const section = getSectionAt(start, sectionPositions)
+    const label = articleNum ? getArticleLabel(articleNum, section) : ''
     const normalized = part.replace(/\n\n/g, ' | ').replace(/\n/g, ' ').trim()
 
     if (normalized.length <= 3000) {
@@ -106,6 +176,7 @@ function smartChunk(text: string): string[] {
     }
   }
 
+  // Fallback ONLY if article splitting completely failed (rare for properly structured rulebooks)
   if (chunks.length < 10) {
     console.log(`Only got ${chunks.length} chunks from article split, using size-based fallback`)
     const fallback: string[] = []
@@ -114,13 +185,15 @@ function smartChunk(text: string): string[] {
     for (let i = 0; i < cleaned.length; i += chunkSize - overlap) {
       const chunk = cleaned.slice(i, i + chunkSize).trim()
       if (chunk.length > 100) {
-        fallback.push(chunk)
+        const section = getSectionAt(i, sectionPositions)
+        const label = section ? `[${section.title}] ` : ''
+        fallback.push(label + chunk)
       }
     }
     return fallback
   }
 
-  return chunks.filter(c => c.trim().length > 100)
+  return chunks.filter((c) => c.trim().length > 100)
 }
 
 async function extractTextFromDOCX(arrayBuffer: ArrayBuffer): Promise<string> {
