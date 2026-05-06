@@ -376,7 +376,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Extracted ${text.length} characters from ${originalName}`)
+ console.log(`Extracted ${text.length} characters from ${originalName}`)
+console.log('=== RAW UNPDF OUTPUT (first 3000 chars) ===')
+console.log(text.slice(0, 3000))
+console.log('=== END RAW OUTPUT ===')
+console.log('=== RAW UNPDF OUTPUT (chars 3000-6000) ===')
+console.log(text.slice(3000, 6000))
+console.log('=== END SECOND CHUNK ===')
 
     const textChunks = smartChunk(text)
     console.log(`Created ${textChunks.length} text chunks`)
