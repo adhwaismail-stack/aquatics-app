@@ -53,6 +53,8 @@ interface Reviewer {
   id: string
   display_name: string
   credential_title: string
+  disciplines: string[] | null
+  is_active: boolean
 }
 
 interface EditForm {
@@ -85,7 +87,7 @@ interface ActionButtonsProps {
   onGenerateDraft: () => void
   onEdit: () => void
   onSubmitForReview: () => void
-  onApproveAndPublish: () => void
+  onOpenPublishPicker: () => void
   onSendBackToDraft: () => void
   onUnpublish: () => void
   onArchive: () => void
@@ -132,7 +134,7 @@ function ActionButtons(props: ActionButtonsProps) {
     return (
       <div className="flex gap-2 flex-wrap pt-3 border-t border-gray-100">
         <button
-          onClick={props.onApproveAndPublish}
+          onClick={props.onOpenPublishPicker}
           className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700"
         >
           ✓ Approve & Publish
@@ -233,6 +235,8 @@ export default function AdminQAPage() {
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
+  const [publishingFor, setPublishingFor] = useState<string | null>(null)
+  const [selectedReviewerId, setSelectedReviewerId] = useState<string>('')
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -246,8 +250,9 @@ export default function AdminQAPage() {
   const loadReviewers = useCallback(async () => {
     const { data } = await supabase
       .from('reviewers')
-      .select('id, display_name, credential_title')
+      .select('id, display_name, credential_title, disciplines, is_active')
       .eq('is_active', true)
+      .order('created_at', { ascending: true })
     if (data) setReviewers(data)
   }, [])
 
@@ -257,8 +262,6 @@ export default function AdminQAPage() {
       .from('qa_pages')
       .select('*')
       .eq('status', activeTab)
-  .order('ai_drafted_at', { ascending: false, nullsFirst: false })
-      .order('last_updated_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
     if (error) {
       setActionError('Failed to load: ' + error.message)
@@ -389,18 +392,18 @@ export default function AdminQAPage() {
     }
   }
 
-  const handleApproveAndPublish = async (qa: QAPage) => {
-    if (reviewers.length === 0) {
-      setActionError('No active reviewer found. Cannot publish.')
+  const handleApproveAndPublish = async (qa: QAPage, reviewerId: string) => {
+    if (!reviewerId) {
+      setActionError('Please select a reviewer before publishing.')
       return
     }
     if (!qa.answer_short || !qa.answer_full || !qa.rule_citation || !qa.slug) {
       setActionError('Cannot publish: missing required fields.')
       return
     }
-    if (!confirm(`Publish "${qa.canonical_question}" to aquaref.co/${qa.discipline}/q/${qa.slug}?`)) return
+    const reviewerName = reviewers.find((r) => r.id === reviewerId)?.display_name || 'unknown'
+    if (!confirm(`Publish "${qa.canonical_question}" attributed to ${reviewerName}?\n\nLive URL: aquaref.co/${qa.discipline}/q/${qa.slug}`)) return
 
-    const reviewerId = reviewers[0].id
     const now = new Date().toISOString()
     const { error } = await supabase
       .from('qa_pages')
@@ -416,6 +419,8 @@ export default function AdminQAPage() {
       setActionError('Publish failed: ' + error.message)
     } else {
       setActionSuccess(`Published! Live at aquaref.co/${qa.discipline}/q/${qa.slug}`)
+      setPublishingFor(null)
+      setSelectedReviewerId('')
       await loadQAPages()
     }
   }
@@ -526,6 +531,9 @@ export default function AdminQAPage() {
             <span className="font-bold text-xl text-gray-900">Q&amp;A Admin</span>
             <Link href="/admin" className="text-xs text-gray-400 hover:text-gray-600 ml-4">
               ← Main admin
+            </Link>
+            <Link href="/admin/reviewers" className="text-xs text-gray-400 hover:text-gray-600">
+              · Manage reviewers
             </Link>
           </div>
           <button onClick={() => setAuthenticated(false)} className="text-sm text-gray-400 hover:text-gray-600">
@@ -639,6 +647,66 @@ export default function AdminQAPage() {
                           </span>
                         </div>
                       ) : null}
+                      {qa.status === 'published' && qa.reviewer_id ? (
+                        <div className="mb-3">
+                          <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded">
+                            Reviewed by: {reviewers.find((r) => r.id === qa.reviewer_id)?.display_name || 'Unknown reviewer'}
+                          </span>
+                        </div>
+                      ) : null}
+                      {publishingFor === qa.id ? (
+                        <div className="mb-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm font-medium text-gray-900 mb-2">
+                            Who reviewed and verified this Q&amp;A?
+                          </p>
+                          <p className="text-xs text-gray-600 mb-3">
+                            This name will appear publicly on the Q&amp;A page as the verifier.
+                          </p>
+                          {reviewers.length === 0 ? (
+                            <div className="text-sm text-red-600 mb-2">
+                              No active reviewers in the system.{' '}
+                              <Link href="/admin/reviewers" className="underline font-medium">
+                                Add a reviewer first →
+                              </Link>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedReviewerId}
+                              onChange={(e) => setSelectedReviewerId(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 mb-3"
+                            >
+                              <option value="">— Select reviewer —</option>
+                              {reviewers.map((r) => {
+                                const covers = (r.disciplines || []).includes(qa.discipline)
+                                return (
+                                  <option key={r.id} value={r.id}>
+                                    {r.display_name} — {r.credential_title}
+                                    {covers ? ' ✓' : ''}
+                                  </option>
+                                )
+                              })}
+                            </select>
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setPublishingFor(null)
+                                setSelectedReviewerId('')
+                              }}
+                              className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleApproveAndPublish(qa, selectedReviewerId)}
+                              disabled={!selectedReviewerId}
+                              className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50"
+                            >
+                              ✓ Confirm publish
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                       <ActionButtons
                         qa={qa}
                         hasContent={hasContent}
@@ -646,7 +714,12 @@ export default function AdminQAPage() {
                         onGenerateDraft={() => handleGenerateDraft(qa)}
                         onEdit={() => handleStartEdit(qa)}
                         onSubmitForReview={() => handleSubmitForReview(qa)}
-                        onApproveAndPublish={() => handleApproveAndPublish(qa)}
+                        onOpenPublishPicker={() => {
+                          setPublishingFor(qa.id)
+                          // Auto-select the first reviewer that covers this discipline if any
+                          const match = reviewers.find(r => (r.disciplines || []).includes(qa.discipline))
+                          setSelectedReviewerId(match?.id || reviewers[0]?.id || '')
+                        }}
                         onSendBackToDraft={() => handleSendBackToDraft(qa)}
                         onUnpublish={() => handleUnpublish(qa)}
                         onArchive={() => handleArchive(qa)}
