@@ -1,7 +1,8 @@
-  'use client'
+'use client'
 
-  import { useEffect, useState, useRef } from 'react'
-  import { supabase } from '../lib/supabase'
+import { useEffect, useState, useRef } from 'react'
+import { supabase } from '../lib/supabase'
+import Sidebar from '../components/Sidebar'
 
   const disciplines = [
     { id: 'swimming', name: 'Swimming', code: 'SW Rules', desc: 'Freestyle, backstroke, breaststroke, butterfly, IM and relay rules', isPara: false },
@@ -540,7 +541,16 @@
     }
 
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+   <div className="min-h-screen bg-gray-50 flex">
+        <Sidebar
+          userEmail={user?.email}
+          currentPath="/dashboard"
+          inboxUnreadCount={inboxUnreadCount}
+          onOpenInbox={() => setShowInboxModal(true)}
+          onOpenMyPlan={() => setShowPlanModal(true)}
+          onOpenSubmit={handleOpenSubmitChooser}
+        />
+        <div className="flex-1 flex flex-col min-w-0">
         <style jsx global>{`
     .carousel-scroll::-webkit-scrollbar { display: none; }
           .carousel-scroll { -ms-overflow-style: none; scrollbar-width: none; }
@@ -552,38 +562,23 @@
           .carousel-auto:hover { animation-play-state: paused; }
         `}</style>
 
-        <div className="bg-white border-b border-gray-100 px-6 py-4">
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <a href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-sm">A</span></div>
-              <span className="font-bold text-xl text-gray-900">AquaRef</span>
-            </a>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500 hidden md:block">{user?.email}</span>
-              {(subscription?.plan === 'pro' || subscription?.plan === 'lite' || subscription?.plan === 'starter') && !isExpired() && (
-                <button onClick={() => { window.location.href = '/choose-discipline' }} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Switch Discipline</button>
-              )}
-              <button onClick={handleOpenSubmitChooser} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">+ Submit</button>
-        <button onClick={() => { setShowFeedbackModal(true); setFeedbackSent(false); setFeedbackMessage('') }} className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">💬 Feedback</button>
-              <button
-                onClick={() => setShowInboxModal(true)}
-                className="relative text-sm bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors flex items-center gap-1.5"
-                title="Inbox"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span className="hidden md:inline">Inbox</span>
-                {inboxUnreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
-                    {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
-                  </span>
-                )}
-              </button>
-              <button onClick={() => setShowPlanModal(true)} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">My Plan</button>
-              <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-gray-600">Logout</button>
-            </div>
-          </div>
+     {/* Slim top navbar — mobile only (desktop uses sidebar) */}
+        <div className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+          <div className="w-9" />{/* spacer for hamburger button */}
+          <a href="/dashboard" className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-xs">A</span></div>
+            <span className="font-bold text-lg text-gray-900">AquaRef</span>
+          </a>
+          <button onClick={() => setShowInboxModal(true)} className="relative w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50">
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            {inboxUnreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-[16px] px-0.5 rounded-full flex items-center justify-center">
+                {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {showBetaWelcome && (
@@ -1869,7 +1864,7 @@
           </div>
         </div>
 
-        <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-6">
+       <footer className="border-t border-gray-100 bg-white px-6 py-4 mt-6">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center"><span className="text-white font-bold text-xs">A</span></div>
@@ -1882,7 +1877,8 @@
               <a href="/contact" className="hover:text-gray-600">Contact Us</a>
             </div>
           </div>
-        </footer>
+</footer>
+        </div>
       </div>
     )
   }

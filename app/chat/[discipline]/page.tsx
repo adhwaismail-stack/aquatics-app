@@ -1,10 +1,10 @@
 'use client'
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { use } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import Sidebar from '../../components/Sidebar'
 
 const disciplineNames: { [key: string]: string } = {
   swimming: 'Swimming',
@@ -435,8 +435,17 @@ setDailyLimit(10)
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+return (
+    <div className="min-h-screen bg-gray-50 flex">
+      <Sidebar
+        userEmail={user?.email}
+        currentPath={`/chat/${discipline}`}
+        inboxUnreadCount={0}
+        onOpenInbox={() => { window.location.href = '/dashboard' }}
+        onOpenMyPlan={() => { window.location.href = '/dashboard' }}
+        onOpenSubmit={() => { window.location.href = '/dashboard' }}
+      />
+      <div className="flex-1 flex flex-col min-w-0">
       <div className="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -747,6 +756,7 @@ setDailyLimit(10)
               : 'Answers based on official World Aquatics Regulations only · Available in 90+ languages · Always verify with your Meet Referee.'}
           </p>
         </div>
+      </div>
       </div>
     </div>
   )
